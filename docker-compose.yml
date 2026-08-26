@@ -1,0 +1,68 @@
+name: plotlineai
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-plotlineai}
+      POSTGRES_USER: ${POSTGRES_USER:-plotlineai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plotlineai}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plotlineai} -d ${POSTGRES_DB:-plotlineai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-plotlineai}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-plotlineai}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-plotlineai}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks:
+      - internal
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_INTERNAL_URL: "http://api:8080"
+    environment:
+      NODE_ENV: production
+      BACKEND_INTERNAL_URL: http://api:8080
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-5-nano}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - internal
+
+volumes:
+  db-data:
+
+networks:
+  internal:
+    driver: bridge
