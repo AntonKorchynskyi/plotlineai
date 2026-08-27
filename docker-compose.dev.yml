@@ -1,0 +1,7 @@
+# Dev overlay: publishes Postgres on the host for running the backend/frontend
+# outside Docker. Use explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+services:
+  db:
+    ports:
+      - "5432:5432"

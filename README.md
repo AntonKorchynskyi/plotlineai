@@ -25,7 +25,7 @@ docker compose up --build
 
 ```bash
 # database
-docker compose up -d db
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 
 # backend
 cd backend && ./mvnw spring-boot:run
@@ -33,6 +33,8 @@ cd backend && ./mvnw spring-boot:run
 # frontend
 cd frontend && npm install && npm run dev
 ```
+
+The dev overlay publishes Postgres on localhost:5432; the backend's application.yaml defaults then connect without further configuration. The base compose file never publishes db or api ports.
 
 ## Tests
 
