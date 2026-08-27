@@ -90,6 +90,17 @@ class SchemaInferrerTest {
     }
 
     @Test
+    void dateColumnCarriesFormatAndNonDateFormatIsNull() {
+        ColumnSchema dateCol = inferrer.infer(csvOf("d", "2024-01-15", "2024-06-30")).get(0);
+        assertEquals(ColumnType.DATE, dateCol.type());
+        assertEquals("yyyy-MM-dd", dateCol.format());
+
+        ColumnSchema intCol = inferrer.infer(csvOf("n", "1", "2")).get(0);
+        assertEquals(ColumnType.INTEGER, intCol.type());
+        assertNull(intCol.format());
+    }
+
+    @Test
     void hugeIntegerBeyondLongIsDecimal() {
         ColumnSchema col = inferrer.infer(csvOf("c", "99999999999999999999")).get(0);
         assertEquals(ColumnType.DECIMAL, col.type());

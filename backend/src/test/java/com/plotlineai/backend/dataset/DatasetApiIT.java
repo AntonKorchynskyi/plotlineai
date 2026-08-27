@@ -45,7 +45,8 @@ class DatasetApiIT {
             .andExpect(jsonPath("$.schema[1].name").value("age"))
             .andExpect(jsonPath("$.schema[1].type").value("INTEGER"))
             .andExpect(jsonPath("$.schema[2].type").value("BOOLEAN"))
-            .andExpect(jsonPath("$.schema[3].type").value("DATE"));
+            .andExpect(jsonPath("$.schema[3].type").value("DATE"))
+            .andExpect(jsonPath("$.schema[3].format").value("yyyy-MM-dd"));
     }
 
     @Test
@@ -105,10 +106,29 @@ class DatasetApiIT {
     }
 
     @Test
-    void malformedIdIs400Or404WithJsonBody() throws Exception {
+    void malformedIdIs404NotFound() throws Exception {
         mvc.perform(get("/datasets/not-a-uuid"))
-            .andExpect(status().is4xxClientError())
-            .andExpect(jsonPath("$.error").isNotEmpty());
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+    }
+
+    @Test
+    void getTruncatesSampleRowsToCap() throws Exception {
+        StringBuilder csv = new StringBuilder("n\n");
+        for (int i = 1; i <= 25; i++) {
+            csv.append(i).append('\n');
+        }
+        var result = mvc.perform(multipart("/datasets")
+                .file(csvFile("nums.csv", csv.toString().getBytes())))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String id = objectMapper.readTree(result.getResponse().getContentAsString())
+            .get("datasetId").asString();
+
+        mvc.perform(get("/datasets/" + id))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.rowCount").value(25))
+            .andExpect(jsonPath("$.sampleRows.length()").value(20));
     }
 
     @Test

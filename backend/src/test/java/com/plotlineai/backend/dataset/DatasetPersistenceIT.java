@@ -33,8 +33,8 @@ class DatasetPersistenceIT {
 
         var loaded = repository.findById(d.getId()).orElseThrow();
         assertEquals(2, loaded.getRowCount());
-        assertEquals("a", loaded.getSchema().get(0).get("name").asText());
-        assertEquals("2", loaded.getRows().get(1).get(0).asText());
+        assertEquals("a", loaded.getSchema().get(0).get("name").asString());
+        assertEquals("2", loaded.getRows().get(1).get(0).asString());
     }
 
     @Test

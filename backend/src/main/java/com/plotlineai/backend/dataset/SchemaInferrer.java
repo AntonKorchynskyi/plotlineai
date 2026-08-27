@@ -11,11 +11,14 @@ import java.util.Set;
 
 public class SchemaInferrer {
 
-    private static final DateTimeFormatter[] DATE_FORMATTERS = {
-        DateTimeFormatter.ISO_LOCAL_DATE,
-        DateTimeFormatter.ofPattern("yyyy/MM/dd"),
-        DateTimeFormatter.ofPattern("MM/dd/yyyy"),
-        DateTimeFormatter.ISO_LOCAL_DATE_TIME
+    private record DateFormat(DateTimeFormatter formatter, String label) {
+    }
+
+    private static final DateFormat[] DATE_FORMATS = {
+        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE, "yyyy-MM-dd"),
+        new DateFormat(DateTimeFormatter.ofPattern("yyyy/MM/dd"), "yyyy/MM/dd"),
+        new DateFormat(DateTimeFormatter.ofPattern("MM/dd/yyyy"), "MM/dd/yyyy"),
+        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE_TIME, "yyyy-MM-dd'T'HH:mm:ss")
     };
 
     public List<ColumnSchema> infer(ParsedCsv csv) {
@@ -39,7 +42,7 @@ public class SchemaInferrer {
 
         // If all values are null, type is STRING
         if (nonNullValues.isEmpty()) {
-            return new ColumnSchema(columnName, ColumnType.STRING, 0, nullCount);
+            return new ColumnSchema(columnName, ColumnType.STRING, 0, nullCount, null);
         }
 
         // Calculate cardinality from non-null trimmed values
@@ -48,8 +51,9 @@ public class SchemaInferrer {
 
         // Determine type
         ColumnType type = inferType(nonNullValues);
+        String format = type == ColumnType.DATE ? matchDateFormat(nonNullValues) : null;
 
-        return new ColumnSchema(columnName, type, cardinality, nullCount);
+        return new ColumnSchema(columnName, type, cardinality, nullCount, format);
     }
 
     private ColumnType inferType(List<String> nonNullValues) {
@@ -109,13 +113,17 @@ public class SchemaInferrer {
     }
 
     private boolean canParseAsDate(List<String> values) {
+        return matchDateFormat(values) != null;
+    }
+
+    private String matchDateFormat(List<String> values) {
         // Try to find a single formatter that works for all values
-        for (DateTimeFormatter formatter : DATE_FORMATTERS) {
-            if (canParseAllWithFormatter(values, formatter)) {
-                return true;
+        for (DateFormat df : DATE_FORMATS) {
+            if (canParseAllWithFormatter(values, df.formatter())) {
+                return df.label();
             }
         }
-        return false;
+        return null;
     }
 
     private boolean canParseAllWithFormatter(List<String> values, DateTimeFormatter formatter) {

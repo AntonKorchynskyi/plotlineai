@@ -40,6 +40,42 @@ class CsvParserTest {
     void sniffsTabDelimiter() throws Exception {
         ParsedCsv csv = parser.parse(fixture("tabs.csv"));
         assertEquals(4, csv.headers().size());
+        assertEquals(List.of("Alice", "34", "true", "2024-01-15"), csv.rows().get(0));
+    }
+
+    @Test
+    void quoteAwareSniffingIgnoresSemicolonsInsideQuotes() {
+        byte[] bytes = "id,\"Notes; comments; misc\"\nAlice,5\n".getBytes(StandardCharsets.UTF_8);
+        ParsedCsv csv = parser.parse(bytes);
+        assertEquals(List.of("id", "Notes; comments; misc"), csv.headers());
+    }
+
+    @Test
+    void parsesQuotedFieldContainingDelimiter() {
+        ParsedCsv csv = parser.parse("a,b\n\"x,y\",2\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(List.of("x,y", "2"), csv.rows().get(0));
+    }
+
+    @Test
+    void parsesEmbeddedNewlineInQuotedCell() {
+        ParsedCsv csv = parser.parse(
+            "a,b\n\"line1\nline2\",2\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, csv.rows().size());
+    }
+
+    @Test
+    void parsesCrlfInput() {
+        ParsedCsv csv = parser.parse("a,b\r\n1,2\r\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(List.of("a", "b"), csv.headers());
+        assertEquals(List.of("1", "2"), csv.rows().get(0));
+    }
+
+    @Test
+    void rowCapBoundaryAllowsExactlyMaxRows() {
+        var caps2 = new DatasetCapsProperties(5_242_880L, 2, 256, 32_768, Duration.ofDays(7), 20);
+        var p = new CsvParser(caps2);
+        ParsedCsv csv = p.parse("a\n1\n2\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(2, csv.rows().size());
     }
 
     @Test

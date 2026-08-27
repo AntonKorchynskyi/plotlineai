@@ -47,7 +47,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> onUnexpected(Exception ex) {
-        if (ex instanceof org.springframework.web.ErrorResponse er) {
+        if (ex instanceof org.springframework.web.ErrorResponse er
+                && er.getStatusCode().is4xxClientError()) {
             HttpStatusCode status = er.getStatusCode();
             String code = status.value() == HttpStatus.NOT_FOUND.value() ? "NOT_FOUND" : "INVALID_REQUEST";
             log.warn("Client error while processing request: {} ({})",

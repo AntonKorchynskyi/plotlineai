@@ -16,14 +16,13 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class DatasetService {
 
     private static final TypeReference<List<ColumnSchema>> SCHEMA_LIST =
-        new TypeReference<>() {};
-    private static final TypeReference<List<List<String>>> ROW_MATRIX =
         new TypeReference<>() {};
 
     private final DatasetRepository repository;
@@ -43,7 +42,6 @@ public class DatasetService {
         this.schemaInferrer = new SchemaInferrer();
     }
 
-    @Transactional
     public UploadResponse upload(String originalFilename, String contentType, byte[] bytes) {
         validateFileType(originalFilename, contentType);
         if (bytes.length > caps.maxFileBytes()) {
@@ -73,17 +71,18 @@ public class DatasetService {
             .orElseThrow(() -> new DatasetNotFoundException(id));
 
         List<ColumnSchema> schema = objectMapper.treeToValue(dataset.getSchema(), SCHEMA_LIST);
-        List<List<String>> rows = objectMapper.treeToValue(dataset.getRows(), ROW_MATRIX);
 
         List<String> headers = schema.stream().map(ColumnSchema::name).toList();
 
-        int limit = Math.min(caps.sampleRows(), rows.size());
+        JsonNode rowsNode = dataset.getRows();
+        int limit = Math.min(caps.sampleRows(), rowsNode.size());
         List<Map<String, String>> sampleRows = new ArrayList<>(limit);
         for (int r = 0; r < limit; r++) {
-            List<String> row = rows.get(r);
+            JsonNode row = rowsNode.get(r);
             Map<String, String> mapped = new LinkedHashMap<>();
             for (int c = 0; c < headers.size(); c++) {
-                mapped.put(headers.get(c), c < row.size() ? row.get(c) : "");
+                JsonNode cell = row.get(c);
+                mapped.put(headers.get(c), cell != null ? cell.asString() : "");
             }
             sampleRows.add(mapped);
         }

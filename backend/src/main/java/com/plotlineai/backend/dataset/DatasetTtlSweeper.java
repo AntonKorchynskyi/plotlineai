@@ -21,7 +21,7 @@ public class DatasetTtlSweeper {
     @Scheduled(fixedDelayString = "${plotlineai.dataset.sweep-delay:PT1H}")
     @Transactional
     public void sweep() {
-        long deleted = repository.deleteByExpiresAtBefore(Instant.now());
+        int deleted = repository.deleteExpired(Instant.now());
         if (deleted > 0) {
             log.info("Deleted {} expired dataset(s)", deleted);
         }

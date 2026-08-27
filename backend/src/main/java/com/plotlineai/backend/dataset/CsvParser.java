@@ -84,9 +84,20 @@ public class CsvParser {
 
     private char sniffDelimiter(String text) {
         String firstLine = text.lines().findFirst().orElse("");
-        long commas = firstLine.chars().filter(c -> c == ',').count();
-        long semis = firstLine.chars().filter(c -> c == ';').count();
-        long tabs = firstLine.chars().filter(c -> c == '\t').count();
+        long commas = 0;
+        long semis = 0;
+        long tabs = 0;
+        boolean inQuotes = false;
+        for (int i = 0; i < firstLine.length(); i++) {
+            char ch = firstLine.charAt(i);
+            if (ch == '"') {
+                inQuotes = !inQuotes;
+            } else if (!inQuotes) {
+                if (ch == ',') commas++;
+                else if (ch == ';') semis++;
+                else if (ch == '\t') tabs++;
+            }
+        }
         if (semis > commas && semis >= tabs) return ';';
         if (tabs > commas && tabs > semis) return '\t';
         return ',';
@@ -99,6 +110,10 @@ public class CsvParser {
         }
         var seen = new HashSet<String>();
         for (String h : headers) {
+            if (h.length() > caps.maxCellChars()) {
+                throw new CapExceededException(
+                    "A cell exceeds the maximum of " + caps.maxCellChars() + " characters");
+            }
             String trimmed = h.trim();
             if (trimmed.isEmpty()) {
                 throw new CsvParseException("Header row contains a blank column name");
