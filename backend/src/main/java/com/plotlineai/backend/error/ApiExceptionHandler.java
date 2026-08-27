@@ -3,6 +3,7 @@ package com.plotlineai.backend.error;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -46,6 +47,14 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> onUnexpected(Exception ex) {
+        if (ex instanceof org.springframework.web.ErrorResponse er) {
+            HttpStatusCode status = er.getStatusCode();
+            String code = status.value() == HttpStatus.NOT_FOUND.value() ? "NOT_FOUND" : "INVALID_REQUEST";
+            log.warn("Client error while processing request: {} ({})",
+                status, ex.getClass().getSimpleName());
+            return ResponseEntity.status(status)
+                .body(new ErrorResponse(code, "The request could not be processed"));
+        }
         log.error("Unhandled exception while processing request", ex);
         return body(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "An unexpected error occurred");
     }

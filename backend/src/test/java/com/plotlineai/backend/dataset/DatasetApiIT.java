@@ -110,4 +110,22 @@ class DatasetApiIT {
             .andExpect(status().is4xxClientError())
             .andExpect(jsonPath("$.error").isNotEmpty());
     }
+
+    @Test
+    void tooManyColumnsIs422CapExceeded() throws Exception {
+        String header = java.util.stream.IntStream.rangeClosed(1, 300)
+            .mapToObj(i -> "c" + i)
+            .collect(java.util.stream.Collectors.joining(","));
+        String content = header + "\n" + "1,".repeat(299) + "1\n";
+        mvc.perform(multipart("/datasets").file(csvFile("wide.csv", content.getBytes())))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.error").value("CAP_EXCEEDED"));
+    }
+
+    @Test
+    void missingFilePartIs400InvalidRequest() throws Exception {
+        mvc.perform(multipart("/datasets"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
+    }
 }
