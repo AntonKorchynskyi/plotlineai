@@ -105,4 +105,17 @@ class CsvParserTest {
         assertThrows(CsvParseException.class,
             () -> parser.parse("a,b\n1,2,3\n".getBytes(StandardCharsets.UTF_8)));
     }
+
+    @Test
+    void rejectsHeaderOnlyInput() {
+        assertThrows(CsvParseException.class,
+            () -> parser.parse("a,b,c\n".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void trimsHeadersButNotCellValues() throws Exception {
+        ParsedCsv csv = parser.parse(" a , b \n x , y \n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(List.of("a", "b"), csv.headers());
+        assertEquals(List.of(" x ", " y "), csv.rows().get(0));
+    }
 }
