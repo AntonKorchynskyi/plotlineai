@@ -13,7 +13,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Next.js with output: "standalone" serializes the rewrites() result into
 # .next/routes-manifest.json at build time, so BACKEND_INTERNAL_URL must be
 # present during `npm run build`, not only at runtime.
-ARG BACKEND_INTERNAL_URL
+ARG BACKEND_INTERNAL_URL=http://localhost:8080
 ENV BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL
 RUN npm run build
 
