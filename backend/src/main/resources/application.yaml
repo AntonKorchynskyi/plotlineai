@@ -25,6 +25,7 @@ plotlineai:
     max-cell-chars: ${DATASET_MAX_CELL_CHARS:32768}
     ttl: ${DATASET_TTL:P7D}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
+    sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
 
 management:
   endpoints:
