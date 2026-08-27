@@ -19,12 +19,8 @@ public class SchemaInferrer {
     };
 
     public List<ColumnSchema> infer(ParsedCsv csv) {
-        List<String> headers = csv.headers();
-        List<List<String>> rows = csv.rows();
-
-        return headers.stream()
-            .mapToInt(headers::indexOf)
-            .mapToObj(colIndex -> inferColumn(headers.get(colIndex), rows, colIndex))
+        return java.util.stream.IntStream.range(0, csv.headers().size())
+            .mapToObj(i -> inferColumn(csv.headers().get(i), csv.rows(), i))
             .toList();
     }
 
