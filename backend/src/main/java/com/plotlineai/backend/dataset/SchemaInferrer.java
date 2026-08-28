@@ -5,21 +5,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class SchemaInferrer {
-
-    private record DateFormat(DateTimeFormatter formatter, String label) {
-    }
-
-    private static final DateFormat[] DATE_FORMATS = {
-        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE, "yyyy-MM-dd"),
-        new DateFormat(DateTimeFormatter.ofPattern("yyyy/MM/dd"), "yyyy/MM/dd"),
-        new DateFormat(DateTimeFormatter.ofPattern("MM/dd/yyyy"), "MM/dd/yyyy"),
-        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE_TIME, "yyyy-MM-dd'T'HH:mm:ss")
-    };
 
     public List<ColumnSchema> infer(ParsedCsv csv) {
         return java.util.stream.IntStream.range(0, csv.headers().size())
@@ -29,7 +20,7 @@ public class SchemaInferrer {
 
     private ColumnSchema inferColumn(String columnName, List<List<String>> rows, int colIndex) {
         List<String> values = rows.stream()
-            .map(row -> row.get(colIndex))
+            .map(row -> colIndex < row.size() ? row.get(colIndex) : "")
             .toList();
 
         // Separate null and non-null values
@@ -117,8 +108,7 @@ public class SchemaInferrer {
     }
 
     private String matchDateFormat(List<String> values) {
-        // Try to find a single formatter that works for all values
-        for (DateFormat df : DATE_FORMATS) {
+        for (DateFormats.DateFormat df : DateFormats.ALL) {
             if (canParseAllWithFormatter(values, df.formatter())) {
                 return df.label();
             }
@@ -129,18 +119,13 @@ public class SchemaInferrer {
     private boolean canParseAllWithFormatter(List<String> values, DateTimeFormatter formatter) {
         for (String value : values) {
             try {
-                // Try parsing as LocalDateTime first, then LocalDate
+                LocalDateTime.parse(value, formatter);
+            } catch (DateTimeParseException e1) {
                 try {
-                    LocalDateTime.parse(value, formatter);
-                } catch (Exception e1) {
-                    try {
-                        LocalDate.parse(value, formatter);
-                    } catch (Exception e2) {
-                        return false;
-                    }
+                    LocalDate.parse(value, formatter);
+                } catch (DateTimeParseException e2) {
+                    return false;
                 }
-            } catch (Exception e) {
-                return false;
             }
         }
         return true;
