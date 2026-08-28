@@ -1,0 +1,148 @@
+package com.plotlineai.backend.dataset;
+
+import com.plotlineai.backend.dataset.dto.ColumnSchema;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class SchemaInferrer {
+
+    private record DateFormat(DateTimeFormatter formatter, String label) {
+    }
+
+    private static final DateFormat[] DATE_FORMATS = {
+        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE, "yyyy-MM-dd"),
+        new DateFormat(DateTimeFormatter.ofPattern("yyyy/MM/dd"), "yyyy/MM/dd"),
+        new DateFormat(DateTimeFormatter.ofPattern("MM/dd/yyyy"), "MM/dd/yyyy"),
+        new DateFormat(DateTimeFormatter.ISO_LOCAL_DATE_TIME, "yyyy-MM-dd'T'HH:mm:ss")
+    };
+
+    public List<ColumnSchema> infer(ParsedCsv csv) {
+        return java.util.stream.IntStream.range(0, csv.headers().size())
+            .mapToObj(i -> inferColumn(csv.headers().get(i), csv.rows(), i))
+            .toList();
+    }
+
+    private ColumnSchema inferColumn(String columnName, List<List<String>> rows, int colIndex) {
+        List<String> values = rows.stream()
+            .map(row -> row.get(colIndex))
+            .toList();
+
+        // Separate null and non-null values
+        List<String> nonNullValues = values.stream()
+            .map(String::trim)
+            .filter(v -> !v.isEmpty())
+            .toList();
+
+        long nullCount = values.size() - nonNullValues.size();
+
+        // If all values are null, type is STRING
+        if (nonNullValues.isEmpty()) {
+            return new ColumnSchema(columnName, ColumnType.STRING, 0, nullCount, null);
+        }
+
+        // Calculate cardinality from non-null trimmed values
+        Set<String> distinctValues = new HashSet<>(nonNullValues);
+        long cardinality = distinctValues.size();
+
+        // Determine type
+        ColumnType type = inferType(nonNullValues);
+        String format = type == ColumnType.DATE ? matchDateFormat(nonNullValues) : null;
+
+        return new ColumnSchema(columnName, type, cardinality, nullCount, format);
+    }
+
+    private ColumnType inferType(List<String> nonNullValues) {
+        // Try INTEGER
+        if (canParseAsInteger(nonNullValues)) {
+            return ColumnType.INTEGER;
+        }
+
+        // Try DECIMAL
+        if (canParseAsDecimal(nonNullValues)) {
+            return ColumnType.DECIMAL;
+        }
+
+        // Try BOOLEAN
+        if (canParseAsBoolean(nonNullValues)) {
+            return ColumnType.BOOLEAN;
+        }
+
+        // Try DATE
+        if (canParseAsDate(nonNullValues)) {
+            return ColumnType.DATE;
+        }
+
+        // Default to STRING
+        return ColumnType.STRING;
+    }
+
+    private boolean canParseAsInteger(List<String> values) {
+        for (String value : values) {
+            try {
+                Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean canParseAsDecimal(List<String> values) {
+        for (String value : values) {
+            try {
+                new BigDecimal(value);
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean canParseAsBoolean(List<String> values) {
+        for (String value : values) {
+            if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean canParseAsDate(List<String> values) {
+        return matchDateFormat(values) != null;
+    }
+
+    private String matchDateFormat(List<String> values) {
+        // Try to find a single formatter that works for all values
+        for (DateFormat df : DATE_FORMATS) {
+            if (canParseAllWithFormatter(values, df.formatter())) {
+                return df.label();
+            }
+        }
+        return null;
+    }
+
+    private boolean canParseAllWithFormatter(List<String> values, DateTimeFormatter formatter) {
+        for (String value : values) {
+            try {
+                // Try parsing as LocalDateTime first, then LocalDate
+                try {
+                    LocalDateTime.parse(value, formatter);
+                } catch (Exception e1) {
+                    try {
+                        LocalDate.parse(value, formatter);
+                    } catch (Exception e2) {
+                        return false;
+                    }
+                }
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+}

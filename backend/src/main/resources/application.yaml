@@ -12,6 +12,20 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+plotlineai:
+  dataset:
+    max-file-bytes: ${DATASET_MAX_FILE_BYTES:5242880}
+    max-rows: ${DATASET_MAX_ROWS:100000}
+    max-columns: ${DATASET_MAX_COLUMNS:256}
+    max-cell-chars: ${DATASET_MAX_CELL_CHARS:32768}
+    ttl: ${DATASET_TTL:P7D}
+    sample-rows: ${DATASET_SAMPLE_ROWS:20}
+    sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
 
 management:
   endpoints:
