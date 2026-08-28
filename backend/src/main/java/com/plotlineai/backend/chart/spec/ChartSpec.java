@@ -13,9 +13,9 @@ public record ChartSpec(
         Boolean stacked,
         @NotBlank @Size(max = 120) String title,
         @NotNull @Valid Dimension dimension,
-        @NotNull @Size(min = 1, max = 4) @Valid List<Measure> measures,
+        @NotNull @Size(min = 1, max = 4) List<@Valid Measure> measures,
         @Valid Breakdown breakdown,
-        @Size(max = 5) @Valid List<Filter> filters,
+        @Size(max = 5) List<@Valid Filter> filters,
         @Valid Sort sort,
         @Min(1) @Max(100) Integer limit) {
 }
