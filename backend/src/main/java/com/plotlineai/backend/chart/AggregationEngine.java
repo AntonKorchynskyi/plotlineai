@@ -34,6 +34,14 @@ public class AggregationEngine {
 
     private static final int MAX_GROUPS = 1000;
 
+    public record Point(double x, double y) {
+    }
+
+    public record BubblePoint(double x, double y, double r) {
+    }
+
+    private static final int MAX_POINTS = 5000;
+
     public RenderResponse render(ChartSpec spec, List<ColumnSchema> schema, List<List<String>> rows) {
         Map<String, Integer> index = new HashMap<>();
         Map<String, ColumnSchema> cols = new HashMap<>();
@@ -48,7 +56,7 @@ public class AggregationEngine {
         List<List<String>> filtered = applyFilters(spec.filters(), rows, index, cols);
 
         if (spec.chartType() == ChartType.scatter || spec.chartType() == ChartType.bubble) {
-            throw new IllegalStateException("point chart types are implemented in a later task");
+            return renderPoints(spec, filtered, index);
         }
         return renderAggregated(spec, filtered, index, cols);
     }
@@ -387,5 +395,82 @@ public class AggregationEngine {
 
     static String cell(List<String> row, int index) {
         return index < row.size() ? row.get(index) : "";
+    }
+
+    private RenderResponse renderPoints(ChartSpec spec, List<List<String>> rows,
+            Map<String, Integer> index) {
+        int xIndex = index.get(spec.measures().get(0).column());
+        int yIndex = index.get(spec.measures().get(1).column());
+        Integer rIndex = spec.chartType() == ChartType.bubble
+            ? index.get(spec.measures().get(2).column()) : null;
+        int dimIndex = index.get(spec.dimension().column());
+        int cap = spec.limit() != null ? spec.limit() : MAX_POINTS;
+
+        if (spec.breakdown() == null) {
+            List<String> labels = new ArrayList<>();
+            List<Object> data = new ArrayList<>();
+            for (List<String> row : rows) {
+                Object point = point(row, xIndex, yIndex, rIndex);
+                if (point == null) {
+                    continue;
+                }
+                data.add(point);
+                labels.add(cell(row, dimIndex).trim());
+                if (data.size() >= cap) {
+                    break;
+                }
+            }
+            Series series = new Series(seriesLabel(spec.measures().get(1)), data);
+            return response(spec, labels, List.of(series));
+        }
+
+        int breakdownIndex = index.get(spec.breakdown().column());
+        java.util.SortedMap<String, List<Object>> bySeries = new java.util.TreeMap<>();
+        for (List<String> row : rows) {
+            Object point = point(row, xIndex, yIndex, rIndex);
+            if (point == null) {
+                continue;
+            }
+            String seriesKey = cell(row, breakdownIndex).trim();
+            if (seriesKey.isEmpty()) {
+                continue;
+            }
+            List<Object> data = bySeries.computeIfAbsent(seriesKey, k -> new ArrayList<>());
+            if (data.size() < cap) {
+                data.add(point);
+            }
+        }
+        List<Series> datasets = new ArrayList<>();
+        for (Map.Entry<String, List<Object>> entry : bySeries.entrySet()) {
+            datasets.add(new Series(entry.getKey(), entry.getValue()));
+        }
+        return response(spec, List.of(), datasets);
+    }
+
+    private Object point(List<String> row, int xIndex, int yIndex, Integer rIndex) {
+        Double x = parseDouble(cell(row, xIndex).trim());
+        Double y = parseDouble(cell(row, yIndex).trim());
+        if (x == null || y == null) {
+            return null;
+        }
+        if (rIndex == null) {
+            return new Point(x, y);
+        }
+        Double r = parseDouble(cell(row, rIndex).trim());
+        if (r == null) {
+            return null;
+        }
+        return new BubblePoint(x, y, r);
+    }
+
+    private static Double parseDouble(String raw) {
+        if (raw.isEmpty()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(raw).doubleValue();
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

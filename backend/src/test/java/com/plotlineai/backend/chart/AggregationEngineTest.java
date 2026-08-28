@@ -315,4 +315,74 @@ class AggregationEngineTest {
         assertEquals("1", r.datasets().get(0).label());
         assertEquals(List.of(10.0), r.datasets().get(0).data());
     }
+
+    @Test
+    void scatterEmitsPointsWithDimensionLabels() {
+        RenderResponse r = render("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}]}""");
+        assertEquals(List.of("north", "south", "north", "south", "north", "west"), r.labels());
+        assertEquals(1, r.datasets().size());
+        assertEquals("revenue", r.datasets().get(0).label());
+        assertEquals(new AggregationEngine.Point(1.0, 10.5), r.datasets().get(0).data().get(0));
+        assertEquals(6, r.datasets().get(0).data().size());
+    }
+
+    @Test
+    void bubbleEmitsRadius() {
+        RenderResponse r = render("""
+            {"chartType":"bubble","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"},
+                         {"column":"units","aggregation":"none"}]}""");
+        assertEquals(new AggregationEngine.BubblePoint(1.0, 10.5, 1.0),
+            r.datasets().get(0).data().get(0));
+    }
+
+    @Test
+    void scatterSkipsRowsWithUnparseableCells() {
+        List<List<String>> rows = List.of(
+            List.of("north", "2024-01-15", "", "1"),
+            List.of("south", "2024-01-16", "5.0", "2"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}]}"""), SCHEMA, rows);
+        assertEquals(List.of("south"), r.labels());
+        assertEquals(1, r.datasets().get(0).data().size());
+    }
+
+    @Test
+    void scatterWithBreakdownSplitsSeriesAndDropsLabels() {
+        RenderResponse r = render("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"joined"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}],
+             "breakdown":{"column":"region"}}""");
+        assertEquals(List.of(), r.labels());
+        assertEquals(3, r.datasets().size());
+        assertEquals("north", r.datasets().get(0).label());
+        assertEquals(3, r.datasets().get(0).data().size());
+    }
+
+    @Test
+    void scatterLimitCapsPoints() {
+        RenderResponse r = render("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}],"limit":2}""");
+        assertEquals(2, r.datasets().get(0).data().size());
+        assertEquals(List.of("north", "south"), r.labels());
+    }
+
+    @Test
+    void scatterFiltersApply() {
+        RenderResponse r = render("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}],
+             "filters":[{"column":"region","op":"eq","value":"north"}]}""");
+        assertEquals(3, r.datasets().get(0).data().size());
+    }
 }
