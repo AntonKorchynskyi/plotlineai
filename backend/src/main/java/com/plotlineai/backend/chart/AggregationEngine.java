@@ -7,6 +7,8 @@ import com.plotlineai.backend.chart.spec.ChartSpec;
 import com.plotlineai.backend.chart.spec.ChartType;
 import com.plotlineai.backend.chart.spec.Filter;
 import com.plotlineai.backend.chart.spec.Measure;
+import com.plotlineai.backend.chart.spec.SortBy;
+import com.plotlineai.backend.chart.spec.SortDirection;
 import com.plotlineai.backend.chart.spec.TimeBucket;
 import com.plotlineai.backend.dataset.ColumnType;
 import com.plotlineai.backend.dataset.DateFormats;
@@ -24,6 +26,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import tools.jackson.databind.JsonNode;
 
 public class AggregationEngine {
@@ -156,18 +160,126 @@ public class AggregationEngine {
             }
         }
 
-        List<GroupKey> ordered = groups.keySet().stream().sorted(GroupKey.BY_KEY).toList();
+        List<Series> raw;
+        List<GroupKey> ordered = new ArrayList<>(groups.keySet());
+        Map<GroupKey, Double> sortValues;
+
+        if (spec.breakdown() == null) {
+            sortValues = measureValues(spec.measures().get(0), groups, index);
+            ordered.sort(orderComparator(spec, sortValues));
+            List<String> labels = ordered.stream().map(GroupKey::label).toList();
+            List<Series> datasets = new ArrayList<>();
+            for (Measure measure : spec.measures()) {
+                Map<GroupKey, Double> values = measure == spec.measures().get(0)
+                    ? sortValues : measureValues(measure, groups, index);
+                List<Object> data = new ArrayList<>(ordered.size());
+                for (GroupKey key : ordered) {
+                    data.add(values.get(key));
+                }
+                datasets.add(new Series(seriesLabel(measure), data));
+            }
+            return response(spec, applyLimit(spec, labels), limitSeries(spec, datasets));
+        }
+
+        // breakdown: single measure (validator-enforced), one series per breakdown value
+        int breakdownIndex = index.get(spec.breakdown().column());
+        Measure measure = spec.measures().get(0);
+        SortedMap<String, Map<GroupKey, List<List<String>>>> bySeries = new TreeMap<>();
+        for (Map.Entry<GroupKey, List<List<String>>> group : groups.entrySet()) {
+            for (List<String> row : group.getValue()) {
+                String seriesKey = cell(row, breakdownIndex).trim();
+                if (seriesKey.isEmpty()) {
+                    continue;
+                }
+                bySeries.computeIfAbsent(seriesKey, k -> new HashMap<>())
+                    .computeIfAbsent(group.getKey(), k -> new ArrayList<>())
+                    .add(row);
+            }
+        }
+
+        Map<String, Map<GroupKey, Double>> seriesValues = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<GroupKey, List<List<String>>>> entry : bySeries.entrySet()) {
+            Map<GroupKey, Double> values = new HashMap<>();
+            for (Map.Entry<GroupKey, List<List<String>>> group : entry.getValue().entrySet()) {
+                values.put(group.getKey(), aggregate(measure, group.getValue(), index));
+            }
+            seriesValues.put(entry.getKey(), values);
+        }
+
+        sortValues = new HashMap<>();
+        for (GroupKey key : groups.keySet()) {
+            double totalValue = 0;
+            boolean any = false;
+            for (Map<GroupKey, Double> values : seriesValues.values()) {
+                Double v = values.get(key);
+                if (v != null) {
+                    totalValue += v;
+                    any = true;
+                }
+            }
+            sortValues.put(key, any ? totalValue : null);
+        }
+        ordered.sort(orderComparator(spec, sortValues));
 
         List<String> labels = ordered.stream().map(GroupKey::label).toList();
         List<Series> datasets = new ArrayList<>();
-        for (Measure measure : spec.measures()) {
+        for (Map.Entry<String, Map<GroupKey, Double>> entry : seriesValues.entrySet()) {
             List<Object> data = new ArrayList<>(ordered.size());
             for (GroupKey key : ordered) {
-                data.add(aggregate(measure, groups.get(key), index));
+                data.add(entry.getValue().get(key));
             }
-            datasets.add(new Series(seriesLabel(measure), data));
+            datasets.add(new Series(entry.getKey(), data));
         }
+        return response(spec, applyLimit(spec, labels), limitSeries(spec, datasets));
+    }
 
+    private Map<GroupKey, Double> measureValues(Measure measure,
+            Map<GroupKey, List<List<String>>> groups, Map<String, Integer> index) {
+        Map<GroupKey, Double> values = new HashMap<>();
+        for (Map.Entry<GroupKey, List<List<String>>> group : groups.entrySet()) {
+            values.put(group.getKey(), aggregate(measure, group.getValue(), index));
+        }
+        return values;
+    }
+
+    private Comparator<GroupKey> orderComparator(ChartSpec spec, Map<GroupKey, Double> sortValues) {
+        Comparator<GroupKey> comparator;
+        if (spec.sort() != null && spec.sort().by() == SortBy.measure) {
+            comparator = Comparator.comparingDouble(key -> {
+                Double v = sortValues.get(key);
+                return v != null ? v : Double.NEGATIVE_INFINITY;
+            });
+            comparator = comparator.thenComparing(GroupKey.BY_KEY);
+        } else {
+            comparator = GroupKey.BY_KEY;
+        }
+        if (spec.sort() != null && spec.sort().direction() == SortDirection.desc) {
+            comparator = comparator.reversed();
+        }
+        return comparator;
+    }
+
+    private List<String> applyLimit(ChartSpec spec, List<String> labels) {
+        if (spec.limit() == null || labels.size() <= spec.limit()) {
+            return labels;
+        }
+        return labels.subList(0, spec.limit());
+    }
+
+    private List<Series> limitSeries(ChartSpec spec, List<Series> datasets) {
+        if (spec.limit() == null) {
+            return datasets;
+        }
+        List<Series> limited = new ArrayList<>(datasets.size());
+        for (Series series : datasets) {
+            List<Object> data = series.data().size() > spec.limit()
+                ? series.data().subList(0, spec.limit()) : series.data();
+            limited.add(new Series(series.label(), data));
+        }
+        return limited;
+    }
+
+    private RenderResponse response(ChartSpec spec, List<String> labels, List<Series> datasets) {
         return new RenderResponse(spec.chartType().name(),
             Boolean.TRUE.equals(spec.stacked()), spec.title(), labels, datasets);
     }

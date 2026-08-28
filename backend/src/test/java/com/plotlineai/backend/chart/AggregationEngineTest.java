@@ -237,4 +237,82 @@ class AggregationEngineTest {
         assertEquals(List.of("north", "south"), r.labels());
         assertNull(r.datasets().get(0).data().get(1));
     }
+
+    @Test
+    void breakdownSplitsIntoSeriesOrderedByValue() {
+        RenderResponse r = render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"joined","bucket":"year"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "breakdown":{"column":"region"}}""");
+        assertEquals(List.of("2024", "2025"), r.labels());
+        assertEquals(3, r.datasets().size());
+        assertEquals("north", r.datasets().get(0).label());
+        assertEquals("south", r.datasets().get(1).label());
+        assertEquals("west", r.datasets().get(2).label());
+        assertEquals(List.of(40.5, 100.0), r.datasets().get(0).data());
+        // List.of rejects null, so use Arrays.asList for the expected side
+        assertEquals(java.util.Arrays.asList(1.0, null), r.datasets().get(2).data());
+    }
+
+    @Test
+    void sortByDimensionDescending() {
+        RenderResponse r = render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "sort":{"by":"dimension","direction":"desc"}}""");
+        assertEquals(List.of("west", "south", "north"), r.labels());
+    }
+
+    @Test
+    void sortByMeasureDescendingWithLimitGivesTopN() {
+        RenderResponse r = render("""
+            {"chartType":"horizontalBar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "sort":{"by":"measure","direction":"desc"},"limit":2}""");
+        assertEquals(List.of("north", "south"), r.labels());
+        assertEquals(List.of(140.5, 25.5), r.datasets().get(0).data());
+    }
+
+    @Test
+    void sortByMeasureAscending() {
+        RenderResponse r = render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "sort":{"by":"measure","direction":"asc"}}""");
+        assertEquals(List.of("west", "south", "north"), r.labels());
+    }
+
+    @Test
+    void sortByMeasureWithBreakdownUsesSeriesTotals() {
+        RenderResponse r = render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"joined","bucket":"year"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "breakdown":{"column":"region"},
+             "sort":{"by":"measure","direction":"desc"}}""");
+        // totals: 2025 -> 100.0, 2024 -> 67.0
+        assertEquals(List.of("2025", "2024"), r.labels());
+    }
+
+    @Test
+    void limitWithoutSortTruncatesDefaultOrder() {
+        RenderResponse r = render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],"limit":1}""");
+        assertEquals(List.of("north"), r.labels());
+    }
+
+    @Test
+    void emptyBreakdownCellsAreSkipped() {
+        List<List<String>> rows = List.of(
+            List.of("north", "2024-01-15", "10.0", "1"),
+            List.of("north", "2024-01-16", "20.0", ""));
+        // breakdown on units; one row has empty units cell
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "breakdown":{"column":"units"}}"""), SCHEMA, rows);
+        assertEquals(1, r.datasets().size());
+        assertEquals("1", r.datasets().get(0).label());
+        assertEquals(List.of(10.0), r.datasets().get(0).data());
+    }
 }
