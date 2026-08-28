@@ -135,20 +135,20 @@ public class ChartSpecValidator {
                 fail("An in filter requires an array of 1 to " + MAX_IN_VALUES + " strings");
             }
             for (JsonNode element : value) {
-                if (!element.isTextual()) {
+                if (!element.isString()) {
                     fail("An in filter requires an array of strings");
                 }
             }
             return;
         }
-        if (!value.isTextual() && !value.isNumber()) {
+        if (!value.isString() && !value.isNumber()) {
             fail("This filter requires a string or number value");
         }
         if (ORDERED_OPS.contains(filter.op())) {
             if (col.type() == ColumnType.DATE) {
-                parseFilterDate(value.asText(), col.format());
+                parseFilterDate(value.asString(), col.format());
             } else if (NUMERIC.contains(col.type())) {
-                parseFilterNumber(value.asText());
+                parseFilterNumber(value.asString());
             } else {
                 fail("Ordered comparisons require a numeric or date column");
             }
