@@ -16,6 +16,9 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 6MB
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
 
 plotlineai:
   dataset:

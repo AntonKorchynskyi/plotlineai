@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -43,6 +45,22 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> onMalformedPathVariable(MethodArgumentTypeMismatchException ex) {
         return body(HttpStatus.NOT_FOUND, "NOT_FOUND", "Dataset not found");
+    }
+
+    @ExceptionHandler(InvalidChartSpecException.class)
+    public ResponseEntity<ErrorResponse> onInvalidChartSpec(InvalidChartSpecException ex) {
+        return body(HttpStatus.BAD_REQUEST, "INVALID_CHART_SPEC", ex.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> onBeanValidationFailure(MethodArgumentNotValidException ex) {
+        return body(HttpStatus.BAD_REQUEST, "INVALID_CHART_SPEC", "The chart spec is invalid");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> onUnreadableBody(HttpMessageNotReadableException ex) {
+        return body(HttpStatus.BAD_REQUEST, "INVALID_CHART_SPEC",
+            "The request body could not be parsed");
     }
 
     @ExceptionHandler(Exception.class)
