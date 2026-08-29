@@ -199,6 +199,18 @@ class AggregationEngineTest {
     }
 
     @Test
+    void nonFiniteAggregateBecomesNullNotInfinityString() {
+        List<List<String>> rows = List.of(
+            List.of("north", "2024-01-15", "1E400", "1"),
+            List.of("south", "2024-01-16", "5.0", "2"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}]}"""), SCHEMA, rows);
+        assertNull(r.datasets().get(0).data().get(0));
+        assertEquals(5.0, r.datasets().get(0).data().get(1));
+    }
+
+    @Test
     void emptyDatasetRendersEmptyResponse() {
         RenderResponse r = engine.render(spec("""
             {"chartType":"bar","title":"T","dimension":{"column":"region"},
@@ -374,6 +386,19 @@ class AggregationEngineTest {
                          {"column":"revenue","aggregation":"none"}],"limit":2}""");
         assertEquals(2, r.datasets().get(0).data().size());
         assertEquals(List.of("north", "south"), r.labels());
+    }
+
+    @Test
+    void scatterWithoutLimitCapsAtFiveThousandPoints() {
+        List<List<String>> rows = new ArrayList<>();
+        for (int i = 0; i < 5001; i++) {
+            rows.add(List.of("north", "2024-01-15", "1.0", "1"));
+        }
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"units","aggregation":"none"},
+                         {"column":"revenue","aggregation":"none"}]}"""), SCHEMA, rows);
+        assertEquals(5000, r.datasets().get(0).data().size());
     }
 
     @Test

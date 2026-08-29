@@ -126,6 +126,15 @@ class ChartRenderApiIT {
     }
 
     @Test
+    void nullMeasureElementIs400InvalidChartSpec() throws Exception {
+        render("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[null]}""")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("INVALID_CHART_SPEC"));
+    }
+
+    @Test
     void unknownEnumValueIs400() throws Exception {
         render("""
             {"chartType":"banana","title":"T","dimension":{"column":"region"},

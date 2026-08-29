@@ -6,6 +6,7 @@ import com.plotlineai.backend.chart.spec.Aggregation;
 import com.plotlineai.backend.chart.spec.ChartSpec;
 import com.plotlineai.backend.chart.spec.ChartType;
 import com.plotlineai.backend.chart.spec.Filter;
+import com.plotlineai.backend.chart.spec.FilterOp;
 import com.plotlineai.backend.chart.spec.Measure;
 import com.plotlineai.backend.chart.spec.SortBy;
 import com.plotlineai.backend.chart.spec.SortDirection;
@@ -22,10 +23,13 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import tools.jackson.databind.JsonNode;
@@ -33,6 +37,9 @@ import tools.jackson.databind.JsonNode;
 public class AggregationEngine {
 
     private static final int MAX_GROUPS = 1000;
+
+    private static final Set<FilterOp> ORDERED_OPS =
+        EnumSet.of(FilterOp.gt, FilterOp.gte, FilterOp.lt, FilterOp.lte);
 
     public record Point(double x, double y) {
     }
@@ -68,11 +75,25 @@ public class AggregationEngine {
         if (filters == null || filters.isEmpty()) {
             return rows;
         }
+        // Parse each ordered filter's comparand once, before the row loop. Otherwise a date
+        // comparand that only matches via the ISO fallback constructs and discards a
+        // DateTimeParseException on every row. Unparseable values still raise
+        // InvalidChartSpecException, exactly as the per-row parse did.
+        Map<Filter, Comparable<?>> bounds = new HashMap<>();
+        for (Filter filter : filters) {
+            if (!ORDERED_OPS.contains(filter.op())) {
+                continue;
+            }
+            ColumnSchema col = cols.get(filter.column());
+            bounds.put(filter, col.type() == ColumnType.DATE
+                ? ChartSpecValidator.parseFilterDate(scalar(filter.value()), col.format())
+                : ChartSpecValidator.parseFilterNumber(scalar(filter.value())));
+        }
         List<List<String>> kept = new ArrayList<>();
         for (List<String> row : rows) {
             boolean matchesAll = true;
             for (Filter filter : filters) {
-                if (!matches(filter, row, index, cols)) {
+                if (!matches(filter, row, index, cols, bounds.get(filter))) {
                     matchesAll = false;
                     break;
                 }
@@ -84,14 +105,14 @@ public class AggregationEngine {
         return kept;
     }
 
-    private boolean matches(Filter filter, List<String> row,
-            Map<String, Integer> index, Map<String, ColumnSchema> cols) {
+    private boolean matches(Filter filter, List<String> row, Map<String, Integer> index,
+            Map<String, ColumnSchema> cols, Comparable<?> bound) {
         String raw = cell(row, index.get(filter.column())).trim();
         return switch (filter.op()) {
             case eq -> raw.equals(scalar(filter.value()));
             case neq -> !raw.equals(scalar(filter.value()));
             case in -> containsRaw(filter.value(), raw);
-            case gt, gte, lt, lte -> orderedMatch(filter, raw, cols.get(filter.column()));
+            case gt, gte, lt, lte -> orderedMatch(filter, raw, cols.get(filter.column()), bound);
         };
     }
 
@@ -104,7 +125,7 @@ public class AggregationEngine {
         return false;
     }
 
-    private boolean orderedMatch(Filter filter, String raw, ColumnSchema col) {
+    private boolean orderedMatch(Filter filter, String raw, ColumnSchema col, Comparable<?> bound) {
         if (raw.isEmpty()) {
             return false;
         }
@@ -116,8 +137,7 @@ public class AggregationEngine {
             } catch (DateTimeParseException e) {
                 return false;
             }
-            cmp = cellDate.compareTo(
-                ChartSpecValidator.parseFilterDate(scalar(filter.value()), col.format()));
+            cmp = cellDate.compareTo((LocalDate) bound);
         } else {
             BigDecimal cellNumber;
             try {
@@ -125,7 +145,7 @@ public class AggregationEngine {
             } catch (NumberFormatException e) {
                 return false;
             }
-            cmp = cellNumber.compareTo(ChartSpecValidator.parseFilterNumber(scalar(filter.value())));
+            cmp = cellNumber.compareTo((BigDecimal) bound);
         }
         return switch (filter.op()) {
             case gt -> cmp > 0;
@@ -168,7 +188,6 @@ public class AggregationEngine {
             }
         }
 
-        List<Series> raw;
         List<GroupKey> ordered = new ArrayList<>(groups.keySet());
         Map<GroupKey, Double> sortValues;
 
@@ -332,7 +351,8 @@ public class AggregationEngine {
     static String bucketLabel(LocalDate start, TimeBucket bucket) {
         return switch (bucket) {
             case day, week -> start.toString();
-            case month -> String.format("%04d-%02d", start.getYear(), start.getMonthValue());
+            case month -> String.format(
+                Locale.ROOT, "%04d-%02d", start.getYear(), start.getMonthValue());
             case quarter -> start.getYear() + "-Q" + ((start.getMonthValue() - 1) / 3 + 1);
             case year -> String.valueOf(start.getYear());
         };
@@ -366,7 +386,7 @@ public class AggregationEngine {
         if (values.isEmpty()) {
             return null;
         }
-        return switch (measure.aggregation()) {
+        double result = switch (measure.aggregation()) {
             case sum -> total(values).doubleValue();
             case avg -> total(values)
                 .divide(BigDecimal.valueOf(values.size()), MathContext.DECIMAL64).doubleValue();
@@ -374,6 +394,16 @@ public class AggregationEngine {
             case max -> values.stream().max(BigDecimal::compareTo).orElseThrow().doubleValue();
             default -> throw new IllegalStateException("unexpected aggregation");
         };
+        return finiteOrNull(result);
+    }
+
+    /**
+     * Non-finite doubles (a magnitude past {@code Double.MAX_VALUE}, or NaN) would serialize as the
+     * JSON string {@code "Infinity"} inside the declared {@code number[]} data array. {@code null}
+     * already means "no usable value" in this response shape, so coerce to it.
+     */
+    private static Double finiteOrNull(double value) {
+        return Double.isFinite(value) ? value : null;
     }
 
     private static BigDecimal total(List<BigDecimal> values) {
@@ -425,7 +455,7 @@ public class AggregationEngine {
         }
 
         int breakdownIndex = index.get(spec.breakdown().column());
-        java.util.SortedMap<String, List<Object>> bySeries = new java.util.TreeMap<>();
+        SortedMap<String, List<Object>> bySeries = new TreeMap<>();
         for (List<String> row : rows) {
             Object point = point(row, xIndex, yIndex, rIndex);
             if (point == null) {
@@ -468,7 +498,7 @@ public class AggregationEngine {
             return null;
         }
         try {
-            return new BigDecimal(raw).doubleValue();
+            return finiteOrNull(new BigDecimal(raw).doubleValue());
         } catch (NumberFormatException e) {
             return null;
         }

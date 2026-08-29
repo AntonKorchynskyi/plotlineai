@@ -137,6 +137,15 @@ class ChartSpecContractTest {
              "filters":[{"column":"a","op":"eq","value":"1"},{"column":"a","op":"eq","value":"1"},
                         {"column":"a","op":"eq","value":"1"},{"column":"a","op":"eq","value":"1"},
                         {"column":"a","op":"eq","value":"1"},{"column":"a","op":"eq","value":"1"}]}
+            """,
+            // null measure element
+            """
+            {"chartType":"bar","title":"T","dimension":{"column":"r"},"measures":[null]}
+            """,
+            // null filter element
+            """
+            {"chartType":"bar","title":"T","dimension":{"column":"r"},
+             "measures":[{"column":null,"aggregation":"count"}],"filters":[null]}
             """);
     }
 
