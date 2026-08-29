@@ -105,4 +105,28 @@ class SchemaInferrerTest {
         ColumnSchema col = inferrer.infer(csvOf("c", "99999999999999999999")).get(0);
         assertEquals(ColumnType.DECIMAL, col.type());
     }
+
+    @Test
+    void raggedRowIsToleratedAsEmptyCell() {
+        // Defensive: CsvParser pads short rows, but the inferrer must not throw if not.
+        ParsedCsv csv = new ParsedCsv(List.of("a", "b"),
+            List.of(List.of("1", "2"), List.of("3")));
+        List<ColumnSchema> schema = new SchemaInferrer().infer(csv);
+        assertEquals(ColumnType.INTEGER, schema.get(1).type());
+        assertEquals(1, schema.get(1).nullCount());
+    }
+
+    @Test
+    void isoFebThirtyIsNotADate() {
+        ParsedCsv csv = new ParsedCsv(List.of("d"), List.of(List.of("2024-02-30")));
+        assertEquals(ColumnType.STRING, new SchemaInferrer().infer(csv).get(0).type());
+    }
+
+    @Test
+    void slashFebThirtyClampsToDate() {
+        ParsedCsv csv = new ParsedCsv(List.of("d"), List.of(List.of("2024/02/30")));
+        List<ColumnSchema> schema = new SchemaInferrer().infer(csv);
+        assertEquals(ColumnType.DATE, schema.get(0).type());
+        assertEquals("yyyy/MM/dd", schema.get(0).format());
+    }
 }
