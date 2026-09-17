@@ -37,14 +37,14 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "CAP_EXCEEDED", ex.getMessage());
     }
 
-    @ExceptionHandler(DatasetNotFoundException.class)
-    public ResponseEntity<ErrorResponse> onNotFound(DatasetNotFoundException ex) {
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> onNotFound(NotFoundException ex) {
         return body(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> onMalformedPathVariable(MethodArgumentTypeMismatchException ex) {
-        return body(HttpStatus.NOT_FOUND, "NOT_FOUND", "Dataset not found");
+        return body(HttpStatus.NOT_FOUND, "NOT_FOUND", "Resource not found");
     }
 
     @ExceptionHandler(InvalidChartSpecException.class)

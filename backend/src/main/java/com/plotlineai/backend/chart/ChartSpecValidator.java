@@ -30,6 +30,7 @@ public class ChartSpecValidator {
         EnumSet.of(FilterOp.gt, FilterOp.gte, FilterOp.lt, FilterOp.lte);
     private static final int MAX_BREAKDOWN_CARDINALITY = 20;
     private static final int MAX_IN_VALUES = 50;
+    private static final int MAX_FILTER_VALUE_LENGTH = 256;
 
     public void validate(ChartSpec spec, List<ColumnSchema> schema) {
         Map<String, ColumnSchema> cols = new HashMap<>();
@@ -138,11 +139,19 @@ public class ChartSpecValidator {
                 if (!element.isString()) {
                     fail("An in filter requires an array of strings");
                 }
+                if (element.asString().length() > MAX_FILTER_VALUE_LENGTH) {
+                    fail("A filter value exceeds the maximum length of "
+                        + MAX_FILTER_VALUE_LENGTH + " characters");
+                }
             }
             return;
         }
         if (!value.isString() && !value.isNumber()) {
             fail("This filter requires a string or number value");
+        }
+        if (value.isString() && value.asString().length() > MAX_FILTER_VALUE_LENGTH) {
+            fail("A filter value exceeds the maximum length of "
+                + MAX_FILTER_VALUE_LENGTH + " characters");
         }
         if (ORDERED_OPS.contains(filter.op())) {
             if (col.type() == ColumnType.DATE) {
