@@ -67,9 +67,29 @@ class GalleryApiIT {
     }
 
     @Test
-    void traversalStyleSlugNeverReadsAFile() throws Exception {
+    void traversalShapedSlugReachesControllerAndIs404() throws Exception {
+        mvc.perform(get("/gallery/..application.yaml/csv"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+            .andExpect(content().string(Matchers.not(Matchers.containsString("datasource"))));
+
+        mvc.perform(get("/gallery/....etc/csv"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+            .andExpect(content().string(Matchers.not(Matchers.containsString("datasource"))));
+    }
+
+    @Test
+    void encodedSlashSlugReachesControllerAsLiteralSegmentAndIs404() throws Exception {
+        // Under MockMvc (no real servlet-container connector in this IT), the literal "%2F" in
+        // this URI template is re-encoded to "%252F" by the request builder, so the servlet
+        // decodes it exactly once back to the literal characters "..%2F..%2Fapplication.yaml" -
+        // a single path segment, not an actual "/". The request reaches GalleryController like
+        // any other unknown slug and is rejected there, not by container-level encoded-slash
+        // protection.
         mvc.perform(get("/gallery/..%2F..%2Fapplication.yaml/csv"))
-            .andExpect(status().is4xxClientError())
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("NOT_FOUND"))
             .andExpect(content().string(Matchers.not(Matchers.containsString("datasource"))));
     }
 }
