@@ -44,7 +44,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> onMalformedPathVariable(MethodArgumentTypeMismatchException ex) {
-        return body(HttpStatus.NOT_FOUND, "NOT_FOUND", "Dataset not found");
+        return body(HttpStatus.NOT_FOUND, "NOT_FOUND", "Resource not found");
     }
 
     @ExceptionHandler(InvalidChartSpecException.class)
