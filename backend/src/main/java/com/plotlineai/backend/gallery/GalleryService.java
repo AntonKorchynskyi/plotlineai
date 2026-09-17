@@ -2,9 +2,6 @@ package com.plotlineai.backend.gallery;
 
 import com.plotlineai.backend.error.GalleryExampleNotFoundException;
 import com.plotlineai.backend.gallery.dto.GalleryExampleResponse;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +15,7 @@ public class GalleryService {
     }
 
     public List<GalleryExampleResponse> list() {
-        return repository.findAllByOrderByDisplayOrderAsc().stream()
+        return repository.findAllByOrderByDisplayOrderAscSlugAsc().stream()
             .map(e -> new GalleryExampleResponse(e.getSlug(), e.getTitle(), e.getDescription(),
                 e.getChartType(), e.getRenderedData(), "/gallery/" + e.getSlug() + "/csv"))
             .toList();
@@ -26,20 +23,15 @@ public class GalleryService {
 
     /**
      * The filename comes from the stored row, never from the request path, so a slug can only
-     * ever select one of the seeded files.
+     * ever select one of the seeded files. An unknown slug is a 404 from {@code findBySlug}; a
+     * row whose backing file is missing from the classpath is a server-side configuration
+     * problem and propagates as {@link IllegalStateException}, mapped to 500 by the catch-all
+     * handler.
      */
     public CsvDownload csv(String slug) {
         GalleryExample example = repository.findBySlug(slug)
             .orElseThrow(GalleryExampleNotFoundException::new);
-        String path = GalleryCatalog.CSV_CLASSPATH_DIR + example.getCsvFilename();
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new GalleryExampleNotFoundException();
-            }
-            return new CsvDownload(example.getCsvFilename(), in.readAllBytes());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return new CsvDownload(example.getCsvFilename(), GalleryCatalog.readCsv(example.getCsvFilename()));
     }
 
     public record CsvDownload(String filename, byte[] content) {

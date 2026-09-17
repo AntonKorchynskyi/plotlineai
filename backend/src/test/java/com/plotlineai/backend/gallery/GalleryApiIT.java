@@ -31,7 +31,7 @@ class GalleryApiIT {
             .andExpect(jsonPath("$[0].title").value("Revenue by region"))
             .andExpect(jsonPath("$[0].chartType").value("bar"))
             .andExpect(jsonPath("$[0].description").isNotEmpty())
-            .andExpect(jsonPath("$[0].csvUrl").value("/gallery/revenue-by-region/csv"))
+            .andExpect(jsonPath("$[0].csvPath").value("/gallery/revenue-by-region/csv"))
             .andExpect(jsonPath("$[0].renderedData.labels[0]").value("North America"))
             .andExpect(jsonPath("$[0].renderedData.datasets[0].data[0]").value(366350.0))
             .andExpect(jsonPath("$[5].slug").value("city-size-vs-density"))
@@ -80,13 +80,14 @@ class GalleryApiIT {
     }
 
     @Test
-    void encodedSlashSlugReachesControllerAsLiteralSegmentAndIs404() throws Exception {
-        // Under MockMvc (no real servlet-container connector in this IT), the literal "%2F" in
-        // this URI template is re-encoded to "%252F" by the request builder, so the servlet
-        // decodes it exactly once back to the literal characters "..%2F..%2Fapplication.yaml" -
-        // a single path segment, not an actual "/". The request reaches GalleryController like
-        // any other unknown slug and is rejected there, not by container-level encoded-slash
-        // protection.
+    void literalPercentEncodedSlugIsTreatedAsOneSegmentAndIs404() throws Exception {
+        // This does not exercise an actual encoded slash reaching the controller. Under MockMvc
+        // (no real servlet-container connector in this IT), the literal "%2F" in this URI
+        // template is re-encoded to "%252F" by the request builder, so the servlet decodes it
+        // exactly once back to the literal characters "..%2F..%2Fapplication.yaml" - a single
+        // path segment containing a literal percent sign, not an actual "/". The request reaches
+        // GalleryController like any other unknown slug and is rejected there, not by
+        // container-level encoded-slash protection.
         mvc.perform(get("/gallery/..%2F..%2Fapplication.yaml/csv"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("NOT_FOUND"))

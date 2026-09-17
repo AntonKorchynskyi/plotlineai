@@ -8,9 +8,6 @@ import com.plotlineai.backend.dataset.DatasetCapsProperties;
 import com.plotlineai.backend.dataset.ParsedCsv;
 import com.plotlineai.backend.dataset.SchemaInferrer;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -25,8 +22,11 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Fills {@code gallery_example} at startup. The rendered snapshot has to come from the real
  * aggregation engine, which a .sql migration cannot run, so V2 only adds the ordering column
- * and the data is written here. Upserts by slug, so every boot converges on the catalog. A
- * catalog entry whose spec does not validate against its own CSV fails startup.
+ * and the data is written here. Every boot converges on the catalog: entries are upserted by
+ * slug, and any row whose slug is no longer in the catalog is deleted, so a renamed or removed
+ * entry does not leave a stale card behind. A catalog entry whose spec does not validate
+ * against its own CSV fails startup. Two {@code api} instances starting concurrently could
+ * race on the unique slug constraint; single-instance compose makes this moot today.
  */
 @Component
 public class GallerySeeder implements ApplicationRunner {
@@ -57,13 +57,20 @@ public class GallerySeeder implements ApplicationRunner {
     public int seed() {
         List<Rendered> rendered = new ArrayList<>(GalleryCatalog.ENTRIES.size());
         for (GalleryCatalog.Entry entry : GalleryCatalog.ENTRIES) {
-            ParsedCsv parsed = csvParser.parse(readCsv(entry.csvFilename()));
+            ParsedCsv parsed = csvParser.parse(GalleryCatalog.readCsv(entry.csvFilename()));
             List<ColumnSchema> schema = schemaInferrer.infer(parsed);
             validator.validate(entry.spec(), schema);
             rendered.add(new Rendered(entry, engine.render(entry.spec(), schema, parsed.rows())));
         }
 
-        transactionTemplate.executeWithoutResult(status -> rendered.forEach(this::upsert));
+        List<String> slugs = GalleryCatalog.ENTRIES.stream().map(GalleryCatalog.Entry::slug).toList();
+        transactionTemplate.executeWithoutResult(status -> {
+            rendered.forEach(this::upsert);
+            int pruned = repository.deleteBySlugNotIn(slugs);
+            if (pruned > 0) {
+                log.info("Pruned {} retired gallery examples", pruned);
+            }
+        });
         log.info("Seeded {} gallery examples", rendered.size());
         return rendered.size();
     }
@@ -80,18 +87,6 @@ public class GallerySeeder implements ApplicationRunner {
         row.setRenderedData(objectMapper.valueToTree(item.response()));
         row.setDisplayOrder(entry.displayOrder());
         repository.save(row);
-    }
-
-    private byte[] readCsv(String filename) {
-        String path = GalleryCatalog.CSV_CLASSPATH_DIR + filename;
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("Missing gallery CSV on classpath: " + path);
-            }
-            return in.readAllBytes();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private record Rendered(GalleryCatalog.Entry entry, RenderResponse response) {

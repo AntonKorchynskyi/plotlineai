@@ -5,18 +5,28 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.plotlineai.backend.TestcontainersConfiguration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class GallerySeederIT {
 
+    private static final String STRAY_SLUG = "retired-example";
+
     @Autowired GalleryExampleRepository repository;
     @Autowired GallerySeeder seeder;
+    @Autowired ObjectMapper objectMapper;
+
+    @AfterEach
+    void removeStrayRow() {
+        repository.findBySlug(STRAY_SLUG).ifPresent(repository::delete);
+    }
 
     private JsonNode rendered(String slug) {
         return repository.findBySlug(slug).orElseThrow().getRenderedData();
@@ -91,5 +101,26 @@ class GallerySeederIT {
         assertEquals(GalleryCatalog.ENTRIES.size(), seeder.seed());
         assertEquals(GalleryCatalog.ENTRIES.size(), seeder.seed());
         assertEquals(before, repository.count(), "re-seeding must upsert, not duplicate");
+    }
+
+    @Test
+    void seedingPrunesRowsNotInTheCatalog() {
+        GalleryExample stray = new GalleryExample();
+        stray.setSlug(STRAY_SLUG);
+        stray.setTitle("Retired example");
+        stray.setDescription("No longer in the catalog");
+        stray.setChartType("bar");
+        stray.setSpec(objectMapper.readTree("{\"chartType\":\"bar\"}"));
+        stray.setCsvFilename("retired-example.csv");
+        stray.setRenderedData(objectMapper.readTree("{\"labels\":[\"a\"],\"datasets\":[]}"));
+        stray.setDisplayOrder(999);
+        repository.save(stray);
+
+        seeder.seed();
+
+        assertTrue(repository.findBySlug(STRAY_SLUG).isEmpty());
+        for (GalleryCatalog.Entry entry : GalleryCatalog.ENTRIES) {
+            assertTrue(repository.findBySlug(entry.slug()).isPresent());
+        }
     }
 }

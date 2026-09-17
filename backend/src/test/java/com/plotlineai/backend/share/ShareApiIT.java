@@ -1,5 +1,6 @@
 package com.plotlineai.backend.share;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -42,6 +43,7 @@ class ShareApiIT {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired DatasetRepository datasetRepository;
+    @Autowired ShareRepository shareRepository;
 
     private String datasetId;
 
@@ -141,6 +143,21 @@ class ShareApiIT {
         createShare("{\"spec\":" + SPEC + "}")
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value("INVALID_CHART_SPEC"));
+    }
+
+    @Test
+    void oversizedFilterValueIsRejectedAndNothingStored() throws Exception {
+        String longValue = "a".repeat(257);
+        String specWithFilter = "{\"chartType\":\"bar\",\"title\":\"T\","
+            + "\"dimension\":{\"column\":\"region\"},"
+            + "\"measures\":[{\"column\":\"revenue\",\"aggregation\":\"sum\"}],"
+            + "\"filters\":[{\"column\":\"region\",\"op\":\"neq\",\"value\":\"" + longValue + "\"}]}";
+
+        long before = shareRepository.count();
+        createShare("{\"datasetId\":\"" + datasetId + "\",\"spec\":" + specWithFilter + "}")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("INVALID_CHART_SPEC"));
+        assertEquals(before, shareRepository.count());
     }
 
     @Test

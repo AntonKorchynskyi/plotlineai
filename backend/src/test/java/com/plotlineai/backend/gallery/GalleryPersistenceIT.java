@@ -44,7 +44,7 @@ class GalleryPersistenceIT {
         repository.save(example("zeta-persist", 1001));
         repository.save(example("alpha-persist", 1000));
 
-        List<String> slugs = repository.findAllByOrderByDisplayOrderAsc().stream()
+        List<String> slugs = repository.findAllByOrderByDisplayOrderAscSlugAsc().stream()
             .map(GalleryExample::getSlug).toList();
         assertTrue(slugs.indexOf("alpha-persist") < slugs.indexOf("zeta-persist"));
 

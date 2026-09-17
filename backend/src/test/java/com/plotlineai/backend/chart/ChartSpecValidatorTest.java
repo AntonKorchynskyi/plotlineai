@@ -203,6 +203,46 @@ class ChartSpecValidatorTest {
     }
 
     @org.junit.jupiter.api.Test
+    void filterStringValueOver256CharsIsRejected() {
+        String longValue = "a".repeat(257);
+        String json = """
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "filters":[{"column":"region","op":"eq","value":"%s"}]}""".formatted(longValue);
+        assertThrows(InvalidChartSpecException.class, () -> validator.validate(spec(json), SCHEMA));
+    }
+
+    @org.junit.jupiter.api.Test
+    void inElementOver256CharsIsRejected() {
+        String longValue = "a".repeat(257);
+        String json = """
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "filters":[{"column":"region","op":"in","value":["%s"]}]}""".formatted(longValue);
+        assertThrows(InvalidChartSpecException.class, () -> validator.validate(spec(json), SCHEMA));
+    }
+
+    @org.junit.jupiter.api.Test
+    void filterStringValueExactly256CharsIsAccepted() {
+        String value = "a".repeat(256);
+        String json = """
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "filters":[{"column":"region","op":"eq","value":"%s"}]}""".formatted(value);
+        assertDoesNotThrow(() -> validator.validate(spec(json), SCHEMA));
+    }
+
+    @org.junit.jupiter.api.Test
+    void inElementExactly256CharsIsAccepted() {
+        String value = "a".repeat(256);
+        String json = """
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "filters":[{"column":"region","op":"in","value":["%s"]}]}""".formatted(value);
+        assertDoesNotThrow(() -> validator.validate(spec(json), SCHEMA));
+    }
+
+    @org.junit.jupiter.api.Test
     void rejectionMessageDoesNotEchoColumnName() {
         InvalidChartSpecException ex = assertThrows(InvalidChartSpecException.class,
             () -> validator.validate(spec("""

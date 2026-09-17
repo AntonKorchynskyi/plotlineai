@@ -10,6 +10,9 @@ import com.plotlineai.backend.chart.spec.Sort;
 import com.plotlineai.backend.chart.spec.SortBy;
 import com.plotlineai.backend.chart.spec.SortDirection;
 import com.plotlineai.backend.chart.spec.TimeBucket;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 /**
@@ -90,6 +93,23 @@ public final class GalleryCatalog {
                         new Measure("density_per_km2", Aggregation.none, "Density")),
                 null, null, null, null),
             6));
+
+    /**
+     * Reads one of the curated CSVs from the classpath. A missing file is a server-side
+     * configuration problem, not something a caller can recover from, so this throws rather
+     * than returning an empty result.
+     */
+    public static byte[] readCsv(String csvFilename) {
+        String path = CSV_CLASSPATH_DIR + csvFilename;
+        try (InputStream in = GalleryCatalog.class.getClassLoader().getResourceAsStream(path)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing gallery CSV on classpath: " + path);
+            }
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     private GalleryCatalog() {
     }
