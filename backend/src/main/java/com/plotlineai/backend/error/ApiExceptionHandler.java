@@ -37,8 +37,8 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "CAP_EXCEEDED", ex.getMessage());
     }
 
-    @ExceptionHandler(DatasetNotFoundException.class)
-    public ResponseEntity<ErrorResponse> onNotFound(DatasetNotFoundException ex) {
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> onNotFound(NotFoundException ex) {
         return body(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage());
     }
 
