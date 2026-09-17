@@ -86,6 +86,22 @@ Rules:
 - Generic error responses; logs exclude secrets and full dataset contents.
 - Dockerfiles: minimal base image, non-root user.
 
+## Design comes before frontend code
+
+The design pass is spec phase 5, and it is a **prerequisite for every frontend phase**.
+Do not build a screen, a component, or a chart style before it has landed.
+
+- `docs/design-system.md` is the written source of truth: color roles, type scale,
+  spacing scale, radii, elevation, component patterns, and the per-screen layout rules.
+- The Tailwind v4 `@theme` tokens in `frontend/app/globals.css` are the machine-readable
+  half of the same thing. Consume those tokens. Do not hardcode hex values, arbitrary
+  Tailwind values (`text-[#3b82f6]`, `p-[13px]`), or a spacing step that is not on the
+  scale.
+- Series colors come from the shared categorical chart palette, so the gallery and the
+  analyze results color identical categories identically.
+- If a screen needs something the design system does not cover, raise it and extend the
+  design system deliberately. Do not invent a one-off value in a component.
+
 ## Workflow
 
 - **TDD.** Write the failing test first, then the implementation. This is required for
@@ -97,7 +113,8 @@ Rules:
 - **One branch + one PR per build phase.** Never commit straight to `main`. Push the
   branch, open the PR with `gh`, summarize what changed, and leave the merge to the
   owner. Follow `CLAUDE.MD` commit rules (plain `-`, no agent co-author line).
-- Build phases are listed in the spec (section 12). Follow that order.
+- Build phases are listed in the spec (section 12). Follow that order. Phase 5 is the
+  design pass; no frontend phase starts before it is merged.
 - Fix lint failures, test failures, and flakiness you encounter, even if unrelated to
   your current task (per `CLAUDE.MD`).
 - Before spawning a large swarm of subagents or using "ultra"/"dynamic" harness
@@ -147,3 +164,5 @@ target is a single cheap VPS (e.g. Hetzner) + Caddy/Traefik; a
 - GitHub Actions CI is green on the PR.
 - The `ChartSpec` Zod schema and its Java mirror agree (contract tests pass on both
   sides).
+- For frontend phases: every color, spacing, and type value traces to a token in
+  `frontend/app/globals.css`, and the screen matches `docs/design-system.md`.
