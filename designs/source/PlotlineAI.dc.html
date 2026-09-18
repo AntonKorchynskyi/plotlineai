@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f5ead8"></rect><g stroke="#c67139" stroke-width="5" stroke-linecap="round" fill="none"><path d="M30 30v40h40"></path><path d="M38 60l10-12 8 7 12-16"></path></g></svg></template>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-a5021bfa-48ae-4346-9bb6-d3e66d16231b/styles.css">
+<script src="_ds/organic-a5021bfa-48ae-4346-9bb6-d3e66d16231b/_ds_bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  body { margin: 0; }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-600); }
+  .btn, .tag { white-space: nowrap; }
+  @keyframes plShimmer { 0% { opacity: .45 } 50% { opacity: .9 } 100% { opacity: .45 } }
+  @keyframes plSpin { to { transform: rotate(360deg) } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);">
+
+  <div class="nav" style="max-width: 1120px; margin: 0 auto; padding: 22px 26px 6px;">
+    <span class="nav-brand" style="display: flex; align-items: center; gap: 10px;">
+      <span style="width: 26px; height: 26px; border-radius: 999px; background: var(--color-accent); display: inline-flex; align-items: center; justify-content: center;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f5ead8" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 15l4-5 3 3 4-6"></path></svg>
+      </span>
+      PlotlineAI
+    </span>
+    <a href="#" onClick="{{ goLanding }}">Home</a>
+    <a href="#" onClick="{{ goUpload }}">Analyze</a>
+  </div>
+
+  <div style="max-width: 1120px; margin: 0 auto; padding: 0 26px;">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 0 26px; border-bottom: 1px solid var(--color-divider);">
+      <span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent); margin-right: 4px;">Screens</span>
+      <sc-for list="{{ screenTabs }}" as="tab" hint-placeholder-count="9">
+        <button class="btn" style="{{ tab.style }}" onClick="{{ tab.go }}">{{ tab.label }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 48px 26px 96px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 52px; align-items: center;">
+        <div>
+          <span class="tag tag-accent" style="margin-bottom: 20px;">CSV in, chart out</span>
+          <h1 style="font-size: 54px; line-height: 1.08; margin: 0 0 18px; max-width: 13em;">Hand it a spreadsheet. Get the chart you meant to make.</h1>
+          <p style="font-size: 18px; line-height: 1.6; max-width: 34em; margin: 0 0 28px; color: color-mix(in srgb, var(--color-text) 78%, transparent);">Upload a CSV and an AI agent reads the column types, picks the three charts worth looking at, and explains why. The numbers are aggregated on the server against your whole file, so what you see is the real data, not a sample.</p>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary" style="padding: 12px 24px; font-size: 15px;" onClick="{{ goUpload }}">
+              Upload a CSV
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
+            </button>
+            <a class="btn btn-secondary" style="padding: 12px 24px; font-size: 15px;" href="#gallery">See six examples</a>
+          </div>
+          <div style="display: flex; gap: 26px; flex-wrap: wrap; margin-top: 36px; font-size: 13px; white-space: nowrap; color: color-mix(in srgb, var(--color-text) 62%, transparent);">
+            <span>5 MB · 100k rows</span>
+            <span>Files expire after 7 days</span>
+            <span>PNG export and share links</span>
+          </div>
+        </div>
+        <div style="position: relative;">
+          <div style="position: absolute; width: 230px; height: 230px; border-radius: 999px; background: var(--color-accent-2-200); right: -34px; top: -46px;"></div>
+          <div style="position: absolute; width: 120px; height: 120px; border-radius: 999px; background: var(--color-accent-200); left: -40px; bottom: -34px;"></div>
+          <div class="card elev-md" style="position: relative; padding: 24px;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px;">
+              <span class="card-kicker">Rendered from monthly-signups.csv</span>
+              <span class="tag tag-neutral">line</span>
+            </div>
+            <div class="card-title" style="font-size: 20px;">Signups per month</div>
+            <div style="position: relative; height: 240px; margin-top: 8px;"><canvas ref="{{ heroChart }}"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="gallery" style="margin-top: 104px;">
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px;">
+          <div>
+            <h2 style="font-size: 34px; margin: 0 0 8px;">Six charts, six CSVs</h2>
+            <p style="margin: 0; font-size: 15px; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Every example below was rendered by the same pipeline your upload goes through. Take the CSV and try it yourself.</p>
+          </div>
+          <span class="tag tag-outline">GET /api/backend/gallery</span>
+        </div>
+        <div style="display: grid; grid-template-columns: {{ galleryTracks }}; gap: 26px;">
+          <sc-for list="{{ gallery }}" as="item" hint-placeholder-count="6">
+            <div class="card elev-sm" style="padding: 20px; gap: 12px;">
+              <div style="position: relative; height: 240px; border-radius: 22px; background: var(--color-bg); padding: 12px;"><canvas ref="{{ item.chart }}"></canvas></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <span class="card-title">{{ item.title }}</span>
+                <span class="tag tag-neutral">{{ item.type }}</span>
+              </div>
+              <p class="card-body" style="font-size: 13.5px;">{{ item.desc }}</p>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                <button class="btn btn-ghost" style="font-size: 13px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+                  Download CSV
+                </button>
+                <button class="btn btn-ghost" style="font-size: 13px; margin-left: auto;" onClick="{{ goUpload }}">Try your own</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isUpload }}">
+    <div style="max-width: 760px; margin: 0 auto; padding: 64px 26px 120px;">
+      <h2 style="font-size: 36px; margin: 0 0 10px;">Start with a CSV</h2>
+      <p style="margin: 0 0 32px; font-size: 16px; color: color-mix(in srgb, var(--color-text) 72%, transparent);">One file, comma separated, with a header row. Nothing is stored beyond seven days.</p>
+      <div class="card elev-md" style="padding: 12px;">
+        <button style="border: 2px dashed color-mix(in srgb, var(--color-accent) 45%, transparent); background: var(--color-accent-100); border-radius: 30px; padding: 58px 32px; display: flex; flex-direction: column; align-items: center; gap: 14px; cursor: pointer; width: 100%; font-family: var(--font-body); color: var(--color-text);" onClick="{{ startUpload }}">
+          <span style="width: 58px; height: 58px; border-radius: 999px; background: var(--color-accent); display: inline-flex; align-items: center; justify-content: center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f5ead8" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path></svg>
+          </span>
+          <span style="font-family: var(--font-heading); font-size: 21px;">Drop a CSV here</span>
+          <span style="font-size: 14px; color: color-mix(in srgb, var(--color-text) 65%, transparent);">or click to browse · up to 5 MB and 100,000 rows</span>
+        </button>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 26px;">
+        <span style="font-size: 13px; color: color-mix(in srgb, var(--color-text) 60%, transparent);">No file handy?</span>
+        <button class="btn btn-secondary" style="font-size: 13px;" onClick="{{ startUpload }}">Use revenue-by-region.csv</button>
+        <button class="btn btn-secondary" style="font-size: 13px;" onClick="{{ goRejected }}">Use exports-q4.xlsx</button>
+      </div>
+      <div style="margin-top: 44px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
+        <div>
+          <div style="font-family: var(--font-heading); font-size: 17px; margin-bottom: 6px;">1. Parse</div>
+          <p style="margin: 0; font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">The Java service streams your file, infers each column's type and counts distinct values.</p>
+        </div>
+        <div>
+          <div style="font-family: var(--font-heading); font-size: 17px; margin-bottom: 6px;">2. Suggest</div>
+          <p style="margin: 0; font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">The agent sees the schema and twenty sample rows, never the whole file, and returns three chart specs.</p>
+        </div>
+        <div>
+          <div style="font-family: var(--font-heading); font-size: 17px; margin-bottom: 6px;">3. Render</div>
+          <p style="margin: 0; font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">Each spec is checked against the real schema, then aggregated over every row before it is drawn.</p>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isParsing }}">
+    <div style="max-width: 760px; margin: 0 auto; padding: 96px 26px 140px; text-align: center;">
+      <span style="width: 54px; height: 54px; border-radius: 999px; border: 4px solid var(--color-accent-200); border-top-color: var(--color-accent); display: inline-block; animation: plSpin 900ms linear infinite;"></span>
+      <h2 style="font-size: 30px; margin: 26px 0 8px;">Parsing revenue-by-region.csv</h2>
+      <p style="margin: 0 0 34px; font-size: 15px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">Streaming rows, inferring column types.</p>
+      <div class="card elev-sm" style="padding: 22px; text-align: left; gap: 14px;">
+        <div style="height: 14px; width: 42%; border-radius: 999px; background: var(--color-accent-200); animation: plShimmer 1.4s ease-in-out infinite;"></div>
+        <div style="height: 14px; width: 78%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 120ms;"></div>
+        <div style="height: 14px; width: 61%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 240ms;"></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isThinking }}">
+    <div style="max-width: 1040px; margin: 0 auto; padding: 64px 26px 120px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+        <span style="width: 22px; height: 22px; border-radius: 999px; border: 3px solid var(--color-accent-200); border-top-color: var(--color-accent); display: inline-block; animation: plSpin 900ms linear infinite;"></span>
+        <h2 style="font-size: 30px; margin: 0;">Reading your columns</h2>
+      </div>
+      <p style="margin: 0 0 32px; font-size: 15px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">One structured call, usually under three seconds.</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+        <div class="card elev-sm" style="padding: 22px; gap: 14px;">
+          <div style="height: 16px; width: 55%; border-radius: 999px; background: var(--color-accent-200); animation: plShimmer 1.4s ease-in-out infinite;"></div>
+          <div style="height: 12px; width: 92%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 100ms;"></div>
+          <div style="height: 12px; width: 70%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 200ms;"></div>
+        </div>
+        <div class="card elev-sm" style="padding: 22px; gap: 14px;">
+          <div style="height: 16px; width: 62%; border-radius: 999px; background: var(--color-accent-200); animation: plShimmer 1.4s ease-in-out infinite 160ms;"></div>
+          <div style="height: 12px; width: 88%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 260ms;"></div>
+          <div style="height: 12px; width: 64%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 360ms;"></div>
+        </div>
+        <div class="card elev-sm" style="padding: 22px; gap: 14px;">
+          <div style="height: 16px; width: 48%; border-radius: 999px; background: var(--color-accent-200); animation: plShimmer 1.4s ease-in-out infinite 320ms;"></div>
+          <div style="height: 12px; width: 84%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 420ms;"></div>
+          <div style="height: 12px; width: 72%; border-radius: 999px; background: var(--color-neutral-200); animation: plShimmer 1.4s ease-in-out infinite 520ms;"></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSuggestions }}">
+    <div style="max-width: 1040px; margin: 0 auto; padding: 56px 26px 120px;">
+      <div class="card elev-sm" style="padding: 20px 24px; margin-bottom: 40px; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <span style="width: 34px; height: 34px; border-radius: 999px; background: var(--color-accent-2-200); display: inline-flex; align-items: center; justify-content: center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3d472b" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+          </span>
+          <span style="font-family: var(--font-heading); font-size: 19px;">revenue-by-region.csv</span>
+          <span class="tag tag-neutral">12 rows</span>
+          <span class="tag tag-neutral">3 columns</span>
+          <span class="tag tag-neutral">0 nulls</span>
+          <button class="btn btn-ghost" style="margin-left: auto; font-size: 13px;" onClick="{{ goUpload }}">Replace file</button>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <span class="tag tag-accent-2">region · string · 5 distinct</span>
+          <span class="tag tag-accent-2">rep · string · 12 distinct</span>
+          <span class="tag tag-accent-2">revenue · integer · 47,200–154,600</span>
+        </div>
+      </div>
+
+      <h2 style="font-size: 34px; margin: 0 0 8px;">Three charts worth a look</h2>
+      <p style="margin: 0 0 28px; font-size: 15px; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Pick one to render it over all twelve rows, or describe the chart you had in mind.</p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+        <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
+          <button class="card elev-sm" style="padding: 22px; gap: 12px; text-align: left; border: 1px solid transparent; cursor: pointer; font-family: var(--font-body); color: var(--color-text);" style-hover="border-color: var(--color-accent); box-shadow: var(--shadow-md);" onClick="{{ s.go }}">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span class="card-kicker">Suggestion {{ s.n }}</span>
+              <span class="tag tag-accent">{{ s.type }}</span>
+            </div>
+            <span class="card-title" style="font-size: 19px;">{{ s.title }}</span>
+            <p class="card-body" style="font-size: 13.5px;">{{ s.why }}</p>
+            <div style="position: relative; height: 104px; border-radius: 18px; background: var(--color-bg); padding: 8px; margin-top: 4px;"><canvas ref="{{ s.chart }}"></canvas></div>
+          </button>
+        </sc-for>
+      </div>
+
+      <div class="card elev-sm" style="padding: 22px 24px; margin-top: 26px; gap: 14px;">
+        <span style="font-family: var(--font-heading); font-size: 18px;">Or describe it yourself</span>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input class="input" style="flex: 1; min-width: 240px; min-height: 44px;" placeholder="e.g. revenue by region as a doughnut, biggest first">
+          <button class="btn btn-primary" style="padding: 11px 22px;" onClick="{{ goThinking }}">Draw it</button>
+        </div>
+        <span style="font-size: 12.5px; color: color-mix(in srgb, var(--color-text) 58%, transparent);">500 characters max. Column names and cell values are treated as data, never as instructions.</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isChart }}">
+    <div style="max-width: 1040px; margin: 0 auto; padding: 56px 26px 120px;">
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 22px;">
+        <div>
+          <span class="card-kicker">revenue-by-region.csv · 12 rows aggregated</span>
+          <h2 style="font-size: 34px; margin: 6px 0 0;">{{ chartTitle }}</h2>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" style="font-size: 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+            Download PNG
+          </button>
+          <button class="btn btn-primary" style="font-size: 14px;" onClick="{{ goShared }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 3l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21l1.5-1.5"></path></svg>
+            Share
+          </button>
+        </div>
+      </div>
+
+      <div class="card elev-md" style="padding: 26px;">
+        <div style="position: relative; height: 400px;"><canvas ref="{{ mainChart }}"></canvas></div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; margin-top: 22px;">
+        <div class="card elev-sm" style="padding: 22px 24px; gap: 14px;">
+          <span style="font-family: var(--font-heading); font-size: 18px;">Refine it</span>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input class="input" style="flex: 1; min-width: 220px; min-height: 44px;" placeholder="make it a doughnut, top five only…">
+            <button class="btn btn-primary" style="padding: 11px 22px;" onClick="{{ nextSpec }}">Send</button>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <sc-for list="{{ refineChips }}" as="c" hint-placeholder-count="4">
+              <button class="btn btn-secondary" style="font-size: 13px;" onClick="{{ c.go }}">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div class="card elev-sm" style="padding: 22px 24px; gap: 10px; background: var(--color-neutral-100);">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-family: var(--font-heading); font-size: 18px;">ChartSpec</span>
+            <span class="tag tag-accent-2">validated</span>
+          </div>
+          <pre style="margin: 0; font-size: 12px; line-height: 1.6; font-family: ui-monospace, monospace; white-space: pre-wrap; color: color-mix(in srgb, var(--color-text) 80%, transparent);">{{ specJson }}</pre>
+          <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 58%, transparent);">Every column checked against the stored schema before rendering.</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isShared }}">
+    <div style="max-width: 880px; margin: 0 auto; padding: 56px 26px 120px;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+        <span class="tag tag-accent">Read only</span>
+        <span style="font-size: 13px; font-family: ui-monospace, monospace; color: color-mix(in srgb, var(--color-text) 62%, transparent);">plotlineai.app/s/8f3c1a7e</span>
+      </div>
+      <h2 style="font-size: 34px; margin: 0 0 6px;">{{ chartTitle }}</h2>
+      <p style="margin: 0 0 24px; font-size: 14px; color: color-mix(in srgb, var(--color-text) 65%, transparent);">Shared 17 September 2026 · a snapshot of the rendered numbers, so this link keeps working after the dataset expires.</p>
+      <div class="card elev-md" style="padding: 26px;">
+        <div style="position: relative; height: 380px;"><canvas ref="{{ shareChart }}"></canvas></div>
+      </div>
+      <div class="card elev-sm" style="padding: 22px 24px; margin-top: 22px; flex-direction: row; align-items: center; gap: 18px; flex-wrap: wrap;">
+        <span style="font-family: var(--font-heading); font-size: 19px;">Got a CSV of your own?</span>
+        <button class="btn btn-primary" style="margin-left: auto; padding: 11px 22px;" onClick="{{ goUpload }}">Make your own chart</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isRejected }}">
+    <div style="max-width: 680px; margin: 0 auto; padding: 88px 26px 140px;">
+      <div class="card elev-md" style="padding: 32px; gap: 16px;">
+        <span style="width: 52px; height: 52px; border-radius: 999px; background: var(--color-accent-200); display: inline-flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c491a" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+        </span>
+        <h2 style="font-size: 30px; margin: 0;">That file was not a CSV</h2>
+        <p style="margin: 0; font-size: 15px; color: color-mix(in srgb, var(--color-text) 74%, transparent);">Only comma separated values can be read. Export your file as a CSV and try again.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 66%, transparent);">
+          <span>· .csv extension and text/csv content type</span>
+          <span>· 5 MB, 100,000 rows, 256 columns</span>
+          <span>· UTF-8 text with one header row</span>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px;">
+          <button class="btn btn-primary" style="padding: 11px 22px;" onClick="{{ goUpload }}">Pick another file</button>
+          <button class="btn btn-secondary" style="padding: 11px 22px;" onClick="{{ goLanding }}">Browse the examples</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isEmpty }}">
+    <div style="max-width: 880px; margin: 0 auto; padding: 56px 26px 120px;">
+      <div style="margin-bottom: 22px;">
+        <span class="card-kicker">revenue-by-region.csv · 12 rows aggregated</span>
+        <h2 style="font-size: 34px; margin: 6px 0 0;">Revenue by region, Middle East only, above 100k</h2>
+      </div>
+      <div class="card elev-md" style="padding: 56px 32px; align-items: center; text-align: center; gap: 14px;">
+        <span style="width: 96px; height: 96px; border-radius: 999px; background: var(--color-accent-2-200); display: inline-flex; align-items: center; justify-content: center;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d472b" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 16h.01"></path><path d="M12 16h.01"></path><path d="M17 16h.01"></path></svg>
+        </span>
+        <span style="font-family: var(--font-heading); font-size: 24px;">Nothing left to plot</span>
+        <p style="margin: 0; max-width: 34em; font-size: 15px; color: color-mix(in srgb, var(--color-text) 72%, transparent);">The filters matched no rows. The Middle East region tops out at 47,200, so the 100k floor removes everything.</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px;">
+          <button class="btn btn-secondary" style="padding: 11px 22px;" onClick="{{ goChart }}">Drop the filters</button>
+          <button class="btn btn-ghost" style="padding: 11px 16px;" onClick="{{ goSuggestions }}">Back to suggestions</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showScreenBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;demoDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1400,&quot;min&quot;:0,&quot;max&quot;:4000,&quot;step&quot;:100,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;galleryColumns&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:2,&quot;max&quot;:3,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Landing&quot;}}">
+class Component extends DCLogic {
+  state = { screen: 'landing', spec: 'byRegion' };
+
+  ink = '#201e1d';
+  palette = ['#c67139', '#8fa073', '#8c491a', '#aebf92', '#f6a06b', '#56633f'];
+
+  csv = {
+    revenue: `region,rep,revenue
+North America,A. Rivera,128400
+North America,J. Chen,96750
+North America,M. Osei,141200
+Europe,L. Novak,88300
+Europe,S. Dubois,112900
+Europe,K. Andersson,73450
+Asia Pacific,H. Tanaka,154600
+Asia Pacific,P. Sharma,98200
+Asia Pacific,W. Lim,86750
+Latin America,C. Duarte,61300
+Latin America,F. Molina,54800
+Middle East,N. Haddad,47200`,
+    signups: `date,signups
+2024-01-08,142
+2024-01-22,168
+2024-02-05,187
+2024-02-19,203
+2024-03-04,229
+2024-03-18,241
+2024-04-01,268
+2024-04-15,254
+2024-05-06,301
+2024-05-20,318
+2024-06-03,342
+2024-06-17,336
+2024-07-01,389
+2024-07-15,401
+2024-08-05,438
+2024-08-19,455
+2024-09-02,472
+2024-09-16,498
+2024-10-07,523
+2024-10-21,541
+2024-11-04,567
+2024-11-18,589`,
+    traffic: `source,sessions
+Organic search,48200
+Direct,21450
+Referral,12800
+Social,9640
+Email,7320
+Paid search,5180`,
+    sales: `date,category,sales
+2024-01-18,Hardware,84200
+2024-02-12,Hardware,79800
+2024-04-09,Hardware,91500
+2024-05-21,Hardware,88100
+2024-07-15,Hardware,96300
+2024-08-27,Hardware,102400
+2024-10-11,Hardware,108900
+2024-11-19,Hardware,114700
+2024-01-25,Software,62100
+2024-02-28,Software,68400
+2024-04-16,Software,71900
+2024-05-30,Software,77200
+2024-07-22,Software,83600
+2024-08-14,Software,89100
+2024-10-03,Software,94800
+2024-11-26,Software,101300
+2024-01-09,Services,38700
+2024-02-20,Services,41200
+2024-04-24,Services,44600
+2024-05-08,Services,47300
+2024-07-02,Services,50900
+2024-08-06,Services,53400
+2024-10-29,Services,57800
+2024-11-05,Services,61200`,
+    price: `product,price,rating
+Aurora Stand,24.99,3.8
+Basalt Mount,31.5,4.1
+Cirrus Hub,45,4.3
+Delta Grip,18.75,3.4
+Ember Dock,52.4,4.5
+Flint Case,12.99,3.1
+Granite Arm,68.9,4.6
+Harbor Pad,27.3,3.9
+Ionic Cable,9.5,2.9
+Juniper Tray,38.2,4
+Kestrel Riser,57.75,4.4
+Lumen Lamp,74.5,4.7
+Meridian Rack,41.6,4.2
+Nimbus Sleeve,15.25,3.3
+Onyx Clamp,63.4,4.5
+Prairie Shelf,29.99,3.7
+Quartz Base,49.8,4.3
+Ridge Holder,21.4,3.5
+Summit Frame,82.3,4.8
+Tundra Wrap,13.6,3`,
+    city: `city,area_km2,population_k,density_per_km2
+Barcelona,101,1620,16040
+Vienna,415,1930,4651
+Lisbon,100,545,5450
+Copenhagen,180,650,3611
+Munich,311,1490,4791
+Prague,496,1310,2641
+Amsterdam,219,905,4132
+Stockholm,188,980,5213
+Dublin,115,595,5174
+Helsinki,215,660,3070
+Warsaw,517,1790,3462
+Budapest,525,1680,3200
+Porto,41,231,5634
+Rotterdam,324,655,2021`
+  };
+
+  parse(text) {
+    const lines = text.trim().split('\n');
+    const cols = lines[0].split(',');
+    return lines.slice(1).map(line => {
+      const cells = line.split(',');
+      const row = {};
+      cols.forEach((c, i) => { row[c] = cells[i]; });
+      return row;
+    });
+  }
+
+  sumBy(rows, key, measure) {
+    const totals = new Map();
+    rows.forEach(r => totals.set(r[key], (totals.get(r[key]) || 0) + Number(r[measure])));
+    return [...totals.entries()].map(([label, value]) => ({ label, value }));
+  }
+
+  monthLabel(iso) {
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return names[Number(iso.slice(5, 7)) - 1];
+  }
+
+  quarterLabel(iso) {
+    return 'Q' + (Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1);
+  }
+
+  /* ---------- chart mounting ---------- */
+
+  chartRef(key, build) {
+    return el => {
+      if (!el || el.__plKey === key) return;
+      el.__plKey = key;
+      const go = () => {
+        const box = el.parentElement;
+        if (!window.Chart || !box || !box.clientHeight || !box.clientWidth || !el.isConnected) {
+          setTimeout(go, 60);
+          return;
+        }
+        window.Chart.defaults.font.family = 'Figtree, system-ui, sans-serif';
+        window.Chart.defaults.color = 'rgba(32,30,29,0.62)';
+        if (el.__plChart) el.__plChart.destroy();
+        el.__plChart = new window.Chart(el, build());
+        requestAnimationFrame(() => { if (el.__plChart) el.__plChart.resize(); });
+      };
+      go();
+    };
+  }
+
+  base(extra) {
+    const grid = { color: 'rgba(32,30,29,0.08)', drawBorder: false };
+    return Object.assign({
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 450 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        y: { grid: grid, border: { display: false }, ticks: { font: { size: 12 } } }
+      }
+    }, extra || {});
+  }
+
+  legendOpts(position) {
+    return { legend: { display: true, position: position || 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 12 } } } };
+  }
+
+  /* ---------- configs ---------- */
+
+  cfgRegionBar(limit) {
+    let data = this.sumBy(this.parse(this.csv.revenue), 'region', 'revenue')
+      .sort((a, b) => b.value - a.value);
+    if (limit) data = data.slice(0, limit);
+    return {
+      type: 'bar',
+      data: { labels: data.map(d => d.label), datasets: [{ label: 'Revenue', data: data.map(d => d.value), backgroundColor: this.palette[0], borderRadius: 10, maxBarThickness: 58 }] },
+      options: this.base()
+    };
+  }
+
+  cfgRepBar() {
+    const data = this.sumBy(this.parse(this.csv.revenue), 'rep', 'revenue')
+      .sort((a, b) => b.value - a.value).slice(0, 10);
+    return {
+      type: 'bar',
+      data: { labels: data.map(d => d.label), datasets: [{ label: 'Revenue', data: data.map(d => d.value), backgroundColor: this.palette[1], borderRadius: 10, maxBarThickness: 26 }] },
+      options: this.base({ indexAxis: 'y', scales: { y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 12 } } }, x: { grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } } } } })
+    };
+  }
+
+  cfgRegionDoughnut() {
+    const data = this.sumBy(this.parse(this.csv.revenue), 'region', 'revenue')
+      .sort((a, b) => b.value - a.value);
+    return {
+      type: 'doughnut',
+      data: { labels: data.map(d => d.label), datasets: [{ data: data.map(d => d.value), backgroundColor: this.palette, borderColor: '#f5ead8', borderWidth: 3, cutout: '58%' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: this.legendOpts('right') }
+    };
+  }
+
+  cfgSignups() {
+    const rows = this.parse(this.csv.signups);
+    const data = this.sumBy(rows.map(r => ({ m: this.monthLabel(r.date), signups: r.signups })), 'm', 'signups');
+    return {
+      type: 'line',
+      data: { labels: data.map(d => d.label), datasets: [{ label: 'Signups', data: data.map(d => d.value), borderColor: this.palette[0], backgroundColor: 'rgba(198,113,57,0.14)', borderWidth: 3, tension: 0.38, fill: true, pointRadius: 3, pointBackgroundColor: this.palette[0] }] },
+      options: this.base()
+    };
+  }
+
+  cfgTraffic() {
+    const data = this.sumBy(this.parse(this.csv.traffic), 'source', 'sessions')
+      .sort((a, b) => b.value - a.value);
+    return {
+      type: 'doughnut',
+      data: { labels: data.map(d => d.label), datasets: [{ data: data.map(d => d.value), backgroundColor: this.palette, borderColor: '#f5ead8', borderWidth: 3, cutout: '56%' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: this.legendOpts('right') }
+    };
+  }
+
+  cfgSalesStacked() {
+    const rows = this.parse(this.csv.sales);
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+    const cats = ['Hardware', 'Software', 'Services'];
+    const datasets = cats.map((cat, i) => ({
+      label: cat,
+      data: quarters.map(q => rows
+        .filter(r => r.category === cat && this.quarterLabel(r.date) === q)
+        .reduce((sum, r) => sum + Number(r.sales), 0)),
+      backgroundColor: this.palette[i],
+      borderRadius: 8,
+      maxBarThickness: 44
+    }));
+    return {
+      type: 'bar',
+      data: { labels: quarters, datasets: datasets },
+      options: this.base({
+        plugins: this.legendOpts('bottom'),
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { size: 12 } } },
+          y: { stacked: true, grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } } }
+        }
+      })
+    };
+  }
+
+  cfgScatter() {
+    const rows = this.parse(this.csv.price);
+    return {
+      type: 'scatter',
+      data: { datasets: [{ label: 'Products', data: rows.map(r => ({ x: Number(r.price), y: Number(r.rating) })), backgroundColor: this.palette[0], pointRadius: 5 }] },
+      options: this.base({
+        scales: {
+          x: { grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } }, title: { display: true, text: 'Price' } },
+          y: { grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } }, title: { display: true, text: 'Rating' } }
+        }
+      })
+    };
+  }
+
+  cfgBubble() {
+    const rows = this.parse(this.csv.city);
+    return {
+      type: 'bubble',
+      data: { datasets: [{ label: 'Cities', data: rows.map(r => ({ x: Number(r.area_km2), y: Number(r.population_k), r: Math.max(4, Number(r.density_per_km2) / 900) })), backgroundColor: 'rgba(143,160,115,0.55)', borderColor: '#56633f', borderWidth: 1.5 }] },
+      options: this.base({
+        scales: {
+          x: { grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } }, title: { display: true, text: 'Area (km2)' } },
+          y: { grid: { color: 'rgba(32,30,29,0.08)' }, border: { display: false }, ticks: { font: { size: 12 } }, title: { display: true, text: 'Population (k)' } }
+        }
+      })
+    };
+  }
+
+  /* ---------- specs ---------- */
+
+  specs = {
+    byRegion: {
+      title: 'Revenue by region',
+      type: 'bar',
+      json: '{\n  "chartType": "bar",\n  "title": "Revenue by region",\n  "dimension": { "column": "region" },\n  "measures": [\n    { "column": "revenue", "aggregation": "sum" }\n  ],\n  "sort": { "by": "measure", "direction": "desc" }\n}'
+    },
+    byRep: {
+      title: 'Top ten reps by revenue',
+      type: 'horizontalBar',
+      json: '{\n  "chartType": "horizontalBar",\n  "title": "Top ten reps by revenue",\n  "dimension": { "column": "rep" },\n  "measures": [\n    { "column": "revenue", "aggregation": "sum" }\n  ],\n  "sort": { "by": "measure", "direction": "desc" },\n  "limit": 10\n}'
+    },
+    share: {
+      title: 'Share of revenue by region',
+      type: 'doughnut',
+      json: '{\n  "chartType": "doughnut",\n  "title": "Share of revenue by region",\n  "dimension": { "column": "region" },\n  "measures": [\n    { "column": "revenue", "aggregation": "sum" }\n  ],\n  "sort": { "by": "measure", "direction": "desc" }\n}'
+    },
+    top3: {
+      title: 'Revenue by region, top three',
+      type: 'bar',
+      json: '{\n  "chartType": "bar",\n  "title": "Revenue by region, top three",\n  "dimension": { "column": "region" },\n  "measures": [\n    { "column": "revenue", "aggregation": "sum" }\n  ],\n  "sort": { "by": "measure", "direction": "desc" },\n  "limit": 3\n}'
+    }
+  };
+
+  cfgForSpec(key) {
+    if (key === 'byRep') return this.cfgRepBar();
+    if (key === 'share') return this.cfgRegionDoughnut();
+    if (key === 'top3') return this.cfgRegionBar(3);
+    return this.cfgRegionBar();
+  }
+
+  /* ---------- navigation ---------- */
+
+  go(screen, spec) {
+    return () => {
+      const next = { screen: screen };
+      if (spec) next.spec = spec;
+      this.setState(next);
+      if (window.scrollTo) window.scrollTo(0, 0);
+    };
+  }
+
+  simulate(from, to, spec) {
+    return () => {
+      const delay = this.props.demoDelay ?? 1400;
+      this.setState({ screen: from });
+      if (window.scrollTo) window.scrollTo(0, 0);
+      clearTimeout(this._t);
+      this._t = setTimeout(() => this.setState(spec ? { screen: to, spec: spec } : { screen: to }), delay);
+    };
+  }
+
+  componentWillUnmount() { clearTimeout(this._t); }
+
+  renderVals() {
+    const screen = this.state.screen;
+    const spec = this.specs[this.state.spec] || this.specs.byRegion;
+    const cols = this.props.galleryColumns ?? 3;
+
+    const tabs = [
+      ['landing', 'Landing'], ['upload', 'Upload'], ['parsing', 'Parsing'],
+      ['suggestions', 'Suggestions'], ['thinking', 'Thinking'], ['chart', 'Chart'],
+      ['shared', 'Shared link'], ['rejected', 'Rejected file'], ['empty', 'Empty result']
+    ].map(([key, label]) => ({
+      label: label,
+      go: this.go(key),
+      style: key === screen
+        ? 'font-size: 13px; background: var(--color-accent); color: var(--color-bg);'
+        : 'font-size: 13px; border-color: var(--color-divider); color: var(--color-text);'
+    }));
+
+    const gallery = [
+      ['revenue-by-region', 'Revenue by region', 'bar', 'Total sales revenue per region, ranked highest first.', () => this.cfgRegionBar()],
+      ['monthly-signups', 'Signups per month', 'line', 'New account signups aggregated by month across the year.', () => this.cfgSignups()],
+      ['traffic-sources', 'Traffic by source', 'doughnut', 'Share of sessions contributed by each acquisition channel.', () => this.cfgTraffic()],
+      ['sales-by-category', 'Sales by category per quarter', 'stacked bar', 'Quarterly sales stacked by product category.', () => this.cfgSalesStacked()],
+      ['price-vs-rating', 'Price against rating', 'scatter', 'Every product plotted by list price and average customer rating.', () => this.cfgScatter()],
+      ['city-size-vs-density', 'City size against density', 'bubble', 'City area against population, sized by people per square kilometre.', () => this.cfgBubble()]
+    ].map(([slug, title, type, desc, build]) => ({
+      slug: slug, title: title, type: type, desc: desc,
+      chart: this.chartRef('g-' + slug, build)
+    }));
+
+    const suggestions = [
+      ['byRegion', 1, 'Revenue by region', 'bar', 'Five regions and one numeric column: a ranked bar is the clearest read on who is ahead.', () => this.cfgRegionBar()],
+      ['byRep', 2, 'Top ten reps by revenue', 'horizontalBar', 'Twelve reps with long names, so lay the bars sideways and keep the top ten.', () => this.cfgRepBar()],
+      ['share', 3, 'Share of revenue by region', 'doughnut', 'Few categories summing to a meaningful total, which is the part-to-whole case.', () => this.cfgRegionDoughnut()]
+    ].map(([key, n, title, type, why, build]) => ({
+      n: n, title: title, type: type, why: why,
+      chart: this.chartRef('s-' + key, build),
+      go: this.simulate('thinking', 'chart', key)
+    }));
+
+    const order = ['byRegion', 'byRep', 'share', 'top3'];
+    const nextKey = order[(order.indexOf(this.state.spec) + 1) % order.length];
+
+    const refineChips = [
+      ['Split it by rep', 'byRep'],
+      ['Show shares instead', 'share'],
+      ['Top three only', 'top3'],
+      ['Back to regions', 'byRegion']
+    ].map(([label, key]) => ({ label: label, go: this.go('chart', key) }));
+
+    return {
+      isLanding: screen === 'landing',
+      isUpload: screen === 'upload',
+      isParsing: screen === 'parsing',
+      isSuggestions: screen === 'suggestions',
+      isThinking: screen === 'thinking',
+      isChart: screen === 'chart',
+      isShared: screen === 'shared',
+      isRejected: screen === 'rejected',
+      isEmpty: screen === 'empty',
+
+      screenTabs: (this.props.showScreenBar ?? true) ? tabs : [],
+      gallery: gallery,
+      galleryTracks: 'repeat(' + cols + ', minmax(0, 1fr))',
+      suggestions: suggestions,
+      refineChips: refineChips,
+
+      chartTitle: spec.title,
+      specJson: spec.json,
+
+      heroChart: this.chartRef('hero', () => this.cfgSignups()),
+      mainChart: this.chartRef('main-' + this.state.spec, () => this.cfgForSpec(this.state.spec)),
+      shareChart: this.chartRef('share-' + this.state.spec, () => this.cfgForSpec(this.state.spec)),
+
+      goLanding: this.go('landing'),
+      goUpload: this.go('upload'),
+      goSuggestions: this.go('suggestions'),
+      goChart: this.go('chart'),
+      goShared: this.go('shared'),
+      goRejected: this.go('rejected'),
+      goThinking: this.simulate('thinking', 'chart'),
+      startUpload: this.simulate('parsing', 'suggestions'),
+      nextSpec: this.go('chart', nextKey)
+    };
+  }
+}
+</script>
+</body>
+</html>

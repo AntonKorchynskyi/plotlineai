@@ -1,26 +1,359 @@
+/* PlotlineAI - Phase 5 design tokens and component layer.
+   The machine-readable half of docs/design-system.md; that document is the prose half.
+   Basis: the Organic design system. There is no dark scheme. */
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* roles */
+  --background: #f5ead8;
+  --surface: #ebddc5;
+  --foreground: #201e1d;
+  --accent: #c67139;
+  --accent-2: #7a8a5e;
+  --divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  /* neutral ramp */
+  --neutral-100: #f7f1e6;
+  --neutral-200: #ece3d3;
+  --neutral-300: #ddd2bd;
+  --neutral-400: #c2b6a0;
+  --neutral-500: #9e9382;
+  --neutral-600: #7c7264;
+  --neutral-700: #5c5449;
+  --neutral-800: #423c34;
+  --neutral-900: #2e2b25;
+
+  /* accent ramp (terracotta) */
+  --accent-100: #fff2eb;
+  --accent-200: #ffe1d0;
+  --accent-300: #ffc6a5;
+  --accent-400: #f6a06b;
+  --accent-500: #d67f48;
+  --accent-600: #b2622d;
+  --accent-700: #8c491a;
+  --accent-800: #643312;
+  --accent-900: #402310;
+
+  /* second accent ramp (sage) */
+  --accent-2-100: #f0fae1;
+  --accent-2-200: #e1eecc;
+  --accent-2-300: #ccdbb2;
+  --accent-2-400: #aebf92;
+  --accent-2-500: #8fa073;
+  --accent-2-600: #728157;
+  --accent-2-700: #56633f;
+  --accent-2-800: #3d472b;
+  --accent-2-900: #272e1b;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-divider: var(--divider);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-800: var(--accent-800);
+  --color-accent-900: var(--accent-900);
+
+  --color-accent-2-100: var(--accent-2-100);
+  --color-accent-2-200: var(--accent-2-200);
+  --color-accent-2-300: var(--accent-2-300);
+  --color-accent-2-400: var(--accent-2-400);
+  --color-accent-2-500: var(--accent-2-500);
+  --color-accent-2-600: var(--accent-2-600);
+  --color-accent-2-700: var(--accent-2-700);
+  --color-accent-2-800: var(--accent-2-800);
+  --color-accent-2-900: var(--accent-2-900);
+
+  /* the shared categorical chart palette, in series order */
+  --color-chart-1: var(--accent-500);
+  --color-chart-2: var(--accent-2-500);
+  --color-chart-3: var(--accent-700);
+  --color-chart-4: var(--accent-2-400);
+  --color-chart-5: var(--accent-400);
+  --color-chart-6: var(--accent-2-700);
+  --color-chart-grid: rgba(32, 30, 29, 0.08);
+  --color-chart-tick: rgba(32, 30, 29, 0.62);
+
+  /* type - next/font declares the namespaced variables these point at, so the theme
+     never names a literal family (next/font generates its own family names). */
+  --font-heading: var(--font-caprasimo), system-ui, sans-serif;
+  --font-sans: var(--font-figtree), system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-hero: 3.375rem;      /* 54px */
+  --text-hero--line-height: 1.08;
+  --text-page: 2.125rem;      /* 34px */
+  --text-section: 1.875rem;   /* 30px */
+  --text-card: 1.1875rem;     /* 19px */
+  --text-body: 0.9375rem;     /* 15px */
+  --text-small: 0.84375rem;   /* 13.5px */
+  --text-meta: 0.78125rem;    /* 12.5px */
+  --text-kicker: 0.6875rem;   /* 11px */
+
+  /* spacing - the 1.10x scale. It is exactly linear at 4.4px * n, so setting the base
+     keeps every unlisted step (p-5, p-7, gap-11) on the same rhythm instead of
+     silently falling back to Tailwind's 0.25rem. */
+  --spacing: 4.4px;
+  --spacing-1: 4.4px;
+  --spacing-2: 8.8px;
+  --spacing-3: 13.2px;
+  --spacing-4: 17.6px;
+  --spacing-6: 26.4px;
+  --spacing-8: 35.2px;
+
+  /* radius */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-card: 32px;
+  --radius-pill: 999px;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+
+  /* content widths */
+  --container-analyze: 1040px;
+  --container-landing: 1120px;
+  --container-share: 880px;
+  --container-upload: 760px;
+  --container-notice: 680px;
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 15px;
+  line-height: 1.55;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--spacing-2);
+}
+
+a { color: var(--accent-700); text-underline-offset: 3px; }
+a:hover { color: var(--accent-600); }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* No dark scheme: the warm light ground is the only theme. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components - the Organic system's classes, built from the tokens above.
+   Screens use these; they do not build parallel ones. See docs/design-system.md
+   section 4 for where each one appears.
+   ══════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  h1 { font-size: 42px; }
+  h2 { font-size: 32px; }
+  h3 { font-size: 25px; }
+  h4 { font-size: 20px; }
+  h5 { font-size: 16px; }
+  h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+  p { margin: 0 0 var(--spacing-3); }
+  img { display: block; max-width: 100%; }
+  figure { margin: 0; }
+  figcaption {
+    font-size: 11px; margin-top: var(--spacing-1);
+    color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  }
+
+  .text-muted { color: color-mix(in srgb, var(--foreground) 55%, transparent); }
+  .washed { filter: saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94); }
+
+  /* - rules - */
+  .hr {
+    height: 1px; border: 0; margin: var(--spacing-4) 0;
+    background: var(--divider);
+  }
+
+  /* - buttons - */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; text-decoration: none;
+    font-family: var(--font-heading); font-weight: 400;
+    font-size: 14px; line-height: 1.2; color: var(--foreground);
+    background: transparent; border: 1px solid transparent;
+    padding: var(--spacing-2) calc(var(--spacing-3) * 1.2);
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+  }
+  .btn svg { display: block; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: var(--background); }
+  .btn-primary:hover { background: var(--accent-600); color: var(--background); }
+  .btn-primary:active { background: var(--accent-700); }
+  .btn-secondary { border-color: var(--divider); }
+  .btn-secondary:hover { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+  .btn-secondary:active { background: color-mix(in srgb, var(--foreground) 14%, transparent); }
+  .btn-ghost { color: var(--accent); padding-inline: var(--spacing-1); }
+  .btn-ghost:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+  }
+  .btn-ghost:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .btn-icon { width: 36px; height: 36px; padding: 0; }
+  .btn-block { width: 100%; margin-top: var(--spacing-2); }
+
+  /* - forms - */
+  .field > label {
+    display: block; font-size: 12px; margin-bottom: 5px;
+    color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  }
+  .input {
+    width: 100%; min-height: 36px; padding: 6px 14px; font: inherit;
+    font-size: 14px; color: var(--foreground); caret-color: var(--accent);
+    background: var(--surface);
+    border: 1px solid var(--divider); border-radius: var(--radius-pill);
+  }
+  .input:hover { border-color: color-mix(in srgb, var(--foreground) 45%, transparent); }
+  .input:focus-visible { border-color: var(--accent); outline-offset: 0; }
+  textarea.input { min-height: 90px; resize: vertical; }
+
+  .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+  .radio input, .seg-opt input {
+    position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+  }
+  .radio .dot {
+    width: 16px; height: 16px; flex: none; border-radius: 50%;
+    border: 1.5px solid var(--divider);
+  }
+  .radio:hover .dot { border-color: var(--accent); }
+  .radio input:checked + .dot {
+    border-color: var(--accent); background: var(--accent);
+    box-shadow: inset 0 0 0 4px var(--background);
+  }
+  .radio input:focus-visible + .dot { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .seg {
+    display: inline-flex; overflow: hidden;
+    border: 1px solid var(--divider); border-radius: var(--radius-pill);
+    white-space: nowrap;
+  }
+  .seg-opt {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; font-size: 13px; cursor: pointer;
+  }
+  .seg-opt + .seg-opt { border-left: 1px solid var(--divider); }
+  .seg-opt:has(input:checked) { background: var(--accent); color: var(--background); }
+  .seg-opt:not(:has(input:checked)):hover {
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+  .seg-opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* - cards - */
+  .card {
+    display: flex; flex-direction: column; gap: var(--spacing-2);
+    padding: var(--spacing-3); background: var(--surface);
+    border-radius: var(--radius-card);
+  }
+  .card-kicker {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .card-title {
+    font-family: var(--font-heading); font-weight: 400;
+    font-size: 17px; line-height: 1.2;
+  }
+  .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+  .card-meta {
+    display: flex; align-items: center; gap: 6px; font-size: 11px;
+    color: color-mix(in srgb, var(--foreground) 50%, transparent);
+  }
+  .elev-sm { box-shadow: var(--shadow-sm); }
+  .elev-md { box-shadow: var(--shadow-md); }
+  .elev-lg { box-shadow: var(--shadow-lg); }
+
+  /* - tags - */
+  .tag {
+    display: inline-flex; align-items: center; font-size: 11px;
+    letter-spacing: 0.02em; padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+  }
+  .tag-accent { background: var(--accent-100); color: var(--accent-800); }
+  .tag-accent-2 { background: var(--accent-2-100); color: var(--accent-2-800); }
+  .tag-neutral { background: var(--neutral-100); color: var(--neutral-800); }
+  .tag-outline { border: 1px solid var(--accent); color: var(--accent); }
+
+  /* - navigation - */
+  .nav {
+    display: flex; align-items: center; gap: var(--spacing-4);
+    padding: var(--spacing-3) var(--spacing-4);
+    border-bottom: none;
+  }
+  .nav-brand {
+    font-family: var(--font-heading); font-weight: 400;
+    font-size: 18px; margin-right: auto;
+  }
+  .nav a { color: inherit; text-decoration: none; font-size: 14px; }
+  .nav a:hover, .nav a[aria-current="page"] { color: var(--accent); }
+
+  /* - tables - */
+  .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .table th {
+    text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: color-mix(in srgb, var(--foreground) 60%, transparent);
+    padding: var(--spacing-2); border-bottom: 1px solid var(--divider);
+  }
+  .table td {
+    padding: var(--spacing-2);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+  .table tbody tr:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+
+  /* - dialog - */
+  .dialog-backdrop {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    padding: var(--spacing-4);
+    background: color-mix(in srgb, var(--neutral-900) 50%, transparent);
+  }
+  .dialog {
+    width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--spacing-3);
+    padding: var(--spacing-4); border-radius: var(--radius-card);
+    background: var(--surface); box-shadow: var(--shadow-lg);
+  }
+  .dialog-title {
+    font-family: var(--font-heading); font-weight: 400;
+    font-size: 20px;
+  }
+  .dialog-body { font-size: 14px; opacity: 0.85; }
+  .dialog-actions {
+    display: flex; justify-content: flex-end; gap: var(--spacing-2);
+    margin-top: var(--spacing-2);
+  }
+}
+
+@keyframes plSpin { to { transform: rotate(360deg); } }
+@keyframes plShimmer { 0% { opacity: 0.45 } 50% { opacity: 0.9 } 100% { opacity: 0.45 } }
