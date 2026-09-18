@@ -82,19 +82,11 @@ export default async function LandingPage() {
         </div>
 
         {gallery && gallery.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {gallery.map((example) => (
-                <GalleryCard key={example.slug} example={example} />
-              ))}
-            </div>
-            <div className="mt-8">
-              <Link className="btn btn-secondary px-5 py-3 text-body" href="/analyze">
-                Try your own
-                <ArrowRightIcon />
-              </Link>
-            </div>
-          </>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {gallery.map((example) => (
+              <GalleryCard key={example.slug} example={example} />
+            ))}
+          </div>
         ) : (
           <GalleryUnavailable />
         )}

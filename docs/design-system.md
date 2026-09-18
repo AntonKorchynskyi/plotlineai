@@ -194,7 +194,7 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 
 | Screen | Notes |
 |---|---|
-| `/` landing | Hero (asymmetric two columns, flush-left heading with no kicker tag above it, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description, Download CSV. A single secondary "Try your own" button closes the gallery rather than one per card. |
+| `/` landing | Hero (asymmetric two columns, flush-left heading with no kicker tag above it, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description, Download CSV. No "Try your own" action: the hero's Upload a CSV is the one way into the analyze flow. |
 | `/analyze` upload | Centred card wrapping a dashed, 30px-radius accent-100 dropzone with a circular upload badge; caps stated in the sub-label; a three-step Parse / Suggest / Render explainer below. |
 | `/analyze` parsing | Accent spinner, file name, three shimmering pill skeletons. |
 | `/analyze` thinking | Inline spinner beside the heading and three skeleton suggestion cards. |

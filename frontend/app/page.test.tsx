@@ -94,13 +94,9 @@ describe("landing page", () => {
       }
     });
 
-    it("offers a single Try your own action for the whole gallery, not one per card", async () => {
+    it("carries no Try your own action; the hero's Upload a CSV is the only way in", async () => {
       await renderPage();
-
-      const links = screen.getAllByRole("link", { name: /try your own/i });
-      expect(links).toHaveLength(1);
-      expect(links[0]).toHaveAttribute("href", "/analyze");
-      expect(links[0].closest("article")).toBeNull();
+      expect(screen.queryByRole("link", { name: /try your own/i })).not.toBeInTheDocument();
     });
 
     it("carries no kicker tag above the hero heading", async () => {
