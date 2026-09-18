@@ -55,6 +55,10 @@
   --color-accent-2: var(--accent-2);
   --color-divider: var(--divider);
 
+  /* the two documented muted ink levels, so copy never hardcodes a color-mix */
+  --color-ink-muted: color-mix(in srgb, var(--foreground) 70%, transparent);
+  --color-ink-faint: color-mix(in srgb, var(--foreground) 55%, transparent);
+
   --color-neutral-100: var(--neutral-100);
   --color-neutral-200: var(--neutral-200);
   --color-neutral-300: var(--neutral-300);
@@ -128,6 +132,7 @@
   --radius-lg: 28px;
   --radius-card: 32px;
   --radius-pill: 999px;
+  --radius-well: 22px;   /* chart wells sitting inside a card */
 
   /* elevation */
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
@@ -136,45 +141,32 @@
 
   /* content widths */
   --container-analyze: 1040px;
-  --container-landing: 1120px;
   --container-share: 880px;
   --container-upload: 760px;
   --container-notice: 680px;
 }
 
-body {
-  margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, system-ui, sans-serif);
-  font-size: 15px;
-  line-height: 1.55;
-}
+/* Element defaults live in the base layer. Styles outside a layer beat every layered
+   style regardless of specificity, so an unlayered `a:hover` would override
+   `.btn-primary:hover` and paint a link-button's text the colour of its own
+   background. Keeping these layered lets components and utilities win as intended. */
+@layer base {
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 15px;
+    line-height: 1.55;
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  font-weight: 400;
-  line-height: 1.12;
-  letter-spacing: -0.015em;
-  margin: 0 0 var(--spacing-2);
-}
-
-a { color: var(--accent-700); text-underline-offset: 3px; }
-a:hover { color: var(--accent-600); }
-
-:focus { outline: none; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
-
-/* No dark scheme: the warm light ground is the only theme. */
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Components - the Organic system's classes, built from the tokens above.
-   Screens use these; they do not build parallel ones. See docs/design-system.md
-   section 4 for where each one appears.
-   ══════════════════════════════════════════════════════════════════════ */
-
-@layer components {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    margin: 0 0 var(--spacing-2);
+  }
   h1 { font-size: 42px; }
   h2 { font-size: 32px; }
   h3 { font-size: 25px; }
@@ -189,6 +181,23 @@ a:hover { color: var(--accent-600); }
     color: color-mix(in srgb, var(--foreground) 55%, transparent);
   }
 
+  a { color: var(--accent-700); text-underline-offset: 3px; }
+  a:hover { color: var(--accent-600); }
+
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+}
+
+/* No dark scheme: the warm light ground is the only theme. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components - the Organic system's classes, built from the tokens above.
+   Screens use these; they do not build parallel ones. See docs/design-system.md
+   section 4 for where each one appears.
+   ══════════════════════════════════════════════════════════════════════ */
+
+@layer components {
   .text-muted { color: color-mix(in srgb, var(--foreground) 55%, transparent); }
   .washed { filter: saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94); }
 

@@ -49,7 +49,9 @@ Each role carries a 100-900 ramp (`--color-accent-100 … -900`, `--color-accent
 - 700-900 for text sitting on a tinted fill, and for pressed states.
 - Paragraph-size text in the accent uses `--color-accent-700`, never `--color-accent`
   (the base accent clears 3:1, which is enough for chrome and large text only).
-- Muted body text is `color-mix(in srgb, var(--color-foreground) 62-78%, transparent)`.
+- Muted copy has two levels, tokenized so no screen writes its own `color-mix`:
+  `--color-ink-muted` (70%) for secondary body copy, and `--color-ink-faint` (55%) for
+  meta lines, captions and counts.
 
 ### Chart palette
 
@@ -106,14 +108,16 @@ with `globals.css` resolving them:
 - Spacing scale (1.10x density): `4.4 / 8.8 / 13.2 / 17.6 / 26.4 / 35.2` px, exposed as
   `--spacing-1 … --spacing-8`. Page rhythm on top of it: 26px page gutter, 20-26px grid
   gap, 52px hero column gap, 96-120px section separation.
-- Content width: 1120px for the landing page, 1040px for `/analyze`, 880px for the shared
-  chart and empty result, 760px for upload, 680px for the rejection card. Exposed as
-  `--container-landing`, `--container-analyze`, `--container-share`, `--container-upload`,
-  `--container-notice`.
+- Content width: the landing page and the header run full width inside a side gutter of
+  26px, widening to 52px from the `lg` breakpoint (`px-6 lg:px-12`). The prototype capped
+  the landing page at 1120px, which read as cramped on wide screens. Focused screens keep
+  a cap: 1040px for `/analyze`, 880px for the shared chart and empty result, 760px for
+  upload, 680px for the rejection card. Exposed as `--container-analyze`,
+  `--container-share`, `--container-upload`, `--container-notice`.
 - Radius: `--radius-sm 8`, `--radius-md 16`, `--radius-lg 28`. Cards and dialogs render at
   `calc(var(--radius-lg) * 1.15)` (~32px, exposed as `--radius-card`); buttons, tags,
   inputs and the segmented control are pills (`--radius-pill`, `999px`). Chart wells inside
-  cards use 18-22px.
+  cards use `--radius-well` (22px).
 - Elevation: `--shadow-sm` for gallery and secondary cards, `--shadow-md` for the hero card
   and the rendered chart, `--shadow-lg` for dialogs only. No ad-hoc box-shadows.
 
@@ -126,7 +130,7 @@ Use the Organic classes, which ship in the `@layer components` block of
 |---|---|
 | `.btn` + `.btn-primary` | Upload a CSV, Draw it, Send, Share, Pick another file |
 | `.btn-secondary` | Download PNG, refine chips, screen-level secondary actions |
-| `.btn-ghost` | Download CSV, Try your own, Replace file |
+| `.btn-ghost` | Download CSV, Replace file |
 | `.tag-accent` | Chart-type badge on a suggestion, the "Read only" share badge |
 | `.tag-accent-2` | Inferred column chips (`region · string · 5 distinct`) |
 | `.tag-neutral` | Row/column counts, gallery chart type |
@@ -190,7 +194,7 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 
 | Screen | Notes |
 |---|---|
-| `/` landing | Hero (asymmetric two columns, flush-left heading, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description, Download CSV + Try your own. |
+| `/` landing | Hero (asymmetric two columns, flush-left heading with no kicker tag above it, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description, Download CSV. No "Try your own" action: the hero's Upload a CSV is the one way into the analyze flow. |
 | `/analyze` upload | Centred card wrapping a dashed, 30px-radius accent-100 dropzone with a circular upload badge; caps stated in the sub-label; a three-step Parse / Suggest / Render explainer below. |
 | `/analyze` parsing | Accent spinner, file name, three shimmering pill skeletons. |
 | `/analyze` thinking | Inline spinner beside the heading and three skeleton suggestion cards. |
@@ -205,7 +209,9 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 - Left-aligned and asymmetric: headings flush left, whitespace kept on the right; centring is
   reserved for the upload, parsing, empty and rejected states.
 - Sibling groups are laid out with flex or grid plus `gap`, never margins between inline items.
-- Grids reflow with `repeat(auto-fit, minmax(…, 1fr))`: 360px hero columns, 260px card columns,
-  300px for the refine/spec row.
+- Grids reflow with `repeat(auto-fit, minmax(…, 1fr))`: 360px hero columns and 300px for the
+  refine/spec row. The landing gallery is the exception: on a full-width page auto-fit would
+  lay all six cards in one row of narrow tiles, so it steps 1 / 2 / 3 columns at the `md` and
+  `xl` breakpoints and never goes past three.
 - Give rounded shapes air. No element crowds another; section separation is 96-120px.
 - There is no dark scheme. The warm light ground is the only theme.
