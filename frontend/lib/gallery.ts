@@ -1,3 +1,4 @@
+import { backendUrl } from "@/lib/backend";
 import type { RenderedData } from "@/lib/chart-config";
 
 /** One entry of GET /gallery. `renderedData` is the RenderResponse shape, verbatim. */
@@ -11,7 +12,6 @@ export type GalleryExample = {
   csvPath: string;
 };
 
-const backendUrl = () => process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
 
 /**
  * Reads the gallery server-to-server.
