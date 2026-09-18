@@ -94,6 +94,20 @@ describe("landing page", () => {
       }
     });
 
+    it("offers a single Try your own action for the whole gallery, not one per card", async () => {
+      await renderPage();
+
+      const links = screen.getAllByRole("link", { name: /try your own/i });
+      expect(links).toHaveLength(1);
+      expect(links[0]).toHaveAttribute("href", "/analyze");
+      expect(links[0].closest("article")).toBeNull();
+    });
+
+    it("carries no kicker tag above the hero heading", async () => {
+      await renderPage();
+      expect(screen.queryByText(/csv in, chart out/i)).not.toBeInTheDocument();
+    });
+
     it("names the endpoint the gallery came from", async () => {
       await renderPage();
       expect(screen.getByText("GET /api/backend/gallery")).toBeInTheDocument();

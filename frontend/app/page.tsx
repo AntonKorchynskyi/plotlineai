@@ -19,7 +19,6 @@ export default async function LandingPage() {
     <main className="w-full px-6 pt-11 pb-22 lg:px-12">
       <section className="grid items-center gap-12 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
         <div>
-          <span className="tag tag-accent mb-5">CSV in, chart out</span>
           <h1 className="mb-4 max-w-[13em] text-hero">
             Hand it a spreadsheet. Get the chart you meant to make.
           </h1>
@@ -83,11 +82,19 @@ export default async function LandingPage() {
         </div>
 
         {gallery && gallery.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {gallery.map((example) => (
-              <GalleryCard key={example.slug} example={example} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {gallery.map((example) => (
+                <GalleryCard key={example.slug} example={example} />
+              ))}
+            </div>
+            <div className="mt-8">
+              <Link className="btn btn-secondary px-5 py-3 text-body" href="/analyze">
+                Try your own
+                <ArrowRightIcon />
+              </Link>
+            </div>
+          </>
         ) : (
           <GalleryUnavailable />
         )}
@@ -107,14 +114,11 @@ function GalleryCard({ example }: { example: GalleryExample }) {
         <span className="tag tag-neutral">{chartTypeLabel(example)}</span>
       </div>
       <p className="card-body text-small">{example.description}</p>
-      <div className="mt-px flex items-center gap-2">
+      <div className="mt-px flex items-center">
         <a className="btn btn-ghost text-small" href={csvHref(example.csvPath)} download>
           <DownloadIcon />
           Download CSV
         </a>
-        <Link className="btn btn-ghost ml-auto text-small" href="/analyze">
-          Try your own
-        </Link>
       </div>
     </article>
   );
