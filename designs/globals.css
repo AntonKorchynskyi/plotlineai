@@ -1,0 +1,165 @@
+/* PlotlineAI - Phase 5 design tokens.
+   Drop-in replacement for frontend/app/globals.css (Tailwind v4, CSS-first config).
+   Values are the Organic design system's tokens; see docs/design-system.md. */
+
+@import "tailwindcss";
+
+:root {
+  /* roles */
+  --background: #f5ead8;
+  --surface: #ebddc5;
+  --foreground: #201e1d;
+  --accent: #c67139;
+  --accent-2: #7a8a5e;
+  --divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  /* neutral ramp */
+  --neutral-100: #f7f1e6;
+  --neutral-200: #ece3d3;
+  --neutral-300: #ddd2bd;
+  --neutral-400: #c2b6a0;
+  --neutral-500: #9e9382;
+  --neutral-600: #7c7264;
+  --neutral-700: #5c5449;
+  --neutral-800: #423c34;
+  --neutral-900: #2e2b25;
+
+  /* accent ramp (terracotta) */
+  --accent-100: #fff2eb;
+  --accent-200: #ffe1d0;
+  --accent-300: #ffc6a5;
+  --accent-400: #f6a06b;
+  --accent-500: #d67f48;
+  --accent-600: #b2622d;
+  --accent-700: #8c491a;
+  --accent-800: #643312;
+  --accent-900: #402310;
+
+  /* second accent ramp (sage) */
+  --accent-2-100: #f0fae1;
+  --accent-2-200: #e1eecc;
+  --accent-2-300: #ccdbb2;
+  --accent-2-400: #aebf92;
+  --accent-2-500: #8fa073;
+  --accent-2-600: #728157;
+  --accent-2-700: #56633f;
+  --accent-2-800: #3d472b;
+  --accent-2-900: #272e1b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-divider: var(--divider);
+
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-800: var(--accent-800);
+  --color-accent-900: var(--accent-900);
+
+  --color-accent-2-100: var(--accent-2-100);
+  --color-accent-2-200: var(--accent-2-200);
+  --color-accent-2-300: var(--accent-2-300);
+  --color-accent-2-400: var(--accent-2-400);
+  --color-accent-2-500: var(--accent-2-500);
+  --color-accent-2-600: var(--accent-2-600);
+  --color-accent-2-700: var(--accent-2-700);
+  --color-accent-2-800: var(--accent-2-800);
+  --color-accent-2-900: var(--accent-2-900);
+
+  /* the shared categorical chart palette, in series order */
+  --color-chart-1: var(--accent-500);
+  --color-chart-2: var(--accent-2-500);
+  --color-chart-3: var(--accent-700);
+  --color-chart-4: var(--accent-2-400);
+  --color-chart-5: var(--accent-400);
+  --color-chart-6: var(--accent-2-700);
+  --color-chart-grid: rgba(32, 30, 29, 0.08);
+  --color-chart-tick: rgba(32, 30, 29, 0.62);
+
+  /* type */
+  --font-heading: "Caprasimo", system-ui, sans-serif;
+  --font-sans: "Figtree", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-hero: 3.375rem;      /* 54px */
+  --text-hero--line-height: 1.08;
+  --text-page: 2.125rem;      /* 34px */
+  --text-section: 1.875rem;   /* 30px */
+  --text-card: 1.1875rem;     /* 19px */
+  --text-body: 0.9375rem;     /* 15px */
+  --text-small: 0.84375rem;   /* 13.5px */
+  --text-meta: 0.78125rem;    /* 12.5px */
+  --text-kicker: 0.6875rem;   /* 11px */
+
+  /* spacing — the 1.10x scale */
+  --spacing-1: 4.4px;
+  --spacing-2: 8.8px;
+  --spacing-3: 13.2px;
+  --spacing-4: 17.6px;
+  --spacing-6: 26.4px;
+  --spacing-8: 35.2px;
+
+  /* radius */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-card: 32px;
+  --radius-pill: 999px;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+
+  /* content widths */
+  --container-analyze: 1040px;
+  --container-landing: 1120px;
+  --container-share: 880px;
+  --container-upload: 760px;
+  --container-notice: 680px;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--spacing-2);
+}
+
+a { color: var(--accent-700); text-underline-offset: 3px; }
+a:hover { color: var(--accent-600); }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* No dark scheme: the warm light ground is the only theme. */
