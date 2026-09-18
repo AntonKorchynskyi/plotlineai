@@ -16,7 +16,7 @@ export default async function LandingPage() {
   const hero = gallery?.find((e) => e.slug === HERO_SLUG) ?? gallery?.[0];
 
   return (
-    <main className="mx-auto w-full max-w-landing px-6 pt-11 pb-22">
+    <main className="w-full px-6 pt-11 pb-22 lg:px-12">
       <section className="grid items-center gap-12 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
         <div>
           <span className="tag tag-accent mb-5">CSV in, chart out</span>
@@ -83,7 +83,7 @@ export default async function LandingPage() {
         </div>
 
         {gallery && gallery.length > 0 ? (
-          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {gallery.map((example) => (
               <GalleryCard key={example.slug} example={example} />
             ))}

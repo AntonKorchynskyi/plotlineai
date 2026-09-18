@@ -108,11 +108,12 @@ with `globals.css` resolving them:
 - Spacing scale (1.10x density): `4.4 / 8.8 / 13.2 / 17.6 / 26.4 / 35.2` px, exposed as
   `--spacing-1 … --spacing-8`. Page rhythm on top of it: 26px page gutter, 20-26px grid
   gap, 52px hero column gap, 96-120px section separation.
-- Content width: 1280px for the landing page (widened from the prototype's 1120px, which
-  read as cramped on wide screens), 1040px for `/analyze`, 880px for the shared chart and
-  empty result, 760px for upload, 680px for the rejection card. Exposed as
-  `--container-landing`, `--container-analyze`, `--container-share`, `--container-upload`,
-  `--container-notice`.
+- Content width: the landing page and the header run full width inside a side gutter of
+  26px, widening to 52px from the `lg` breakpoint (`px-6 lg:px-12`). The prototype capped
+  the landing page at 1120px, which read as cramped on wide screens. Focused screens keep
+  a cap: 1040px for `/analyze`, 880px for the shared chart and empty result, 760px for
+  upload, 680px for the rejection card. Exposed as `--container-analyze`,
+  `--container-share`, `--container-upload`, `--container-notice`.
 - Radius: `--radius-sm 8`, `--radius-md 16`, `--radius-lg 28`. Cards and dialogs render at
   `calc(var(--radius-lg) * 1.15)` (~32px, exposed as `--radius-card`); buttons, tags,
   inputs and the segmented control are pills (`--radius-pill`, `999px`). Chart wells inside
@@ -208,7 +209,9 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 - Left-aligned and asymmetric: headings flush left, whitespace kept on the right; centring is
   reserved for the upload, parsing, empty and rejected states.
 - Sibling groups are laid out with flex or grid plus `gap`, never margins between inline items.
-- Grids reflow with `repeat(auto-fit, minmax(…, 1fr))`: 360px hero columns, 260px card columns,
-  300px for the refine/spec row.
+- Grids reflow with `repeat(auto-fit, minmax(…, 1fr))`: 360px hero columns and 300px for the
+  refine/spec row. The landing gallery is the exception: on a full-width page auto-fit would
+  lay all six cards in one row of narrow tiles, so it steps 1 / 2 / 3 columns at the `md` and
+  `xl` breakpoints and never goes past three.
 - Give rounded shapes air. No element crowds another; section separation is 96-120px.
 - There is no dark scheme. The warm light ground is the only theme.
