@@ -55,6 +55,10 @@
   --color-accent-2: var(--accent-2);
   --color-divider: var(--divider);
 
+  /* the two documented muted ink levels, so copy never hardcodes a color-mix */
+  --color-ink-muted: color-mix(in srgb, var(--foreground) 70%, transparent);
+  --color-ink-faint: color-mix(in srgb, var(--foreground) 55%, transparent);
+
   --color-neutral-100: var(--neutral-100);
   --color-neutral-200: var(--neutral-200);
   --color-neutral-300: var(--neutral-300);
@@ -128,6 +132,7 @@
   --radius-lg: 28px;
   --radius-card: 32px;
   --radius-pill: 999px;
+  --radius-well: 22px;   /* chart wells sitting inside a card */
 
   /* elevation */
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);

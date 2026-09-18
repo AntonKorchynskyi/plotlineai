@@ -49,7 +49,9 @@ Each role carries a 100-900 ramp (`--color-accent-100 … -900`, `--color-accent
 - 700-900 for text sitting on a tinted fill, and for pressed states.
 - Paragraph-size text in the accent uses `--color-accent-700`, never `--color-accent`
   (the base accent clears 3:1, which is enough for chrome and large text only).
-- Muted body text is `color-mix(in srgb, var(--color-foreground) 62-78%, transparent)`.
+- Muted copy has two levels, tokenized so no screen writes its own `color-mix`:
+  `--color-ink-muted` (70%) for secondary body copy, and `--color-ink-faint` (55%) for
+  meta lines, captions and counts.
 
 ### Chart palette
 
@@ -113,7 +115,7 @@ with `globals.css` resolving them:
 - Radius: `--radius-sm 8`, `--radius-md 16`, `--radius-lg 28`. Cards and dialogs render at
   `calc(var(--radius-lg) * 1.15)` (~32px, exposed as `--radius-card`); buttons, tags,
   inputs and the segmented control are pills (`--radius-pill`, `999px`). Chart wells inside
-  cards use 18-22px.
+  cards use `--radius-well` (22px).
 - Elevation: `--shadow-sm` for gallery and secondary cards, `--shadow-md` for the hero card
   and the rendered chart, `--shadow-lg` for dialogs only. No ad-hoc box-shadows.
 
