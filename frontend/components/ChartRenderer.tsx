@@ -43,18 +43,23 @@ ChartJS.register(
 ChartJS.defaults.font.family = "Figtree, system-ui, sans-serif";
 ChartJS.defaults.color = CHART_TICK;
 
+/** What a caller can do with the drawn chart; `toBase64Image` is the PNG export. */
+export type DrawnChart = Pick<ChartJS, "toBase64Image">;
+
 type Props = {
   data: RenderedData;
   /** The well height in pixels. Chart.js fills the wrapper, so it needs an explicit one. */
   height: number;
   className?: string;
+  /** Receives the Chart.js instance once drawn, for PNG export on the analyze screen. */
+  onReady?: (chart: DrawnChart | null) => void;
 };
 
 /**
  * The single component that draws a backend RenderResponse. It adds no styling of its
  * own: every decision lives in toChartConfig, which is why this stays a wrapper.
  */
-export default function ChartRenderer({ data, height, className }: Props) {
+export default function ChartRenderer({ data, height, className, onReady }: Props) {
   const config = toChartConfig(data);
 
   return (
@@ -64,7 +69,14 @@ export default function ChartRenderer({ data, height, className }: Props) {
       role="img"
       aria-label={data.title}
     >
-      <Chart type={config.type} data={config.data} options={config.options} />
+      <Chart
+        type={config.type}
+        data={config.data}
+        options={config.options}
+        ref={(chart) => {
+          onReady?.(chart ?? null);
+        }}
+      />
     </div>
   );
 }

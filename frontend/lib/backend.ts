@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RenderedData } from "@/lib/chart-config";
 
 /**
  * Server-to-server access to the api. The /api/backend rewrite is browser-facing and its
@@ -40,6 +41,36 @@ export class BackendError extends Error {
     super(message, options);
     this.name = "BackendError";
   }
+}
+
+const ShareSchema = z.object({
+  shareId: z.string(),
+  createdAt: z.string(),
+  renderedData: z.custom<RenderedData>(() => true),
+});
+
+/** GET /shares/{id}: the snapshot rendered when the share was made. */
+export type Share = z.infer<typeof ShareSchema>;
+
+/**
+ * Reads a share snapshot. It outlives its dataset by design, so this keeps working after
+ * the 7-day expiry. Returns null when the id is unknown, which the page shows as not found.
+ */
+export async function fetchShare(shareId: string): Promise<Share | null> {
+  let response: Response;
+  try {
+    response = await fetch(`${backendUrl()}/shares/${encodeURIComponent(shareId)}`, {
+      cache: "no-store",
+    });
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) return null;
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
+
+  const parsed = ShareSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new BackendError("unexpected share");
+  return parsed.data;
 }
 
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {

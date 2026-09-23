@@ -56,6 +56,16 @@ describe("<ChartRenderer>", () => {
     expect(figure).toHaveAccessibleName(data.title);
   });
 
+  it("hands the chart instance back, so a caller can export it as a PNG", () => {
+    const onReady = vi.fn();
+    render(<ChartRenderer data={fixture("revenue-by-region")} height={400} onReady={onReady} />);
+
+    expect(captured.props?.ref).toBeDefined();
+    const chart = { toBase64Image: () => "data:image/png;base64,AAA" };
+    (captured.props?.ref as (c: unknown) => void)(chart);
+    expect(onReady).toHaveBeenCalledWith(chart);
+  });
+
   it("passes a caller className onto the wrapper", () => {
     const { container } = render(
       <ChartRenderer data={fixture("traffic-sources")} height={240} className="chart-well" />,
