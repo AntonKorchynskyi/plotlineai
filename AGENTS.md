@@ -29,7 +29,7 @@ Rules:
 - `web/next.config.ts` `rewrites` proxy `/api/backend/:path*` -> `http://api:8080/:path*`.
   Browser calls to `api` go through that path. `web` route handlers may also call `api`
   server-to-server.
-- **AI code lives only in `web`** (`web/src/lib/ai/`), because the Vercel AI SDK and
+- **AI code lives only in `web`** (`frontend/lib/ai/`), because the Vercel AI SDK and
   LangChain are JS/TS. Do not add an LLM client to the Spring Boot backend.
 - **`api` computes all aggregation** (group-by, sum/avg/min/max/count, time buckets,
   filters, top-N) in Java, against the full dataset. `web` never aggregates.
@@ -53,10 +53,12 @@ Rules:
 
 `ChartSpec` is the one interface between the AI layer and the render backend.
 
-- Authoritative definition: Zod schema in `web/src/lib/chart-spec.ts`.
+- Authoritative definition: Zod schema in `frontend/lib/chart-spec.ts`.
 - Mirror: Java records in `com.plotlineai.backend.chart.spec`.
-- Keep them in sync. Each side has a contract test that round-trips the same example
-  specs. If you change one, change the other and update both tests in the same PR.
+- Keep them in sync. Both contract tests (`ChartSpecContractTest` and
+  `frontend/lib/chart-spec.test.ts`) read one fixture file,
+  `backend/src/test/resources/contracts/chart-spec-fixtures.json`. Add cases there, never
+  in either test. If you change one side, change the other in the same PR.
 - Shape is documented in the spec (section 5). Fields: `chartType`, `stacked?`,
   `title`, `dimension`, `measures[]`, `breakdown?`, `filters[]`, `sort?`, `limit?`.
 

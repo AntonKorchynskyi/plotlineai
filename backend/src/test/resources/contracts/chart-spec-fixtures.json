@@ -1,0 +1,493 @@
+{
+  "_comment": "Shared ChartSpec contract fixtures. Read by backend ChartSpecContractTest and frontend lib/chart-spec.test.ts, so the Java record and the Zod schema are held to one set of cases. Edit here, never in either test.",
+  "valid": [
+    {
+      "name": "minimal bar",
+      "spec": {
+        "chartType": "bar",
+        "title": "Revenue by region",
+        "dimension": {
+          "column": "region"
+        },
+        "measures": [
+          {
+            "column": "revenue",
+            "aggregation": "sum"
+          }
+        ]
+      }
+    },
+    {
+      "name": "line with bucket, filters and sort",
+      "spec": {
+        "chartType": "line",
+        "stacked": false,
+        "title": "Monthly average units",
+        "dimension": {
+          "column": "joined",
+          "bucket": "month"
+        },
+        "measures": [
+          {
+            "column": "units",
+            "aggregation": "avg",
+            "label": "avg units"
+          }
+        ],
+        "filters": [
+          {
+            "column": "region",
+            "op": "in",
+            "value": [
+              "north",
+              "south"
+            ]
+          },
+          {
+            "column": "units",
+            "op": "gte",
+            "value": 10
+          }
+        ],
+        "sort": {
+          "by": "dimension",
+          "direction": "asc"
+        }
+      }
+    },
+    {
+      "name": "stacked area with breakdown and limit",
+      "spec": {
+        "chartType": "area",
+        "stacked": true,
+        "title": "Stacked by region",
+        "dimension": {
+          "column": "joined",
+          "bucket": "quarter"
+        },
+        "measures": [
+          {
+            "column": "revenue",
+            "aggregation": "sum"
+          }
+        ],
+        "breakdown": {
+          "column": "region"
+        },
+        "sort": {
+          "by": "measure",
+          "direction": "desc"
+        },
+        "limit": 10
+      }
+    },
+    {
+      "name": "pie counting rows",
+      "spec": {
+        "chartType": "pie",
+        "title": "Signups per region",
+        "dimension": {
+          "column": "region"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bubble with three raw measures",
+      "spec": {
+        "chartType": "bubble",
+        "title": "Units vs revenue",
+        "dimension": {
+          "column": "region"
+        },
+        "measures": [
+          {
+            "column": "units",
+            "aggregation": "none"
+          },
+          {
+            "column": "revenue",
+            "aggregation": "none"
+          },
+          {
+            "column": "score",
+            "aggregation": "none"
+          }
+        ]
+      }
+    },
+    {
+      "name": "optional fields sent as explicit null",
+      "spec": {
+        "chartType": "bar",
+        "stacked": null,
+        "title": "Nulls are absent",
+        "dimension": {
+          "column": "region",
+          "bucket": null
+        },
+        "measures": [
+          {
+            "column": "revenue",
+            "aggregation": "sum",
+            "label": null
+          }
+        ],
+        "breakdown": null,
+        "filters": null,
+        "sort": null,
+        "limit": null
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "no measures",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": []
+      }
+    },
+    {
+      "name": "five measures",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          },
+          {
+            "column": null,
+            "aggregation": "count"
+          },
+          {
+            "column": null,
+            "aggregation": "count"
+          },
+          {
+            "column": null,
+            "aggregation": "count"
+          },
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blank title",
+      "spec": {
+        "chartType": "bar",
+        "title": "  ",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "title over 120 characters",
+      "spec": {
+        "chartType": "bar",
+        "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "limit below range",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "limit": 0
+      }
+    },
+    {
+      "name": "limit above range",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "limit": 101
+      }
+    },
+    {
+      "name": "six filters",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "filters": [
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          },
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          },
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          },
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          },
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          },
+          {
+            "column": "a",
+            "op": "eq",
+            "value": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null measure element",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          null
+        ]
+      }
+    },
+    {
+      "name": "null filter element",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "filters": [
+          null
+        ]
+      }
+    },
+    {
+      "name": "unknown property",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "evil": 1,
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown nested property",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r",
+          "evil": 1
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown chart type",
+      "spec": {
+        "chartType": "banana",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown aggregation",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": "a",
+            "aggregation": "median"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blank dimension column",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": " "
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing dimension",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ]
+      }
+    },
+    {
+      "name": "measure label over 120 characters",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count",
+            "label": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+          }
+        ]
+      }
+    },
+    {
+      "name": "filter with null value",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "filters": [
+          {
+            "column": "a",
+            "op": "eq",
+            "value": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "sort missing direction",
+      "spec": {
+        "chartType": "bar",
+        "title": "T",
+        "dimension": {
+          "column": "r"
+        },
+        "measures": [
+          {
+            "column": null,
+            "aggregation": "count"
+          }
+        ],
+        "sort": {
+          "by": "measure"
+        }
+      }
+    }
+  ]
+}
