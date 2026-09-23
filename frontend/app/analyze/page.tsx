@@ -1,5 +1,6 @@
 "use client";
 
+import PageShell from "@/components/PageShell";
 import ChartPanel from "@/components/analyze/ChartPanel";
 import DatasetSummary from "@/components/analyze/DatasetSummary";
 import Dropzone from "@/components/analyze/Dropzone";
@@ -24,7 +25,7 @@ export default function AnalyzePage() {
 
   if (state.step === "idle") {
     return (
-      <main className="mx-auto w-full max-w-upload px-6 pt-16 pb-30">
+      <PageShell className="pt-16 pb-30">
         <h2 className="mb-2 text-page">Start with a CSV</h2>
         <p className="mb-8 text-[16px] text-ink-muted">
           One file, comma separated, with a header row. Nothing is stored beyond seven days.
@@ -42,7 +43,7 @@ export default function AnalyzePage() {
             </div>
           ))}
         </div>
-      </main>
+      </PageShell>
     );
   }
 
@@ -51,17 +52,13 @@ export default function AnalyzePage() {
   }
 
   if (state.step === "parsing") {
-    return (
-      <main>
-        <Parsing fileName={state.fileName} />
-      </main>
-    );
+    return <Parsing fileName={state.fileName} />;
   }
 
   const onChart = state.step === "chart";
 
   return (
-    <main className="mx-auto w-full max-w-analyze px-6 pt-13 pb-30">
+    <PageShell className="pt-13 pb-30">
       {state.step !== "thinking" && (
         <DatasetSummary
           fileName={state.fileName}
@@ -126,6 +123,6 @@ export default function AnalyzePage() {
           onShare={flow.share}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

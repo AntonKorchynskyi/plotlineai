@@ -139,11 +139,8 @@
   --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
 
-  /* content widths */
-  --container-analyze: 1040px;
-  --container-share: 880px;
-  --container-upload: 760px;
-  --container-notice: 680px;
+  /* No page-level width caps: every page runs full width inside the gutter (px-6 lg:px-12).
+     Reading width is capped per block instead. See docs/design-system.md section 3. */
 }
 
 /* Element defaults live in the base layer. Styles outside a layer beat every layered

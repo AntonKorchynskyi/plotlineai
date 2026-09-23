@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageShell from "@/components/PageShell";
 import { AlertTriangleIcon, BarChartIcon } from "@/components/icons";
 import type { Failure } from "@/lib/analyze/client";
 import { noticeCopy, rejectionCopy } from "@/lib/analyze/messages";
@@ -33,14 +34,14 @@ export function Spinner({ size = 54 }: { size?: number }) {
 
 export function Parsing({ fileName }: { fileName: string }) {
   return (
-    <div className="mx-auto max-w-upload px-6 pt-22 pb-32 text-center">
+    <PageShell className="pt-22 pb-32 text-center">
       <Spinner />
       <h2 className="mt-6 mb-2 text-section">Parsing {fileName}</h2>
       <p className="mb-8 text-body text-ink-muted">Streaming rows, inferring column types.</p>
-      <div className="card elev-sm gap-3 p-5 text-left">
+      <div className="card elev-sm mx-auto max-w-[46em] gap-3 p-5 text-left">
         {[shimmer("42%", 0, true), shimmer("78%", 120), shimmer("61%", 240)]}
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -101,13 +102,13 @@ export function EmptyResult({
 export function RejectedFile({ failure, onRetry }: { failure: Failure; onRetry: () => void }) {
   const copy = rejectionCopy(failure);
   return (
-    <div className="mx-auto max-w-notice px-6 pt-20 pb-32">
+    <PageShell className="pt-20 pb-32">
       <div className="card elev-md gap-4 p-7">
         <span className="inline-flex size-12 items-center justify-center rounded-pill bg-accent-200 text-accent-700">
           <AlertTriangleIcon size={24} />
         </span>
         <h2 className="m-0 text-section">{copy.heading}</h2>
-        <p className="m-0 text-body text-ink-muted">{copy.detail}</p>
+        <p className="m-0 max-w-[46em] text-body text-ink-muted">{copy.detail}</p>
         <div className="flex flex-col gap-2 text-small text-ink-faint">
           <span>· .csv extension and text/csv content type</span>
           <span>· 5 MB, 100,000 rows, 256 columns</span>
@@ -122,7 +123,7 @@ export function RejectedFile({ failure, onRetry }: { failure: Failure; onRetry: 
           </Link>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

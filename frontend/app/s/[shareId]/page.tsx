@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ChartRenderer from "@/components/ChartRenderer";
+import PageShell from "@/components/PageShell";
 import { fetchShare } from "@/lib/backend";
 
 // Shares are read per request: the snapshot is immutable, but a link may be opened at any
@@ -28,13 +29,13 @@ export default async function SharePage({
   if (!share) notFound();
 
   return (
-    <main className="mx-auto w-full max-w-share px-6 pt-13 pb-30">
+    <PageShell className="pt-13 pb-30">
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="tag tag-accent">Read only</span>
         <span className="font-mono text-small text-ink-faint">/s/{share.shareId}</span>
       </div>
       <h2 className="mb-1 text-page">{share.renderedData.title}</h2>
-      <p className="mb-6 text-small text-ink-muted">
+      <p className="mb-6 max-w-[46em] text-small text-ink-muted">
         Shared {shareDate(share.createdAt)} · a snapshot of the rendered numbers, so this link
         keeps working after the dataset expires.
       </p>
@@ -49,6 +50,6 @@ export default async function SharePage({
           Make your own chart
         </Link>
       </div>
-    </main>
+    </PageShell>
   );
 }

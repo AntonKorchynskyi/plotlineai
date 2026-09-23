@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageShell from "@/components/PageShell";
 import ChartRenderer from "@/components/ChartRenderer";
 import { AlertTriangleIcon, ArrowRightIcon, DownloadIcon } from "@/components/icons";
 import { chartTypeLabel, csvHref, getGallery, type GalleryExample } from "@/lib/gallery";
@@ -16,7 +17,7 @@ export default async function LandingPage() {
   const hero = gallery?.find((e) => e.slug === HERO_SLUG) ?? gallery?.[0];
 
   return (
-    <main className="w-full px-6 pt-11 pb-22 lg:px-12">
+    <PageShell className="pt-11 pb-22">
       <section className="grid items-center gap-12 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
         <div>
           <h1 className="mb-4 max-w-[13em] text-hero">
@@ -91,7 +92,7 @@ export default async function LandingPage() {
           <GalleryUnavailable />
         )}
       </section>
-    </main>
+    </PageShell>
   );
 }
 
@@ -133,7 +134,7 @@ function HeroFallback() {
 
 function GalleryUnavailable() {
   return (
-    <div className="card elev-sm max-w-notice items-start gap-3 p-5">
+    <div className="card elev-sm max-w-[46em] items-start gap-3 p-5">
       <span className="inline-flex size-8 items-center justify-center rounded-pill bg-accent-200 text-accent-800">
         <AlertTriangleIcon size={18} />
       </span>
