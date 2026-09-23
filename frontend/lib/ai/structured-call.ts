@@ -1,9 +1,34 @@
-import { NoObjectGeneratedError, NoOutputGeneratedError, Output, generateText } from "ai";
+import {
+  NoObjectGeneratedError,
+  NoOutputGeneratedError,
+  Output,
+  generateText,
+  type LanguageModelUsage,
+} from "ai";
 import type { z } from "zod";
 import { dailyBudget, type DailyBudget } from "@/lib/ai/budget";
 import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
 import { callSettings, type CallSettings } from "@/lib/ai/provider";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
+
+/**
+ * What each call cost, in tokens. Reasoning tokens bill at the output rate and dominate the
+ * bill for a reasoning model, and cached input bills at a tenth of fresh input, so both are
+ * worth watching. Counts only: no prompt, no dataset, no output.
+ */
+function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsage) {
+  console.info(
+    JSON.stringify({
+      event: "ai_call",
+      call: name,
+      model: typeof settings.model === "string" ? settings.model : settings.model.modelId,
+      inputTokens: usage.inputTokens,
+      cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
+      outputTokens: usage.outputTokens,
+      reasoningTokens: usage.outputTokenDetails?.reasoningTokens,
+    }),
+  );
+}
 
 /** Seams for tests; production uses the real provider and the process-wide budget. */
 export type AiDeps = {
@@ -28,7 +53,7 @@ export async function structuredCall<T>(
   (deps.budget ?? dailyBudget).consume();
 
   try {
-    const { output } = await generateText({
+    const result = await generateText({
       ...settings,
       system: SYSTEM_PROMPT,
       prompt: options.prompt,
@@ -38,7 +63,8 @@ export async function structuredCall<T>(
         description: options.description,
       }),
     });
-    return output;
+    logUsage(options.name, settings, result.usage);
+    return result.output;
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error)) {
       throw new AiBadOutputError("model output did not match the schema", { cause: error });

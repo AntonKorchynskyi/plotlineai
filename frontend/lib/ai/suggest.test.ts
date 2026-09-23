@@ -99,6 +99,23 @@ describe("suggestCharts", () => {
     visit(schema);
   });
 
+  it("logs what the call cost, and nothing about the data", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const model = mockModel(three);
+    await suggestCharts(dataset, { settings: settingsFor(model), budget: freshBudget() });
+
+    expect(info).toHaveBeenCalledTimes(1);
+    const logged = info.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toMatchObject({
+      event: "ai_call",
+      inputTokens: 10,
+      outputTokens: 20,
+    });
+    expect(logged).not.toContain("North America");
+    expect(logged).not.toContain("region");
+    info.mockRestore();
+  });
+
   it("keeps only the first three when the model offers more", async () => {
     const model = mockModel({ suggestions: [...three.suggestions, three.suggestions[0]] });
     const result = await suggestCharts(dataset, {

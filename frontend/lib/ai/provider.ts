@@ -11,7 +11,11 @@ const DEFAULT_MODEL = "gpt-5-nano";
 
 export type CallSettings = {
   model: LanguageModel;
-  /** gpt-5-nano is a reasoning model; low effort keeps latency and cost down. */
+  /**
+   * gpt-5-nano is a reasoning model, and reasoning tokens bill at the output rate. Measured
+   * against the gallery CSVs, "minimal" produced the same 640-768 reasoning tokens per call
+   * as "low" and slightly worse chart choices, so there is nothing to gain by lowering it.
+   */
   reasoning: "low";
   /** Reasoning tokens count towards this, so it must cover them plus three specs. */
   maxOutputTokens: number;
