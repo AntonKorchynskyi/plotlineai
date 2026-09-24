@@ -4,6 +4,7 @@ import {
   DatasetNotFoundError,
   backendUrl,
   fetchDataset,
+  fetchShare,
   type DatasetDetail,
 } from "@/lib/backend";
 
@@ -39,6 +40,45 @@ describe("backendUrl", () => {
   it("falls back to localhost", () => {
     vi.stubEnv("BACKEND_INTERNAL_URL", "");
     expect(backendUrl()).toBe("http://localhost:8080");
+  });
+});
+
+describe("fetchShare", () => {
+  const share = {
+    shareId: "s1",
+    createdAt: "2026-09-17T10:30:00Z",
+    renderedData: { chartType: "bar", stacked: false, title: "T", labels: [], datasets: [] },
+  };
+
+  it("reads the stored snapshot", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
+    respond(share);
+
+    await expect(fetchShare("s1")).resolves.toEqual(share);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("http://api:8080/shares/s1");
+  });
+
+  it("returns null for an unknown id, which is a page state and not an error", async () => {
+    respond({ error: "NOT_FOUND" }, 404);
+    await expect(fetchShare("nope")).resolves.toBeNull();
+  });
+
+  it("still fails loudly when the api is broken or unreachable", async () => {
+    respond({ error: "INTERNAL" }, 500);
+    await expect(fetchShare("s1")).rejects.toBeInstanceOf(BackendError);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("ECONNREFUSED");
+      }),
+    );
+    await expect(fetchShare("s1")).rejects.toBeInstanceOf(BackendError);
+  });
+
+  it("refuses a response that is not a share", async () => {
+    respond({ unexpected: true });
+    await expect(fetchShare("s1")).rejects.toBeInstanceOf(BackendError);
   });
 });
 

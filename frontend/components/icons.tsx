@@ -47,6 +47,33 @@ export function AlertTriangleIcon({ size = 22, className }: IconProps) {
   );
 }
 
+export function UploadIcon({ size = 26, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M17 8l-5-5-5 5" />
+      <path d="M12 3v12" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+export function ShareIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 3l-1.5 1.5" />
+      <path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21l1.5-1.5" />
+    </svg>
+  );
+}
+
 /** The brand mark: a bar chart with a rising trend line. */
 export function BarChartIcon({ size = 15, className }: IconProps) {
   return (
