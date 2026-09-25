@@ -23,7 +23,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+# The server is `node server.js`: no package manager is needed at runtime, and npm, yarn
+# and corepack bring their own dependency trees (and advisories) along.
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 \
+ && rm -rf /usr/local/lib/node_modules /opt/yarn-* \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=build /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
