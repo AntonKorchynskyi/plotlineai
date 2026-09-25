@@ -5,8 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
  *   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
  *
  * The rate-limit spec drains a bucket for the one client address the whole suite shares,
- * so it runs as its own project after everything else. The buckets live in web's memory:
- * to run the suite again on the same stack, restart web first (docker compose restart web).
+ * so it runs as its own project after everything else. That bucket refills within a
+ * minute, after which the suite can run again on the same stack.
  */
 export default defineConfig({
   testDir: "./tests",

@@ -1,36 +1,30 @@
 import { expect, test } from "./fixtures";
 
 // Runs last (its own project): it drains the render bucket for the suite's one address.
-// The e2e overlay sizes that bucket at 40 with no refill during a run.
+// The e2e overlay sizes that bucket at 40, refilling one every 1.5s, so the bucket is full
+// again a minute later and the suite can run again on the same stack.
 
-test("hammering the render endpoint ends in 429 with Retry-After", async ({
+test("hammering the render endpoint ends in 429, and a forged address does not help", async ({
   request,
   baseURL,
 }) => {
-  const statuses: number[] = [];
-  let retryAfter: string | undefined;
-
-  for (let i = 0; i < 60; i++) {
-    const response = await request.post("/api/backend/charts/render", {
-      headers: { origin: baseURL! },
+  const render = (headers: Record<string, string> = {}) =>
+    request.post("/api/backend/charts/render", {
+      headers: { origin: baseURL!, ...headers },
       data: {},
     });
-    statuses.push(response.status());
-    if (response.status() === 429) {
-      retryAfter = response.headers()["retry-after"];
-      expect((await response.json()).error).toBe("RATE_LIMITED");
-      break;
-    }
+
+  let limited = null;
+  for (let i = 0; i < 60 && !limited; i++) {
+    const response = await render();
+    if (response.status() === 429) limited = response;
   }
 
-  expect(statuses.at(-1)).toBe(429);
-  expect(Number(retryAfter)).toBeGreaterThan(0);
-});
+  expect(limited, "no 429 within 60 renders").not.toBeNull();
+  expect(Number(limited!.headers()["retry-after"])).toBeGreaterThan(0);
+  expect((await limited!.json()).error).toBe("RATE_LIMITED");
 
-test("a forged X-Forwarded-For does not buy a fresh bucket", async ({ request, baseURL }) => {
-  const response = await request.post("/api/backend/charts/render", {
-    headers: { origin: baseURL!, "x-forwarded-for": "198.51.100.77" },
-    data: {},
-  });
-  expect(response.status()).toBe(429);
+  // Straight away, before the bucket earns a token back: the proxy overwrites the header,
+  // so this is the same client as before.
+  expect((await render({ "x-forwarded-for": "198.51.100.77" })).status()).toBe(429);
 });

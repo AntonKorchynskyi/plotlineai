@@ -55,8 +55,8 @@ docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --w
 cd e2e && npm ci && npx playwright install chromium && npx playwright test
 ```
 
-The rate-limit spec drains a bucket on purpose, so restart `web` before running the
-suite again on the same stack.
+The rate-limit spec drains a bucket on purpose. It refills within a minute, so wait that
+long before running the suite again on the same stack.
 
 ## Production (single VPS)
 
