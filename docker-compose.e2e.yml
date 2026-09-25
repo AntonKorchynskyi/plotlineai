@@ -1,0 +1,32 @@
+# End-to-end overlay: the AI provider becomes e2e/ai-stub, so the Playwright suite runs the
+# whole stack with deterministic answers, no network and no key.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+#   cd e2e && npx playwright test
+
+services:
+  ai-stub:
+    build:
+      context: ./e2e/ai-stub
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    networks:
+      - internal
+
+  web:
+    environment:
+      OPENAI_API_KEY: stub
+      OPENAI_BASE_URL: http://ai-stub:8787/v1
+      # The suite shares one client address, so the AI and write buckets are sized for a
+      # whole run. The rate-limit spec drains a bucket of its own (render) on purpose.
+      RATE_LIMIT_CLIENT_BURST: 200
+      RATE_LIMIT_GLOBAL_BURST: 400
+      RATE_LIMIT_WRITE_CLIENT_BURST: 200
+      RATE_LIMIT_WRITE_GLOBAL_BURST: 400
+      RATE_LIMIT_RENDER_CLIENT_BURST: 40
+      RATE_LIMIT_RENDER_CLIENT_REFILL_MS: 600000
+    depends_on:
+      ai-stub:
+        condition: service_healthy
