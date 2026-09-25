@@ -68,7 +68,8 @@ services:
       # inert for the rewrite (destination baked at image build via build.args); kept for a future runtime proxy
       BACKEND_INTERNAL_URL: http://api:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      # No OPENAI_BASE_URL here: @ai-sdk/openai reads it itself and rejects an empty value,
+      # so it must be absent, not blank. docker-compose.e2e.yml sets it for the stub.
       AI_MODEL: ${AI_MODEL:-gpt-5-nano}
       AI_DAILY_CALL_LIMIT: ${AI_DAILY_CALL_LIMIT:-500}
       RATE_LIMIT_CLIENT_BURST: ${RATE_LIMIT_CLIENT_BURST:-10}
