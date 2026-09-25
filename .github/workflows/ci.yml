@@ -108,7 +108,7 @@ jobs:
       - name: build
         run: docker compose build ${{ matrix.service }}
       - name: trivy
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: plotlineai-${{ matrix.service }}:latest
