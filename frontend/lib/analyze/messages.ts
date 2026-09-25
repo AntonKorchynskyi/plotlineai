@@ -32,6 +32,14 @@ const REJECTIONS: Record<string, Rejection> = {
 };
 
 export function rejectionCopy(failure: Failure): Rejection {
+  if (failure.code === "RATE_LIMITED") {
+    return {
+      heading: "Too many uploads for now",
+      detail: failure.retryAfterSeconds
+        ? `Uploads are limited to keep the service up for everyone. Try again in ${failure.retryAfterSeconds} seconds.`
+        : "Uploads are limited to keep the service up for everyone. Try again shortly.",
+    };
+  }
   return (
     REJECTIONS[failure.code] ?? {
       heading: "That file could not be used",

@@ -30,7 +30,11 @@ plotlineai:
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
     sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
 
+# Actuator lives on its own port. The compose healthcheck reaches it from inside the container;
+# web's /api/backend rewrite only targets 8080, so no browser path leads here.
 management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
   endpoints:
     web:
       exposure:
@@ -42,3 +46,11 @@ management:
 
 server:
   port: 8080
+  # Spring's defaults already hide these; spelled out so a later change cannot leak them.
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
+    whitelabel:
+      enabled: false

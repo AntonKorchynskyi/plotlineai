@@ -28,7 +28,9 @@ export function callSettings(): CallSettings {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new AiUnavailableError("OPENAI_API_KEY is not configured");
 
-  const openai = createOpenAI({ apiKey });
+  // OPENAI_BASE_URL points the provider at a stand-in: the end-to-end suite's stub
+  // (e2e/ai-stub) or an OpenAI-compatible gateway. Unset, it is api.openai.com.
+  const openai = createOpenAI({ apiKey, baseURL: process.env.OPENAI_BASE_URL || undefined });
   return {
     model: openai(process.env.AI_MODEL || DEFAULT_MODEL),
     reasoning: "low",

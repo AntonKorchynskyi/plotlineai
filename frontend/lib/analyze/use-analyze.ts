@@ -181,6 +181,12 @@ export function useAnalyze() {
     setShareUrl(`${window.location.origin}/s/${created.value}`);
   }, [state]);
 
+  /** The empty screen's way out: the same chart over every row. */
+  const dropFilters = useCallback(async () => {
+    if (state.step !== "empty") return;
+    await render({ ...state.spec, filters: [] });
+  }, [render, state]);
+
   const backToSuggestions = useCallback(() => {
     if (!("suggestions" in state)) return;
     setNotice(null);
@@ -199,5 +205,17 @@ export function useAnalyze() {
     setState({ step: "idle" });
   }, []);
 
-  return { state, notice, shareUrl, busy, upload, choose, describe, share, backToSuggestions, reset };
+  return {
+    state,
+    notice,
+    shareUrl,
+    busy,
+    upload,
+    choose,
+    describe,
+    share,
+    dropFilters,
+    backToSuggestions,
+    reset,
+  };
 }

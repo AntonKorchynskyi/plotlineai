@@ -38,6 +38,9 @@ jobs:
       - name: install
         working-directory: frontend
         run: npm ci
+      - name: dependency audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
       - name: lint
         working-directory: frontend
         run: npm run lint
@@ -51,11 +54,64 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  compose-build:
+  # The whole stack under compose, with e2e/ai-stub standing in for OpenAI. Building the
+  # images here is also what proves both Dockerfiles still build.
+  e2e:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: seed env
+        run: cp .env.example .env
+      - name: start the stack
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+      - name: install
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: typecheck
+        working-directory: e2e
+        run: npm run typecheck
+      - name: playwright
+        working-directory: e2e
+        run: npx playwright test
+      - name: service logs
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color
+      - name: upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  # Known vulnerabilities in what actually ships: each image's OS packages and every
+  # library inside it (the api's jar included). Fails on HIGH or CRITICAL with a fix out.
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, api]
     steps:
       - uses: actions/checkout@v4
       - name: seed env
         run: cp .env.example .env
-      - name: docker compose build
-        run: docker compose build
+      - name: build
+        run: docker compose build ${{ matrix.service }}
+      - name: trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: plotlineai-${{ matrix.service }}:latest
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

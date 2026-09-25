@@ -91,7 +91,19 @@ function normalizeBubbleRadii(datasets: Series[]): Series[] {
   }));
 }
 
-export function toChartConfig(data: RenderedData): ChartConfiguration {
+export type ChartConfigOptions = {
+  /**
+   * A thumbnail, such as a suggestion card. It has no legend: a hundred pixels cannot hold
+   * one beside the plot without clipping its labels, and the card's title already says what
+   * is drawn.
+   */
+  compact?: boolean;
+};
+
+export function toChartConfig(
+  data: RenderedData,
+  { compact = false }: ChartConfigOptions = {},
+): ChartConfiguration {
   const { chartType, labels } = data;
   const horizontal = chartType === "horizontalBar";
   const partToWhole = PART_TO_WHOLE.has(chartType);
@@ -140,7 +152,7 @@ export function toChartConfig(data: RenderedData): ChartConfiguration {
 
   // Hidden for a single series, because the title already names it. Part-to-whole charts
   // always need one: their categories live in the labels, not in series names.
-  const showLegend = partToWhole || series.length > 1;
+  const showLegend = !compact && (partToWhole || series.length > 1);
 
   const scales = partToWhole
     ? undefined

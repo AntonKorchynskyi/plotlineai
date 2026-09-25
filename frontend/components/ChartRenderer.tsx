@@ -51,6 +51,8 @@ type Props = {
   /** The well height in pixels. Chart.js fills the wrapper, so it needs an explicit one. */
   height: number;
   className?: string;
+  /** A thumbnail: see ChartConfigOptions. */
+  compact?: boolean;
   /** Receives the Chart.js instance once drawn, for PNG export on the analyze screen. */
   onReady?: (chart: DrawnChart | null) => void;
 };
@@ -59,8 +61,8 @@ type Props = {
  * The single component that draws a backend RenderResponse. It adds no styling of its
  * own: every decision lives in toChartConfig, which is why this stays a wrapper.
  */
-export default function ChartRenderer({ data, height, className, onReady }: Props) {
-  const config = toChartConfig(data);
+export default function ChartRenderer({ data, height, className, compact, onReady }: Props) {
+  const config = toChartConfig(data, { compact });
 
   return (
     <div

@@ -119,9 +119,18 @@ public class CsvParser {
                 throw new CsvParseException("Header row contains a blank column name");
             }
             if (!seen.add(trimmed)) {
-                throw new CsvParseException("Duplicate column name: " + trimmed);
+                // The name is echoed to the uploader, so cap it: a header cell may be 32k long.
+                throw new CsvParseException("Duplicate column name: " + abbreviate(trimmed));
             }
         }
+    }
+
+    private static final int MAX_ECHOED_NAME_CHARS = 60;
+
+    private static String abbreviate(String name) {
+        return name.length() <= MAX_ECHOED_NAME_CHARS
+            ? name
+            : name.substring(0, MAX_ECHOED_NAME_CHARS) + "...";
     }
 
     private List<String> normalizeRow(CSVRecord record, int width) {

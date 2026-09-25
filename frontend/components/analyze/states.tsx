@@ -68,14 +68,24 @@ export function Thinking() {
   );
 }
 
+/** Above a drawn chart, or an empty one: which file and how many rows went into it. */
+export function ResultKicker({ fileName, rowCount }: { fileName: string; rowCount: number }) {
+  return (
+    <span className="card-kicker mb-1 block">
+      {fileName} · {rowCount.toLocaleString()} {rowCount === 1 ? "row" : "rows"} aggregated
+    </span>
+  );
+}
+
+/** Nothing left to plot. Dropping the filters is offered only when there are some to drop. */
 export function EmptyResult({
-  title,
-  onBack,
+  onDropFilters,
   onSuggestions,
+  busy,
 }: {
-  title: string;
-  onBack: () => void;
+  onDropFilters: (() => void) | null;
   onSuggestions: () => void;
+  busy: boolean;
 }) {
   return (
     <div className="card elev-md items-center gap-3 px-8 py-13 text-center">
@@ -84,13 +94,21 @@ export function EmptyResult({
       </span>
       <span className="font-heading text-[24px]">Nothing left to plot</span>
       <p className="m-0 max-w-[34em] text-body text-ink-muted">
-        {title} matched no rows once the filters were applied. Loosen them, or start from a
-        different chart.
+        {onDropFilters
+          ? "The filters matched no rows. Drop them to plot every row, or start from a different chart."
+          : "There were no rows to plot. Start from a different chart."}
       </p>
-      <div className="mt-1 flex flex-wrap gap-2">
-        <button type="button" className="btn btn-secondary px-5 py-3" onClick={onBack}>
-          Try another request
-        </button>
+      <div className="mt-1 flex flex-wrap justify-center gap-2">
+        {onDropFilters && (
+          <button
+            type="button"
+            className="btn btn-secondary px-5 py-3"
+            onClick={onDropFilters}
+            disabled={busy}
+          >
+            Drop the filters
+          </button>
+        )}
         <button type="button" className="btn btn-ghost px-4 py-3" onClick={onSuggestions}>
           Back to suggestions
         </button>
@@ -103,7 +121,7 @@ export function RejectedFile({ failure, onRetry }: { failure: Failure; onRetry: 
   const copy = rejectionCopy(failure);
   return (
     <PageShell className="pt-20 pb-32">
-      <div className="card elev-md gap-4 p-7">
+      <div className="card elev-md mx-auto max-w-[40em] gap-4 p-7">
         <span className="inline-flex size-12 items-center justify-center rounded-pill bg-accent-200 text-accent-700">
           <AlertTriangleIcon size={24} />
         </span>

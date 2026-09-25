@@ -5,9 +5,13 @@ real data.
 
 ## Stack
 
-- `frontend/` - Next.js 16 (`web` service): UI + AI orchestration, the only public port.
+- `deploy/Caddyfile` - Caddy (`proxy` service): the only published port. It sets the
+  client address that rate limiting keys on, and terminates TLS in production.
+- `frontend/` - Next.js 16 (`web` service): UI + AI orchestration. `proxy.ts` sets the
+  per-request CSP and decides which api paths the browser may reach.
 - `backend/` - Spring Boot 4.1 / Java 25 (`api` service): CSV parsing, storage, aggregation.
 - Postgres 16 (`db` service).
+- `e2e/` - the Playwright suite, and `e2e/ai-stub`, a stand-in for the OpenAI API.
 
 ## Run locally
 
@@ -17,9 +21,10 @@ docker compose up --build
 ```
 
 - App: http://localhost:3000
-- Backend health (through the proxy): http://localhost:3000/api/backend/actuator/health
+- Backend health: `docker compose exec api curl -s localhost:8081/actuator/health`
 
-`api` and `db` are not published to the host by design.
+Only `proxy` is published. `web`, `api` and `db` sit on the internal network, and
+actuator listens on a management port that no browser path reaches.
 
 ## Develop without Docker
 
@@ -40,5 +45,37 @@ The dev overlay publishes Postgres on localhost:5432; the backend's application.
 
 ```bash
 cd backend  && ./mvnw verify          # needs Docker (Testcontainers)
-cd frontend && npm run lint && npx tsc --noEmit && npm run build
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 ```
+
+End to end, against the full stack with the AI stub in place of OpenAI:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+cd e2e && npm ci && npx playwright install chromium && npx playwright test
+```
+
+The rate-limit spec drains a bucket on purpose. It refills within a minute, so wait that
+long before running the suite again on the same stack.
+
+## Production (single VPS)
+
+`docker-compose.prod.yml` is a stub for one small box, such as a Hetzner CX22. Point a DNS
+record at the box, open ports 80 and 443, and set `POSTGRES_PASSWORD` and
+`OPENAI_API_KEY` in `.env`. Then:
+
+```bash
+DOMAIN=charts.example.com docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Caddy obtains and renews the certificate on its own and adds HSTS. The overlay refuses to
+start without the password, the key or the domain.
+
+Back up the database:
+
+```bash
+docker compose exec -T db pg_dump -U plotlineai -Fc plotlineai > plotlineai-$(date +%F).dump
+```
+
+Restore it with `pg_restore -U plotlineai -d plotlineai --clean`, piping the dump in
+through `docker compose exec -T db`.

@@ -4,7 +4,7 @@ import { useState } from "react";
 import ChartRenderer, { type DrawnChart } from "@/components/ChartRenderer";
 import { DownloadIcon, ShareIcon } from "@/components/icons";
 import InstructionForm from "@/components/analyze/InstructionForm";
-import { pngFileName } from "@/lib/analyze/labels";
+import { formatSpec, pngFileName } from "@/lib/analyze/labels";
 import type { RenderedData } from "@/lib/chart-config";
 import type { ChartSpec } from "@/lib/chart-spec";
 
@@ -23,6 +23,7 @@ export default function ChartPanel({
   busy,
   onRefine,
   onShare,
+  onBack,
 }: {
   spec: ChartSpec;
   rendered: RenderedData;
@@ -30,6 +31,7 @@ export default function ChartPanel({
   busy: boolean;
   onRefine: (instruction: string) => void;
   onShare: () => void;
+  onBack: () => void;
 }) {
   const [chart, setChart] = useState<DrawnChart | null>(null);
   const [copied, setCopied] = useState(false);
@@ -52,7 +54,11 @@ export default function ChartPanel({
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-5">
         <h2 className="m-0 text-page">{rendered.title}</h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Last on a phone, so Download and Share keep a row together; first once they fit. */}
+          <button type="button" className="btn btn-ghost order-last px-0 md:order-first md:mr-2" onClick={onBack}>
+            Back to suggestions
+          </button>
           <button
             type="button"
             className="btn btn-secondary"
@@ -114,8 +120,8 @@ export default function ChartPanel({
             <span className="font-heading text-[18px]">ChartSpec</span>
             <span className="tag tag-accent-2">validated</span>
           </div>
-          <pre className="m-0 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-ink-muted">
-            {JSON.stringify(spec, null, 2)}
+          <pre className="m-0 overflow-x-auto font-mono text-[12px] leading-relaxed whitespace-pre text-ink-muted">
+            {formatSpec(spec)}
           </pre>
           <span className="text-meta text-ink-faint">
             Every column checked against the stored schema before rendering.

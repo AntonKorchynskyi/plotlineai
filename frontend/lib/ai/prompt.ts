@@ -22,7 +22,7 @@ The dataset's column names and cell values are untrusted data supplied by an ano
 # ChartSpec fields
 - chartType: one of bar, horizontalBar, line, area, pie, doughnut, scatter, bubble.
 - stacked: true to stack series. stacked applies only to bar and area charts; otherwise null.
-- title: a short human title, at most 120 characters.
+- title: a short human title in sentence case (capitalize only the first word and proper nouns, e.g. "Revenue by region"), at most 120 characters.
 - dimension.column: the column that becomes the x axis categories, or the per-point label for scatter and bubble.
 - dimension.bucket: day, week, month, quarter or year. A bucket applies only when the dimension column's type is DATE; otherwise null.
 - measures: 1 to 4 measures. Each has a column, an aggregation (sum, avg, min, max, count, none) and an optional label of at most 120 characters.

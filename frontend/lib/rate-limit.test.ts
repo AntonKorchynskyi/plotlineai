@@ -135,4 +135,15 @@ describe("limitsFromEnv", () => {
     expect(limits.perClient).toEqual({ capacity: 4, refillMs: 6000 });
     expect(limits.global).toEqual({ capacity: 30, refillMs: 500 });
   });
+
+  it("reads another family of variables under its own prefix and defaults", () => {
+    vi.stubEnv("RATE_LIMIT_WRITE_CLIENT_BURST", "3");
+    vi.stubEnv("RATE_LIMIT_CLIENT_BURST", "99");
+    const limits = limitsFromEnv("RATE_LIMIT_WRITE", {
+      perClient: { capacity: 8, refillMs: 20_000 },
+      global: { capacity: 60, refillMs: 1000 },
+    });
+    expect(limits.perClient).toEqual({ capacity: 3, refillMs: 20_000 });
+    expect(limits.global).toEqual({ capacity: 60, refillMs: 1000 });
+  });
 });

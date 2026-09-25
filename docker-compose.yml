@@ -1,7 +1,13 @@
 name: plotlineai
 
+# Every service: no privilege escalation through setuid binaries.
+x-hardened: &hardened
+  security_opt:
+    - no-new-privileges:true
+
 services:
   db:
+    <<: *hardened
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -20,9 +26,14 @@ services:
       - internal
 
   api:
+    <<: *hardened
     build:
       context: ./backend
     restart: unless-stopped
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-plotlineai}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-plotlineai}
@@ -31,7 +42,8 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      # The management port: never published, and not reachable through web.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -40,24 +52,39 @@ services:
       - internal
 
   web:
+    <<: *hardened
     build:
       context: ./frontend
       args:
         BACKEND_INTERNAL_URL: "http://api:8080"
     restart: unless-stopped
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1001,gid=1001
     environment:
       NODE_ENV: production
       # inert for the rewrite (destination baked at image build via build.args); kept for a future runtime proxy
       BACKEND_INTERNAL_URL: http://api:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # No OPENAI_BASE_URL here: @ai-sdk/openai reads it itself and rejects an empty value,
+      # so it must be absent, not blank. docker-compose.e2e.yml sets it for the stub.
       AI_MODEL: ${AI_MODEL:-gpt-5-nano}
       AI_DAILY_CALL_LIMIT: ${AI_DAILY_CALL_LIMIT:-500}
       RATE_LIMIT_CLIENT_BURST: ${RATE_LIMIT_CLIENT_BURST:-10}
       RATE_LIMIT_CLIENT_REFILL_MS: ${RATE_LIMIT_CLIENT_REFILL_MS:-6000}
       RATE_LIMIT_GLOBAL_BURST: ${RATE_LIMIT_GLOBAL_BURST:-30}
       RATE_LIMIT_GLOBAL_REFILL_MS: ${RATE_LIMIT_GLOBAL_REFILL_MS:-2000}
-    ports:
-      - "3000:3000"
+      RATE_LIMIT_WRITE_CLIENT_BURST: ${RATE_LIMIT_WRITE_CLIENT_BURST:-8}
+      RATE_LIMIT_WRITE_CLIENT_REFILL_MS: ${RATE_LIMIT_WRITE_CLIENT_REFILL_MS:-20000}
+      RATE_LIMIT_WRITE_GLOBAL_BURST: ${RATE_LIMIT_WRITE_GLOBAL_BURST:-60}
+      RATE_LIMIT_WRITE_GLOBAL_REFILL_MS: ${RATE_LIMIT_WRITE_GLOBAL_REFILL_MS:-1000}
+      RATE_LIMIT_RENDER_CLIENT_BURST: ${RATE_LIMIT_RENDER_CLIENT_BURST:-30}
+      RATE_LIMIT_RENDER_CLIENT_REFILL_MS: ${RATE_LIMIT_RENDER_CLIENT_REFILL_MS:-2000}
+      RATE_LIMIT_RENDER_GLOBAL_BURST: ${RATE_LIMIT_RENDER_GLOBAL_BURST:-200}
+      RATE_LIMIT_RENDER_GLOBAL_REFILL_MS: ${RATE_LIMIT_RENDER_GLOBAL_REFILL_MS:-50}
+    # No published port: proxy is the only way in.
     depends_on:
       api:
         condition: service_healthy
@@ -70,8 +97,37 @@ services:
     networks:
       - internal
 
+  proxy:
+    <<: *hardened
+    image: caddy:2-alpine
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "3000:80"
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    networks:
+      - internal
+
 volumes:
   db-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   internal:
