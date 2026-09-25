@@ -1,19 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ChartRenderer from "@/components/ChartRenderer";
+import LocalDate from "@/components/LocalDate";
 import PageShell from "@/components/PageShell";
 import { fetchShare } from "@/lib/backend";
 
 // Shares are read per request: the snapshot is immutable, but a link may be opened at any
 // time and the api is the one holding it.
 export const dynamic = "force-dynamic";
-
-const shareDate = (createdAt: string) =>
-  new Date(createdAt).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 
 /** The read-only shared chart, rendered from the stored snapshot. */
 export default async function SharePage({
@@ -35,8 +29,8 @@ export default async function SharePage({
         <span className="font-mono text-small text-ink-faint">/s/{share.shareId}</span>
       </div>
       <h2 className="mb-1 text-page">{share.renderedData.title}</h2>
-      <p className="mb-6 max-w-[46em] text-small text-ink-muted">
-        Shared {shareDate(share.createdAt)} · a snapshot of the rendered numbers, so this link
+      <p className="mb-6 max-w-[60em] text-small text-ink-muted">
+        Shared <LocalDate iso={share.createdAt} /> · a snapshot of the rendered numbers, so this link
         keeps working after the dataset expires.
       </p>
 

@@ -152,6 +152,26 @@ describe("useAnalyze", () => {
     expect(hook.result.current.state.step).toBe("empty");
   });
 
+  it("drops the filters from an empty result and renders again", async () => {
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await waitFor(() => expect(hook.result.current.state.step).toBe("suggestions"));
+
+    mocks.renderChart.mockResolvedValueOnce(ok(rendered([], [])));
+    await act(async () => {
+      await hook.result.current.choose(0);
+    });
+    expect(hook.result.current.state.step).toBe("empty");
+
+    await act(async () => {
+      await hook.result.current.dropFilters();
+    });
+
+    const lastSpec = mocks.renderChart.mock.calls.at(-1)?.[1];
+    expect(lastSpec.filters).toEqual([]);
+    expect(hook.result.current.state.step).toBe("chart");
+  });
+
   it("describes a chart from free text", async () => {
     const hook = renderHook(() => useAnalyze());
     await upload(hook);

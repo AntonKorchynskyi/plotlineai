@@ -189,6 +189,13 @@ describe("toChartConfig", () => {
       }
     });
 
+    it("hides on a compact thumbnail, even where the full chart needs one", () => {
+      for (const data of [fixture("traffic-sources"), fixture("sales-by-category")]) {
+        const legend = anyOf(toChartConfig(data, { compact: true }).options).plugins.legend;
+        expect(legend.display).toBe(false);
+      }
+    });
+
     it("uses circular swatches", () => {
       const labels = options(fixture("sales-by-category")).plugins.legend.labels;
       expect(labels.usePointStyle).toBe(true);

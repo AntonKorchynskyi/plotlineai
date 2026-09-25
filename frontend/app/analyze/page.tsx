@@ -11,6 +11,7 @@ import {
   Notice,
   Parsing,
   RejectedFile,
+  ResultKicker,
   Thinking,
 } from "@/components/analyze/states";
 import { useAnalyze } from "@/lib/analyze/use-analyze";
@@ -56,15 +57,20 @@ export default function AnalyzePage() {
   }
 
   const onChart = state.step === "chart";
+  const onResult = onChart || state.step === "empty";
 
   return (
     <PageShell className="pt-13 pb-30">
-      {state.step !== "thinking" && (
+      {(state.step === "suggestions" || state.step === "rendering") && (
         <DatasetSummary
           fileName={state.fileName}
           dataset={state.dataset}
           onReplace={flow.reset}
         />
+      )}
+
+      {onResult && (
+        <ResultKicker fileName={state.fileName} rowCount={state.dataset.rowCount} />
       )}
 
       {notice && <Notice failure={notice} />}
@@ -106,11 +112,14 @@ export default function AnalyzePage() {
       )}
 
       {state.step === "empty" && (
-        <EmptyResult
-          title={state.spec.title}
-          onBack={flow.backToSuggestions}
-          onSuggestions={flow.backToSuggestions}
-        />
+        <>
+          <h2 className="mb-5 text-page">{state.spec.title}</h2>
+          <EmptyResult
+            onDropFilters={(state.spec.filters?.length ?? 0) > 0 ? flow.dropFilters : null}
+            onSuggestions={flow.backToSuggestions}
+            busy={busy}
+          />
+        </>
       )}
 
       {onChart && (
@@ -121,6 +130,7 @@ export default function AnalyzePage() {
           busy={busy}
           onRefine={flow.describe}
           onShare={flow.share}
+          onBack={flow.backToSuggestions}
         />
       )}
     </PageShell>

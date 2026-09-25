@@ -10,6 +10,7 @@ const flow = vi.hoisted(() => ({
   choose: vi.fn(),
   describe: vi.fn(),
   share: vi.fn(),
+  dropFilters: vi.fn(),
   backToSuggestions: vi.fn(),
   reset: vi.fn(),
   state: { step: "idle" } as AnalyzeState,
@@ -194,6 +195,15 @@ describe("the chart screen", () => {
     expect(screen.getByText(/"chartType": "bar"/)).toBeInTheDocument();
   });
 
+  it("names the file and row count above the chart, with a way back", async () => {
+    show(state);
+
+    expect(screen.getByText("revenue.csv · 12 rows aggregated")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /replace file/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /back to suggestions/i }));
+    expect(flow.backToSuggestions).toHaveBeenCalled();
+  });
+
   it("refines from the box and from a chip", async () => {
     show(state);
 
@@ -245,8 +255,21 @@ describe("the outcome screens", () => {
     show({ step: "empty", fileName: "revenue.csv", dataset, suggestions, spec });
 
     expect(screen.getByText(/nothing left to plot/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Revenue by region" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /drop the filters/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /back to suggestions/i }));
     expect(flow.backToSuggestions).toHaveBeenCalled();
+  });
+
+  it("offers to drop the filters when the empty result had some", async () => {
+    const filtered = {
+      ...spec,
+      filters: [{ column: "region", op: "eq" as const, value: "Nowhere" }],
+    };
+    show({ step: "empty", fileName: "revenue.csv", dataset, suggestions, spec: filtered });
+
+    await userEvent.click(screen.getByRole("button", { name: /drop the filters/i }));
+    expect(flow.dropFilters).toHaveBeenCalled();
   });
 
   it("shows the caps on a rejected file and offers another go", async () => {
