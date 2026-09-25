@@ -1,13 +1,14 @@
 /**
- * Token-bucket rate limiting for the AI routes, in memory (one web instance).
+ * Token-bucket rate limiting, in memory (one web instance).
  *
  * Two buckets guard every request. The per-client bucket keeps one visitor from using up
- * everyone's allowance. The global bucket caps all clients together, and is what actually
- * protects the provider bill: the client key comes from X-Forwarded-For, which Next fills
- * from the socket only when the request does not already carry one. With web exposed
- * directly, a client can send its own header and pose as many clients. Once a proxy that
- * overwrites the header sits in front (the phase 9 deployment), the per-client key becomes
- * trustworthy too.
+ * everyone's allowance. The global bucket caps all clients together, and is what finally
+ * protects the provider bill and the database.
+ *
+ * The client key is the X-Forwarded-For address. Next fills that header from the socket only
+ * when a request does not already carry one, so it is trustworthy only because web is never
+ * reached directly: the proxy service (deploy/Caddyfile) is the only ingress, and it
+ * replaces whatever a client sent with the real peer address.
  */
 
 export type TakeResult = { ok: true } | { ok: false; retryAfterSeconds: number };
@@ -98,15 +99,28 @@ const positiveInt = (raw: string | undefined, fallback: number) => {
   return raw && Number.isInteger(n) && n > 0 ? n : fallback;
 };
 
-export function limitsFromEnv(): { perClient: BucketLimits; global: BucketLimits } {
+export type Limits = { perClient: BucketLimits; global: BucketLimits };
+
+/** The AI routes' limits: per client a burst of 10, one more every 6s; 30 / 2s globally. */
+export const AI_LIMITS: Limits = {
+  perClient: { capacity: 10, refillMs: 6000 },
+  global: { capacity: 30, refillMs: 2000 },
+};
+
+/**
+ * Limits from `${prefix}_CLIENT_BURST`, `${prefix}_CLIENT_REFILL_MS`, `${prefix}_GLOBAL_BURST`
+ * and `${prefix}_GLOBAL_REFILL_MS`, each falling back to `defaults`.
+ */
+export function limitsFromEnv(prefix = "RATE_LIMIT", defaults: Limits = AI_LIMITS): Limits {
+  const env = (name: string) => process.env[`${prefix}_${name}`];
   return {
     perClient: {
-      capacity: positiveInt(process.env.RATE_LIMIT_CLIENT_BURST, 10),
-      refillMs: positiveInt(process.env.RATE_LIMIT_CLIENT_REFILL_MS, 6000),
+      capacity: positiveInt(env("CLIENT_BURST"), defaults.perClient.capacity),
+      refillMs: positiveInt(env("CLIENT_REFILL_MS"), defaults.perClient.refillMs),
     },
     global: {
-      capacity: positiveInt(process.env.RATE_LIMIT_GLOBAL_BURST, 30),
-      refillMs: positiveInt(process.env.RATE_LIMIT_GLOBAL_REFILL_MS, 2000),
+      capacity: positiveInt(env("GLOBAL_BURST"), defaults.global.capacity),
+      refillMs: positiveInt(env("GLOBAL_REFILL_MS"), defaults.global.refillMs),
     },
   };
 }

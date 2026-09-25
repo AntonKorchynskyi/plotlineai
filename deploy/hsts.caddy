@@ -1,0 +1,2 @@
+# Mounted by docker-compose.prod.yml only: HSTS is wrong on plain-HTTP localhost.
+header Strict-Transport-Security "max-age=31536000; includeSubDomains"

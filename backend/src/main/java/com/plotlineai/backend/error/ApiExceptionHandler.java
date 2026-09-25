@@ -22,9 +22,16 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "INVALID_FILE_TYPE", ex.getMessage());
     }
 
-    @ExceptionHandler({FileTooLargeException.class, MaxUploadSizeExceededException.class})
-    public ResponseEntity<ErrorResponse> onFileTooLarge(Exception ex) {
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<ErrorResponse> onFileTooLarge(FileTooLargeException ex) {
         return body(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", ex.getMessage());
+    }
+
+    /** Spring's own message names its internals; the uploader only needs the limit. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> onUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return body(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE",
+            "The file exceeds the maximum upload size of 5 MB");
     }
 
     @ExceptionHandler(CsvParseException.class)

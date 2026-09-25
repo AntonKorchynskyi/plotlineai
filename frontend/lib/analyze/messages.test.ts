@@ -31,6 +31,13 @@ describe("rejectionCopy", () => {
   it("falls back for an unknown code", () => {
     expect(rejectionCopy(failure("SOMETHING_NEW")).heading).toMatch(/\w/);
   });
+
+  it("says a rate-limited upload is not the file's fault, and how long to wait", () => {
+    const copy = rejectionCopy(failure("RATE_LIMITED", { retryAfterSeconds: 14 }));
+    expect(copy.heading).toMatch(/too many uploads/i);
+    expect(copy.detail).toMatch(/14 seconds/);
+    expect(rejectionCopy(failure("RATE_LIMITED")).detail).toMatch(/shortly/);
+  });
 });
 
 describe("noticeCopy", () => {

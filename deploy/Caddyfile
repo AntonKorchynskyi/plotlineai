@@ -1,0 +1,41 @@
+# The only ingress. web, api and db sit on the internal network behind this.
+#
+# Caddy trusts no upstream proxy (no trusted_proxies), so it drops any X-Forwarded-For a
+# client sends and writes the socket address instead. Next only fills that header when it
+# is absent, so web's rate limiter keys on the real client address.
+#
+# SITE_ADDRESS is ":80" locally (plain HTTP, published on localhost:3000). The prod overlay
+# sets it to the domain, and Caddy then provisions and renews TLS on its own.
+{
+	admin off
+	servers {
+		# A slow client cannot hold a connection open forever.
+		timeouts {
+			read_body 30s
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
+# Liveness of the proxy itself, for the compose healthcheck. Plain HTTP on a port that is
+# never published, so it works the same whether the site below serves HTTP or HTTPS.
+http://:9000 {
+	respond /healthz "ok" 200
+}
+
+{$SITE_ADDRESS::80} {
+	# The largest legitimate body is a CSV upload: 5 MB of file plus multipart framing.
+	request_body {
+		max_size 6MB
+	}
+	encode zstd gzip
+	header {
+		-Server
+		-Via
+		defer
+	}
+	# Site-specific additions. Nothing locally; the prod overlay mounts HSTS here.
+	import /etc/caddy/site.d/*.caddy
+	reverse_proxy web:3000
+}

@@ -104,6 +104,15 @@ class CsvParserTest {
     }
 
     @Test
+    void abbreviatesALongDuplicateNameInTheMessage() {
+        String longName = "x".repeat(5000);
+        byte[] bytes = (longName + "," + longName + "\n1,2\n").getBytes(StandardCharsets.UTF_8);
+        var ex = assertThrows(CsvParseException.class, () -> parser.parse(bytes));
+        assertTrue(ex.getMessage().length() < 100, ex.getMessage());
+        assertTrue(ex.getMessage().endsWith("..."));
+    }
+
+    @Test
     void rejectsBlankHeader() {
         byte[] bytes = "a,,c\n1,2,3\n".getBytes(StandardCharsets.UTF_8);
         assertThrows(CsvParseException.class, () -> parser.parse(bytes));
