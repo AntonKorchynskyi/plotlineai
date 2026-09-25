@@ -28,9 +28,22 @@ test("upload, pick a suggestion, refine, export and share", async ({ page, brows
   await expect(page.locator("canvas")).toBeVisible();
   await expect(specPanel(page)).toContainText('"chartType": "bar"');
 
-  // Refine from the box, then from a chip. Each keeps the chart and changes its type.
+  // Refine from the box, then from a chip. Each keeps the chart and changes its type, and
+  // the chart stays on screen while the new one renders.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/backend/charts/render", async (route) => {
+    await held;
+    await route.continue();
+  });
   await page.getByLabel("make it a doughnut, top five only…").fill("show it as a line");
   await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("button", { name: "Sort ascending" })).toBeDisabled();
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toHaveCount(0);
+  // Released, the gate lets every later render straight through. (No unroute: removing the
+  // handler while it holds a request makes Playwright continue that request twice.)
+  release();
   await expect(specPanel(page)).toContainText('"chartType": "line"');
   await page.getByRole("button", { name: "Make it a doughnut" }).click();
   await expect(specPanel(page)).toContainText('"chartType": "doughnut"');
@@ -86,8 +99,23 @@ test("a chart whose filters match nothing offers to drop them", async ({ page })
   await page.getByRole("button", { name: "Draw it" }).click();
   await expect(page.getByText("Nothing left to plot")).toBeVisible();
 
+  // Hold the render, to see what is on screen while it runs: the empty screen, never a
+  // flash of the suggestions.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/backend/charts/render", async (route) => {
+    await held;
+    await route.continue();
+  });
+
   await page.getByRole("button", { name: "Drop the filters" }).click();
-  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Drop the filters" })).toBeDisabled();
+  await expect(page.getByText("Nothing left to plot")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toHaveCount(0);
+
+  release();
+  await expect(page.getByText("Nothing left to plot")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
   await expect(specPanel(page)).toContainText('"filters": []');
 });
 
