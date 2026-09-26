@@ -284,4 +284,19 @@ describe("the outcome screens", () => {
     await userEvent.click(screen.getByRole("button", { name: /pick another file/i }));
     expect(flow.reset).toHaveBeenCalled();
   });
+
+  it.each([
+    ["STORAGE_FULL", 503, /uploads are paused/i],
+    ["RATE_LIMITED", 429, /too many uploads/i],
+    ["NETWORK", 0, /could not reach the server/i],
+  ])("does not blame the file for %s, and offers to try again", async (code, status, heading) => {
+    show({ step: "rejected", failure: { ok: false, code, message: "x", status } });
+
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.queryByText(/5 MB, 100,000 rows, 256 columns/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pick another file/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(flow.reset).toHaveBeenCalled();
+  });
 });
