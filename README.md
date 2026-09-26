@@ -58,7 +58,23 @@ cd e2e && npm ci && npx playwright install chromium && npx playwright test
 The rate-limit spec drains a bucket on purpose. It refills within a minute, so wait that
 long before running the suite again on the same stack.
 
+## Production (Cloud Run)
+
+The public deployment is one Google Cloud Run service. `web` receives the traffic, and
+`api` runs beside it as a sidecar on `localhost:8080`. It uses a free Neon Postgres, and
+Google terminates TLS, so Caddy is not part of it. At portfolio traffic it fits in the free
+allowances. Its only running cost is OpenAI usage, which the daily call limit caps.
+
+```bash
+PROJECT_ID=my-project deploy/cloudrun/deploy.sh
+```
+
+The one-time setup, a smoke checklist and operations are in
+[docs/deploy-cloud-run.md](docs/deploy-cloud-run.md). The service is pinned to one instance
+(`maxScale: 1`) because the rate limiters live in `web`'s memory.
+
 ## Production (single VPS)
+
 
 `docker-compose.prod.yml` is a stub for one small box, such as a Hetzner CX22. Point a DNS
 record at the box, open ports 80 and 443, and set `POSTGRES_PASSWORD` and
