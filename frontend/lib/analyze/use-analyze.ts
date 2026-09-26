@@ -106,7 +106,14 @@ export function useAnalyze() {
     setState({ step: "suggestions", fileName: file.name, dataset, suggestions });
   }, []);
 
-  /** Renders a spec and moves to the chart, or to the empty screen when nothing is left. */
+  /**
+   * Renders a spec and moves to the chart, or to the empty screen when nothing is left.
+   *
+   * From the suggestions, the cards stay up but locked ("rendering"). From a chart or the
+   * empty screen, that screen stays up while busy: switching to "rendering" there would
+   * flash the suggestions between one chart and the next. A failed render leaves whatever
+   * was on screen and adds a notice.
+   */
   const render = useCallback(
     async (spec: ChartSpec) => {
       if (!("dataset" in state)) return;
@@ -114,19 +121,20 @@ export function useAnalyze() {
         suggestions: [] as RenderedSuggestion[],
         ...state,
       };
+      const fromResult = state.step === "chart" || state.step === "empty";
 
       setBusy(true);
-      setShareUrl(null);
-      setState({ step: "rendering", fileName, dataset, suggestions });
+      if (!fromResult) setState({ step: "rendering", fileName, dataset, suggestions });
 
       const drawn = await renderChart(dataset.datasetId, spec);
       setBusy(false);
 
       if (!drawn.ok) {
         setNotice(drawn);
-        setState({ step: "suggestions", fileName, dataset, suggestions });
+        if (!fromResult) setState({ step: "suggestions", fileName, dataset, suggestions });
         return;
       }
+      setShareUrl(null);
       setNotice(null);
       setState(
         isEmptyRender(drawn.value)

@@ -219,6 +219,72 @@ describe("useAnalyze", () => {
     expect(hook.result.current.notice).toMatchObject({ code: "RATE_LIMITED" });
   });
 
+  it("keeps the chart on screen while a refine renders", async () => {
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await waitFor(() => expect(hook.result.current.state.step).toBe("suggestions"));
+    await act(async () => hook.result.current.choose(0));
+
+    let finish: (value: unknown) => void = () => {};
+    mocks.renderChart.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    let refining: Promise<void> = Promise.resolve();
+    act(() => {
+      refining = hook.result.current.describe("as a doughnut");
+    });
+
+    await waitFor(() => expect(hook.result.current.busy).toBe(true));
+    await waitFor(() => expect(mocks.renderChart).toHaveBeenCalledTimes(5));
+    expect(hook.result.current.state.step).toBe("chart");
+
+    await act(async () => {
+      finish(ok(rendered()));
+      await refining;
+    });
+    expect(hook.result.current.state.step).toBe("chart");
+    expect(hook.result.current.busy).toBe(false);
+  });
+
+  it("keeps the chart on screen when a refine fails to render", async () => {
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await waitFor(() => expect(hook.result.current.state.step).toBe("suggestions"));
+    await act(async () => hook.result.current.choose(0));
+
+    mocks.renderChart.mockResolvedValueOnce(fail("INVALID_CHART_SPEC"));
+    await act(async () => {
+      await hook.result.current.describe("as a doughnut");
+    });
+
+    const state = hook.result.current.state;
+    if (state.step !== "chart") throw new Error(`wrong step: ${state.step}`);
+    expect(state.spec.chartType).toBe("bar");
+    expect(hook.result.current.notice).toMatchObject({ code: "INVALID_CHART_SPEC" });
+  });
+
+  it("keeps the empty screen on screen while its filters are dropped", async () => {
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await waitFor(() => expect(hook.result.current.state.step).toBe("suggestions"));
+    mocks.renderChart.mockResolvedValueOnce(ok(rendered([], [])));
+    await act(async () => hook.result.current.choose(0));
+    expect(hook.result.current.state.step).toBe("empty");
+
+    let finish: (value: unknown) => void = () => {};
+    mocks.renderChart.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    let dropping: Promise<void> = Promise.resolve();
+    act(() => {
+      dropping = hook.result.current.dropFilters();
+    });
+    await waitFor(() => expect(hook.result.current.busy).toBe(true));
+    expect(hook.result.current.state.step).toBe("empty");
+
+    await act(async () => {
+      finish(ok(rendered()));
+      await dropping;
+    });
+    expect(hook.result.current.state.step).toBe("chart");
+  });
+
   it("clears the notice on the next successful action", async () => {
     const hook = renderHook(() => useAnalyze());
     await upload(hook);
