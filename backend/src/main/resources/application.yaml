@@ -29,6 +29,9 @@ plotlineai:
     ttl: ${DATASET_TTL:P7D}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
     sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
+  ai:
+    # Provider calls allowed per UTC day, across all clients. web asks before each call.
+    daily-call-limit: ${AI_DAILY_CALL_LIMIT:500}
 
 # Actuator lives on its own port. The compose healthcheck reaches it from inside the container;
 # web's /api/backend rewrite only targets 8080, so no browser path leads here.
