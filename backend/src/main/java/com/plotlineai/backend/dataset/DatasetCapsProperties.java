@@ -10,5 +10,7 @@ public record DatasetCapsProperties(
         int maxColumns,
         int maxCellChars,
         Duration ttl,
-        int sampleRows) {
+        int sampleRows,
+        /** Bytes live datasets may take in Postgres before uploads are refused; 0 or less is no cap. */
+        long maxTotalBytes) {
 }

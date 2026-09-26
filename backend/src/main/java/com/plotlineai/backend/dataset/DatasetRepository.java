@@ -14,6 +14,12 @@ public interface DatasetRepository extends JpaRepository<Dataset, UUID> {
     /** A dataset past its expiry is gone, whether or not a sweep has deleted it yet. */
     Optional<Dataset> findByIdAndExpiresAtAfter(UUID id, Instant now);
 
+    /** What live datasets take on disk, as Postgres stores them (compressed, TOASTed). */
+    @Query(value = """
+        select coalesce(sum(pg_column_size(rows) + pg_column_size(schema)), 0)
+        from dataset where expires_at > :now""", nativeQuery = true)
+    long liveStorageBytes(@Param("now") Instant now);
+
     @Transactional
     @Modifying(clearAutomatically = true)
     @Query("delete from Dataset d where d.expiresAt < :cutoff")

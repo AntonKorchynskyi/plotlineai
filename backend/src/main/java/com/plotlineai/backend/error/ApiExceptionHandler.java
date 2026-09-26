@@ -44,6 +44,11 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "CAP_EXCEEDED", ex.getMessage());
     }
 
+    @ExceptionHandler(StorageFullException.class)
+    public ResponseEntity<ErrorResponse> onStorageFull(StorageFullException ex) {
+        return body(HttpStatus.SERVICE_UNAVAILABLE, "STORAGE_FULL", "Dataset storage is full");
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> onNotFound(NotFoundException ex) {
         return body(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage());

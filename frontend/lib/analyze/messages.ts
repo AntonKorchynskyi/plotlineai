@@ -25,6 +25,10 @@ const REJECTIONS: Record<string, Rejection> = {
     heading: "That file is too big to chart",
     detail: "It went past the limits below. A smaller extract of the same data will work.",
   },
+  STORAGE_FULL: {
+    heading: "Uploads are paused for now",
+    detail: "The demo's storage is full. Older uploads clear out within a day, so try again later.",
+  },
   NETWORK: {
     heading: "Could not reach the server",
     detail: "The upload did not get through. Check your connection and try again.",

@@ -29,6 +29,9 @@ plotlineai:
     ttl: ${DATASET_TTL:P7D}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
     sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
+    # Refuse uploads once live datasets take this many bytes; 0 is no cap. Cloud Run sets one
+    # to stay inside the free database tier.
+    max-total-bytes: ${DATASET_MAX_TOTAL_BYTES:0}
   ai:
     # Provider calls allowed per UTC day, across all clients. web asks before each call.
     daily-call-limit: ${AI_DAILY_CALL_LIMIT:500}

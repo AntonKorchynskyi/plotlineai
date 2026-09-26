@@ -28,6 +28,14 @@ describe("rejectionCopy", () => {
     expect(`${copy.heading} ${copy.detail}`).not.toContain("raw server message");
   });
 
+  it("says a full store is not the file's fault, and that it clears on its own", () => {
+    const copy = rejectionCopy(failure("STORAGE_FULL", { status: 503 }));
+    expect(copy.heading).toBe("Uploads are paused for now");
+    expect(copy.detail).toBe(
+      "The demo's storage is full. Older uploads clear out within a day, so try again later.",
+    );
+  });
+
   it("falls back for an unknown code", () => {
     expect(rejectionCopy(failure("SOMETHING_NEW")).heading).toMatch(/\w/);
   });

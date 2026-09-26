@@ -6,6 +6,7 @@ import com.plotlineai.backend.dataset.dto.UploadResponse;
 import com.plotlineai.backend.error.DatasetNotFoundException;
 import com.plotlineai.backend.error.FileTooLargeException;
 import com.plotlineai.backend.error.InvalidFileTypeException;
+import com.plotlineai.backend.error.StorageFullException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,6 +57,10 @@ public class DatasetService {
         // Uploads are the only thing that adds rows, so clearing expired ones here keeps
         // storage bounded even where the scheduled sweep never gets to run (Cloud Run).
         repository.deleteExpired(now);
+        // A free database tier stops taking writes when full, which would break shares too.
+        if (caps.maxTotalBytes() > 0 && repository.liveStorageBytes(now) >= caps.maxTotalBytes()) {
+            throw new StorageFullException("Dataset storage is full");
+        }
 
         Dataset dataset = new Dataset();
         dataset.setId(UUID.randomUUID());
