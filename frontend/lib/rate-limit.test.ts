@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clientKey, createRateLimiter, createTokenBucket, limitsFromEnv } from "@/lib/rate-limit";
+import {
+  clientKey,
+  createRateLimiter,
+  createTokenBucket,
+  limitsFromEnv,
+  trustedProxyHops,
+} from "@/lib/rate-limit";
 
 const clock = () => {
   let t = 1_000_000;
@@ -101,9 +107,26 @@ describe("clientKey", () => {
     expect(clientKey(request({ "x-forwarded-for": "203.0.113.7" }))).toBe("203.0.113.7");
   });
 
-  it("takes the first hop from a proxy chain", () => {
-    expect(clientKey(request({ "x-forwarded-for": "203.0.113.7, 10.0.0.2" }))).toBe(
-      "203.0.113.7",
+  it("takes the address the trusted proxy appended, not what the client sent", () => {
+    expect(clientKey(request({ "x-forwarded-for": "203.0.113.66, 198.51.100.4" }))).toBe(
+      "198.51.100.4",
+    );
+  });
+
+  it("counts further from the right behind a second proxy", () => {
+    const headers = { "x-forwarded-for": "203.0.113.66, 198.51.100.4, 35.191.0.1" };
+    expect(clientKey(request(headers), 2)).toBe("198.51.100.4");
+  });
+
+  it("falls back when the chain is shorter than the trusted hops", () => {
+    const headers = { "x-forwarded-for": "198.51.100.4", "x-real-ip": "192.0.2.9" };
+    expect(clientKey(request(headers), 2)).toBe("192.0.2.9");
+  });
+
+  it("ignores blank entries and keeps IPv6 addresses whole", () => {
+    expect(clientKey(request({ "x-forwarded-for": " , 2001:db8::1 ,, " }))).toBe("2001:db8::1");
+    expect(clientKey(request({ "x-forwarded-for": "", "x-real-ip": "192.0.2.9" }))).toBe(
+      "192.0.2.9",
     );
   });
 
@@ -116,6 +139,22 @@ describe("clientKey", () => {
     expect(clientKey(request({ "x-forwarded-for": "x".repeat(5000) })).length).toBeLessThanOrEqual(
       64,
     );
+  });
+});
+
+describe("trustedProxyHops", () => {
+  it("defaults to one proxy", () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "");
+    expect(trustedProxyHops()).toBe(1);
+  });
+
+  it("reads a positive integer and ignores nonsense", () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "2");
+    expect(trustedProxyHops()).toBe(2);
+    for (const bad of ["abc", "0", "-1", "1.5"]) {
+      vi.stubEnv("TRUSTED_PROXY_HOPS", bad);
+      expect(trustedProxyHops()).toBe(1);
+    }
   });
 });
 
