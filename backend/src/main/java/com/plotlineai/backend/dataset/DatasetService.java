@@ -53,6 +53,10 @@ public class DatasetService {
         List<ColumnSchema> schema = schemaInferrer.infer(parsed);
 
         Instant now = Instant.now();
+        // Uploads are the only thing that adds rows, so clearing expired ones here keeps
+        // storage bounded even where the scheduled sweep never gets to run (Cloud Run).
+        repository.deleteExpired(now);
+
         Dataset dataset = new Dataset();
         dataset.setId(UUID.randomUUID());
         dataset.setCreatedAt(now);
@@ -67,7 +71,7 @@ public class DatasetService {
 
     @Transactional(readOnly = true)
     public DatasetDetailResponse get(UUID id) {
-        Dataset dataset = repository.findById(id)
+        Dataset dataset = repository.findByIdAndExpiresAtAfter(id, Instant.now())
             .orElseThrow(() -> new DatasetNotFoundException(id));
 
         List<ColumnSchema> schema = objectMapper.treeToValue(dataset.getSchema(), SCHEMA_LIST);

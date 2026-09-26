@@ -4,6 +4,7 @@ import com.plotlineai.backend.dataset.Dataset;
 import com.plotlineai.backend.dataset.DatasetRepository;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.error.DatasetNotFoundException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +39,7 @@ public class DatasetLoader {
 
     @Transactional(readOnly = true)
     public LoadedDataset load(UUID datasetId) {
-        Dataset dataset = repository.findById(datasetId)
+        Dataset dataset = repository.findByIdAndExpiresAtAfter(datasetId, Instant.now())
             .orElseThrow(() -> new DatasetNotFoundException(datasetId));
         List<ColumnSchema> schema = objectMapper.treeToValue(dataset.getSchema(), SCHEMA_LIST);
         return new LoadedDataset(schema, toRows(dataset.getRows()));
