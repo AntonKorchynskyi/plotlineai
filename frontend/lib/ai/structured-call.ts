@@ -50,7 +50,7 @@ export async function structuredCall<T>(
 ): Promise<T> {
   // Resolve settings first, so a missing key does not spend the budget.
   const settings = (deps.settings ?? callSettings)();
-  (deps.budget ?? dailyBudget).consume();
+  await (deps.budget ?? dailyBudget).consume();
 
   try {
     const result = await generateText({

@@ -1,5 +1,6 @@
 import { MockLanguageModelV4 } from "ai/test";
-import { createDailyBudget, type DailyBudget } from "@/lib/ai/budget";
+import type { DailyBudget } from "@/lib/ai/budget";
+import { AiUnavailableError } from "@/lib/ai/errors";
 import type { CallSettings } from "@/lib/ai/provider";
 import type { DatasetDetail } from "@/lib/backend";
 
@@ -41,7 +42,17 @@ export const settingsFor = (model: MockLanguageModelV4) => (): CallSettings => (
   maxRetries: 0,
 });
 
-export const freshBudget = (limit = 100): DailyBudget => createDailyBudget({ limit });
+/** An in-memory stand-in for the api's daily budget, which says how much is left. */
+export function freshBudget(limit = 100): DailyBudget & { remaining(): number } {
+  let used = 0;
+  return {
+    async consume() {
+      if (used >= limit) throw new AiUnavailableError("daily AI call limit reached");
+      used += 1;
+    },
+    remaining: () => limit - used,
+  };
+}
 
 /** Every text part the model was sent across all calls, joined, for asserting on prompts. */
 export function sentText(model: MockLanguageModelV4): string {
