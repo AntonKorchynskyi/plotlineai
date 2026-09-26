@@ -36,6 +36,16 @@ describe("rejectionCopy", () => {
     );
   });
 
+  it.each([
+    ["a server error", 500],
+    ["a gateway timeout", 504],
+    ["no response at all", 0],
+  ])("does not blame the file for %s with an unknown code", (_, status) => {
+    const copy = rejectionCopy(failure("UNKNOWN", { status }));
+    expect(copy.fileFault).toBe(false);
+    expect(copy.heading).toBe("Something went wrong on our side");
+  });
+
   it("falls back for an unknown code", () => {
     expect(rejectionCopy(failure("SOMETHING_NEW")).heading).toMatch(/\w/);
   });

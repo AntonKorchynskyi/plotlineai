@@ -47,7 +47,21 @@ visitor waits while both containers start and Neon wakes up.
 ### 2. The gcloud CLI
 
 Install the Google Cloud CLI for Windows from <https://cloud.google.com/sdk/docs/install>.
-Then, in a new Git Bash window:
+Open a new Git Bash window and check that it runs there, because `deploy.sh` calls it
+from bash:
+
+```bash
+gcloud --version
+```
+
+If that fails because it cannot find Python, point it at the Python bundled with the
+SDK (adjust the path if you installed elsewhere), then open a new window:
+
+```bash
+echo 'export CLOUDSDK_PYTHON="$LOCALAPPDATA/Google/Cloud SDK/google-cloud-sdk/platform/bundledpython/python.exe"' >> ~/.bashrc
+```
+
+Then:
 
 ```bash
 gcloud auth login
@@ -144,9 +158,15 @@ for the curl checks, and check each of these:
 - [ ] Upload a CSV. Suggestions appear, one renders, and a refine ("make it a line chart")
       works.
 - [ ] Share it, then open the share link in a private window.
-- [ ] A forged address does not escape the rate limit. Run this about 40 times against a
-      real dataset id; it must end in `429` even though every request claims a new address:
-      `curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Origin: $URL" -H 'content-type: application/json' -H "X-Forwarded-For: 203.0.113.$RANDOM" -d '{}' "$URL/api/backend/charts/render"`
+- [ ] A forged address does not escape the rate limit. This sends 80 renders, each
+      claiming a different address:
+      ```bash
+      for i in $(seq 80); do curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Origin: $URL" \
+        -H 'content-type: application/json' -H "X-Forwarded-For: 203.0.113.$((RANDOM % 250))" \
+        -d '{}' "$URL/api/backend/charts/render"; done | sort | uniq -c
+      ```
+      The counts must include `429`. The `400`s are expected, because the body is empty on
+      purpose. Only `400`s would mean the forged header is being trusted.
 - [ ] The internal budget endpoint is not reachable:
       `curl -s -o /dev/null -w '%{http_code}\n' -X POST "$URL/api/backend/internal/ai-budget/consume"`
       prints `404`.
@@ -177,7 +197,16 @@ uncommitted changes, so every revision maps to a commit.
     pg_dump "postgresql://USER:PASSWORD@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require" -Fc \
     > plotlineai-$(date +%F).dump
   ```
-  Neon's free plan also keeps a short point-in-time restore window.
+- **Restore the database.** First choice: Neon's own restore (**Branches > Restore** in the
+  console), which rewinds to a moment inside the free plan's short history window. From a
+  dump file instead (this replaces the tables it contains):
+  ```bash
+  MSYS_NO_PATHCONV=1 docker run --rm -i postgres:16-alpine \
+    pg_restore --clean --if-exists --no-owner \
+    -d "postgresql://USER:PASSWORD@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require" \
+    < plotlineai-YYYY-MM-DD.dump
+  ```
+  `-i` matters: without it the dump never reaches the container.
 - **Troubleshooting a deploy that never becomes ready:**
   1. Read the logs.
   2. If `api` cannot reach Postgres, check the `db-url` secret: it must start with

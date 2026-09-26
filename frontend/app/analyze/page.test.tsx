@@ -289,6 +289,7 @@ describe("the outcome screens", () => {
     ["STORAGE_FULL", 503, /uploads are paused/i],
     ["RATE_LIMITED", 429, /too many uploads/i],
     ["NETWORK", 0, /could not reach the server/i],
+    ["UNKNOWN", 502, /went wrong on our side/i],
   ])("does not blame the file for %s, and offers to try again", async (code, status, heading) => {
     show({ step: "rejected", failure: { ok: false, code, message: "x", status } });
 

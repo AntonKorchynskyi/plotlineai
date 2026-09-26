@@ -15,6 +15,12 @@ services:
     networks:
       - internal
 
+  api:
+    environment:
+      # The daily AI count lives in Postgres and survives restarts, so a day of suite runs
+      # (plus any dev use of the same volume) would otherwise spend it. The stub costs nothing.
+      AI_DAILY_CALL_LIMIT: 1000000
+
   web:
     environment:
       OPENAI_API_KEY: stub
