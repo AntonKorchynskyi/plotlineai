@@ -28,7 +28,7 @@ class SchemaMigrationIT {
             }
         }
         assertTrue(
-            tables.containsAll(List.of("dataset", "gallery_example", "share", "flyway_schema_history")),
+            tables.containsAll(List.of("dataset", "gallery_example", "share", "ai_daily_usage", "flyway_schema_history")),
             "expected core tables, found: " + tables);
     }
 }

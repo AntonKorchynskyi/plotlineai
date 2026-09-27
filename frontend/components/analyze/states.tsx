@@ -127,14 +127,16 @@ export function RejectedFile({ failure, onRetry }: { failure: Failure; onRetry: 
         </span>
         <h2 className="m-0 text-section">{copy.heading}</h2>
         <p className="m-0 max-w-[46em] text-body text-ink-muted">{copy.detail}</p>
-        <div className="flex flex-col gap-2 text-small text-ink-faint">
-          <span>· .csv extension and text/csv content type</span>
-          <span>· 5 MB, 100,000 rows, 256 columns</span>
-          <span>· UTF-8 text with one header row</span>
-        </div>
+        {copy.fileFault && (
+          <div className="flex flex-col gap-2 text-small text-ink-faint">
+            <span>· .csv extension and text/csv content type</span>
+            <span>· 5 MB, 100,000 rows, 256 columns</span>
+            <span>· UTF-8 text with one header row</span>
+          </div>
+        )}
         <div className="mt-1 flex flex-wrap gap-2">
           <button type="button" className="btn btn-primary px-5 py-3" onClick={onRetry}>
-            Pick another file
+            {copy.fileFault ? "Pick another file" : "Try again"}
           </button>
           <Link className="btn btn-secondary px-5 py-3" href="/#gallery">
             Browse the examples

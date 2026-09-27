@@ -28,6 +28,24 @@ describe("rejectionCopy", () => {
     expect(`${copy.heading} ${copy.detail}`).not.toContain("raw server message");
   });
 
+  it("says a full store is not the file's fault, and that it clears on its own", () => {
+    const copy = rejectionCopy(failure("STORAGE_FULL", { status: 503 }));
+    expect(copy.heading).toBe("Uploads are paused for now");
+    expect(copy.detail).toBe(
+      "The demo's storage is full. Older uploads clear out within a day, so try again later.",
+    );
+  });
+
+  it.each([
+    ["a server error", 500],
+    ["a gateway timeout", 504],
+    ["no response at all", 0],
+  ])("does not blame the file for %s with an unknown code", (_, status) => {
+    const copy = rejectionCopy(failure("UNKNOWN", { status }));
+    expect(copy.fileFault).toBe(false);
+    expect(copy.heading).toBe("Something went wrong on our side");
+  });
+
   it("falls back for an unknown code", () => {
     expect(rejectionCopy(failure("SOMETHING_NEW")).heading).toMatch(/\w/);
   });

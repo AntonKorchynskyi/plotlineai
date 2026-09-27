@@ -5,10 +5,15 @@
  * everyone's allowance. The global bucket caps all clients together, and is what finally
  * protects the provider bill and the database.
  *
- * The client key is the X-Forwarded-For address. Next fills that header from the socket only
- * when a request does not already carry one, so it is trustworthy only because web is never
- * reached directly: the proxy service (deploy/Caddyfile) is the only ingress, and it
- * replaces whatever a client sent with the real peer address.
+ * The client key comes from X-Forwarded-For, read from the right. web is never reached
+ * directly: a trusted proxy in front of it records the real peer address. Caddy
+ * (deploy/Caddyfile) replaces the header with that address; Google's front end on Cloud Run
+ * appends it to whatever the client sent. Either way the trusted entry is the last one, and
+ * everything to its left is the client's to forge. TRUSTED_PROXY_HOPS counts the proxies
+ * that append an entry, for when a second one (a load balancer) sits in front.
+ *
+ * In-memory buckets are only correct while web runs as a single instance, which is why the
+ * Cloud Run service caps itself at one (deploy/cloudrun/service.yaml).
  */
 
 export type TakeResult = { ok: true } | { ok: false; retryAfterSeconds: number };
@@ -87,17 +92,24 @@ export function createRateLimiter(options: {
   };
 }
 
-/** The client address as Next records it; see the module comment for how far to trust it. */
-export function clientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const key = forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
-  return key.slice(0, 64);
-}
-
 const positiveInt = (raw: string | undefined, fallback: number) => {
   const n = Number(raw);
   return raw && Number.isInteger(n) && n > 0 ? n : fallback;
 };
+
+/** How many proxies in front of web append to X-Forwarded-For; see the module comment. */
+export const trustedProxyHops = () => positiveInt(process.env.TRUSTED_PROXY_HOPS, 1);
+
+/** The client address the nearest trusted proxy recorded; see the module comment. */
+export function clientKey(request: Request, hops = trustedProxyHops()): string {
+  const chain = (request.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const forwarded = chain.length >= hops ? chain[chain.length - hops] : "";
+  const key = forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+  return key.slice(0, 64);
+}
 
 export type Limits = { perClient: BucketLimits; global: BucketLimits };
 

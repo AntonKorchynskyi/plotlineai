@@ -27,7 +27,7 @@ export type ColumnInfo = z.infer<typeof ColumnSchema>;
 /** GET /datasets/{id}: the column schema plus up to 20 sample rows. */
 export type DatasetDetail = z.infer<typeof DatasetDetailSchema>;
 
-/** The dataset does not exist, or has passed its 7-day expiry. */
+/** The dataset does not exist, or has passed its expiry. */
 export class DatasetNotFoundError extends Error {
   constructor() {
     super("dataset not found");
@@ -54,7 +54,7 @@ export type Share = z.infer<typeof ShareSchema>;
 
 /**
  * Reads a share snapshot. It outlives its dataset by design, so this keeps working after
- * the 7-day expiry. Returns null when the id is unknown, which the page shows as not found.
+ * the dataset expires. Returns null when the id is unknown, which the page shows as not found.
  */
 export async function fetchShare(shareId: string): Promise<Share | null> {
   let response: Response;

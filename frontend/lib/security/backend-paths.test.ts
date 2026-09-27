@@ -16,6 +16,9 @@ describe("backendDecision", () => {
   it.each([
     ["GET", "/api/backend/actuator/health"],
     ["GET", "/api/backend/actuator/env"],
+    // The AI budget is spent by web itself; a browser must not be able to drain it.
+    ["POST", "/api/backend/internal/ai-budget/consume"],
+    ["GET", "/api/backend/internal/ai-budget/consume"],
     // Datasets and shares are read server-side only; the browser never needs them.
     ["GET", "/api/backend/datasets/0b0c6f7e-3f1e-4d2b-9c1a-111111111111"],
     ["GET", "/api/backend/shares/0b0c6f7e-3f1e-4d2b-9c1a-111111111111"],
