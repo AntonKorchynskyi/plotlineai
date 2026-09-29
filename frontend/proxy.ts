@@ -19,7 +19,7 @@ import { isCrossSite, isStateChanging } from "@/lib/security/origin";
 const failure = (status: number, error: string, message: string, headers?: HeadersInit) =>
   NextResponse.json({ error, message }, { status, headers });
 
-function guardApi(request: NextRequest): NextResponse {
+async function guardApi(request: NextRequest): Promise<NextResponse> {
   const { method } = request;
   const { pathname } = request.nextUrl;
 
@@ -32,7 +32,7 @@ function guardApi(request: NextRequest): NextResponse {
     if (!decision.allowed) return failure(404, "NOT_FOUND", "Resource not found");
 
     if (decision.bucket) {
-      const limit = backendLimiters[decision.bucket].check(clientKey(request));
+      const limit = await backendLimiters[decision.bucket].check(clientKey(request));
       if (!limit.ok) {
         return failure(429, "RATE_LIMITED", "Too many requests. Try again shortly.", {
           "Retry-After": String(limit.retryAfterSeconds),
@@ -56,7 +56,7 @@ function withCsp(request: NextRequest): NextResponse {
   return response;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   return request.nextUrl.pathname.startsWith("/api/") ? guardApi(request) : withCsp(request);
 }
 
