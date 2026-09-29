@@ -1,7 +1,7 @@
 /**
- * Which api paths the browser may reach through the /api/backend rewrite. The rewrite itself
- * forwards anything, so without this the whole api surface (actuator included, before it
- * moved to its own port) is public. Server-side code calls the api directly and is not
+ * Which api paths the browser may reach through /api/backend. The route handler behind it
+ * (app/api/backend/[...path]) forwards anything, so without this the whole api surface,
+ * /internal included, would be public. Server-side code calls the api directly and is not
  * affected.
  *
  * Each entry also says which rate-limit bucket the call spends from, if any.

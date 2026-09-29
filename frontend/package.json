@@ -12,7 +12,11 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.70",
+    "@aws-sdk/client-dynamodb": "^3.1143.0",
+    "@aws-sdk/client-secrets-manager": "^3.1143.0",
+    "@aws-sdk/client-ssm": "^3.1143.0",
     "ai": "^7.0.106",
+    "aws4fetch": "^1.0.20",
     "chart.js": "^4.5.1",
     "next": "16.3.6",
     "react": "19.3.0",

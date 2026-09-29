@@ -1,12 +1,32 @@
+import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import type { RenderedData } from "@/lib/chart-config";
 
+/** Where the api listens. A Lambda function URL ends in "/", which is dropped. */
+export const backendUrl = () =>
+  (process.env.BACKEND_INTERNAL_URL || "http://localhost:8080").replace(/\/+$/, "");
+
 /**
- * Server-to-server access to the api. The /api/backend rewrite is browser-facing and its
- * destination is baked into the routes manifest at build time, so server code addresses the
- * api directly.
+ * The one way server code reaches the api, including the browser-facing /api/backend route.
+ *
+ * On AWS the api's function URL only accepts requests signed with SigV4 by web's own role
+ * (BACKEND_AUTH=iam), so every request is signed with the credentials Lambda puts in the
+ * function's environment. Under compose the api is a plain HTTP service on the internal network.
  */
-export const backendUrl = () => process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
+export function backendFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const url = `${backendUrl()}${path}`;
+  if (process.env.BACKEND_AUTH !== "iam") return fetch(url, { cache: "no-store", ...init });
+
+  // Built per call: Lambda can rotate the credentials in the environment at any time.
+  const signer = new AwsClient({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+    region: process.env.AWS_REGION,
+    service: "lambda",
+  });
+  return signer.fetch(url, { cache: "no-store", ...init });
+}
 
 const ColumnSchema = z.object({
   name: z.string(),
@@ -59,9 +79,7 @@ export type Share = z.infer<typeof ShareSchema>;
 export async function fetchShare(shareId: string): Promise<Share | null> {
   let response: Response;
   try {
-    response = await fetch(`${backendUrl()}/shares/${encodeURIComponent(shareId)}`, {
-      cache: "no-store",
-    });
+    response = await backendFetch(`/shares/${encodeURIComponent(shareId)}`);
   } catch (cause) {
     throw new BackendError("api unreachable", { cause });
   }
@@ -76,9 +94,7 @@ export async function fetchShare(shareId: string): Promise<Share | null> {
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {
   let response: Response;
   try {
-    response = await fetch(`${backendUrl()}/datasets/${encodeURIComponent(datasetId)}`, {
-      cache: "no-store",
-    });
+    response = await backendFetch(`/datasets/${encodeURIComponent(datasetId)}`);
   } catch (cause) {
     throw new BackendError("api unreachable", { cause });
   }

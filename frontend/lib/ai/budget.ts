@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AiUnavailableError } from "@/lib/ai/errors";
-import { backendUrl } from "@/lib/backend";
+import { backendFetch } from "@/lib/backend";
 
 /**
  * The cost circuit breaker: a global ceiling on provider calls per UTC day. Unlike the
@@ -23,17 +23,16 @@ const ConsumeResponseSchema = z.object({ allowed: z.boolean() });
  * happen, because a provider call nobody counted is exactly what the ceiling exists to stop.
  */
 export function createApiBudget(
-  deps: { fetch?: typeof fetch; baseUrl?: () => string; timeoutMs?: number } = {},
+  deps: { send?: (path: string, init: RequestInit) => Promise<Response>; timeoutMs?: number } = {},
 ): DailyBudget {
-  const send = deps.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
-  const baseUrl = deps.baseUrl ?? backendUrl;
+  const send = deps.send ?? backendFetch;
   const timeoutMs = deps.timeoutMs ?? 5000;
 
   return {
     async consume() {
       let answer: unknown;
       try {
-        const response = await send(`${baseUrl()}/internal/ai-budget/consume`, {
+        const response = await send("/internal/ai-budget/consume", {
           method: "POST",
           cache: "no-store",
           signal: AbortSignal.timeout(timeoutMs),

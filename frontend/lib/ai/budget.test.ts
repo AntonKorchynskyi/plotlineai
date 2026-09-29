@@ -10,7 +10,7 @@ const json = (body: unknown, status = 200) =>
 
 const budgetAnswering = (answer: () => Promise<Response>) => {
   const fetch = vi.fn<typeof globalThis.fetch>(answer);
-  const budget = createApiBudget({ fetch, baseUrl: () => "http://api.test:8080" });
+  const budget = createApiBudget({ send: fetch });
   return { fetch, budget };
 };
 
@@ -22,7 +22,7 @@ describe("createApiBudget", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0];
-    expect(url).toBe("http://api.test:8080/internal/ai-budget/consume");
+    expect(url).toBe("/internal/ai-budget/consume");
     expect(init).toMatchObject({ method: "POST", cache: "no-store" });
   });
 
@@ -63,7 +63,7 @@ describe("createApiBudget", () => {
           init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
         }),
     );
-    const budget = createApiBudget({ fetch, baseUrl: () => "http://api.test", timeoutMs: 20 });
+    const budget = createApiBudget({ send: fetch, timeoutMs: 20 });
 
     await expect(budget.consume()).rejects.toBeInstanceOf(AiUnavailableError);
   });
