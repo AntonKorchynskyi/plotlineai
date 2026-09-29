@@ -286,7 +286,8 @@ describe("the outcome screens", () => {
   });
 
   it.each([
-    ["STORAGE_FULL", 503, /uploads are paused/i],
+    ["UPLOAD_QUOTA_REACHED", 503, /uploads are paused for today/i],
+    ["UPLOAD_NOT_FOUND", 400, /upload did not finish/i],
     ["RATE_LIMITED", 429, /too many uploads/i],
     ["NETWORK", 0, /could not reach the server/i],
     ["UNKNOWN", 502, /went wrong on our side/i],

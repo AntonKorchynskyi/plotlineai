@@ -6,6 +6,7 @@ describe("backendDecision", () => {
     ["GET", "/api/backend/gallery", null],
     ["HEAD", "/api/backend/gallery", null],
     ["GET", "/api/backend/gallery/monthly-signups/csv", null],
+    ["POST", "/api/backend/datasets/uploads", "write"],
     ["POST", "/api/backend/datasets", "write"],
     ["POST", "/api/backend/shares", "write"],
     ["POST", "/api/backend/charts/render", "render"],

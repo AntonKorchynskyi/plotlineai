@@ -51,43 +51,89 @@ describe("checkFile", () => {
 });
 
 describe("uploadCsv", () => {
-  it("posts the file through the browser proxy and returns the dataset", async () => {
-    const detail = { datasetId: "id", schema: [], rowCount: 3 };
-    respond(detail, { status: 201 });
+  const presigned = {
+    uploadId: "u-1",
+    url: "https://plotlineai-data.s3.us-east-1.amazonaws.com/uploads/u-1.csv?X-Amz-Signature=abc",
+    headers: { "Content-Type": "text/csv", "Content-Length": "10" },
+    expiresInSeconds: 300,
+  };
+  const detail = { datasetId: "id", schema: [], rowCount: 3 };
 
-    const result = await uploadCsv(csv());
-
-    expect(result).toEqual({ ok: true, value: detail });
-    const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(url).toBe("/api/backend/datasets");
-    expect((init as RequestInit).method).toBe("POST");
-    expect((init as RequestInit).body).toBeInstanceOf(FormData);
-  });
-
-  it("surfaces the api's rejection code", async () => {
-    respond({ error: "MALFORMED_CSV", message: "bad" }, { status: 422 });
-    const result = await uploadCsv(csv());
-    expect(result).toMatchObject({ ok: false, code: "MALFORMED_CSV", status: 422 });
-  });
-
-  it("reports a network failure rather than throwing", async () => {
+  /** Answers each call in turn: presign, PUT, finalize. */
+  const steps = (...responses: (Response | Error)[]) =>
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
-        throw new TypeError("Failed to fetch");
+        const next = responses.shift();
+        if (next instanceof Error) throw next;
+        return next ?? new Response(null, { status: 500 });
       }),
     );
-    const result = await uploadCsv(csv());
-    expect(result).toMatchObject({ ok: false, code: "NETWORK" });
+
+  it("asks for an upload URL, PUTs the file to S3, then finalizes the dataset", async () => {
+    steps(
+      Response.json(presigned, { status: 201 }),
+      new Response(null, { status: 200 }),
+      Response.json(detail, { status: 201 }),
+    );
+    const file = csv();
+
+    const result = await uploadCsv(file);
+
+    expect(result).toEqual({ ok: true, value: detail });
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls[0][0]).toBe("/api/backend/datasets/uploads");
+    expect(JSON.parse((calls[0][1] as RequestInit).body as string)).toEqual({
+      filename: "data.csv",
+      contentType: "text/csv",
+      size: 10,
+    });
+    expect(calls[1][0]).toBe(presigned.url);
+    const put = calls[1][1] as RequestInit;
+    expect(put.method).toBe("PUT");
+    expect(put.body).toBe(file);
+    // The browser sets Content-Length from the file itself and refuses a scripted one.
+    expect(put.headers).toEqual({ "Content-Type": "text/csv" });
+    expect(calls[2][0]).toBe("/api/backend/datasets");
+    expect(JSON.parse((calls[2][1] as RequestInit).body as string)).toEqual({ uploadId: "u-1" });
   });
 
-  it("reports a non-JSON body as a network-level failure", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("<html>502</html>", { status: 502 })),
-    );
+  it("stops at a refused presign and never touches S3", async () => {
+    steps(Response.json({ error: "UPLOAD_QUOTA_REACHED", message: "x" }, { status: 503 }));
     const result = await uploadCsv(csv());
-    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ ok: false, code: "UPLOAD_QUOTA_REACHED", status: 503 });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+  });
+
+  it("reports a PUT that S3 refuses as a network-level failure", async () => {
+    steps(Response.json(presigned, { status: 201 }), new Response("<Error/>", { status: 403 }));
+    const result = await uploadCsv(csv());
+    expect(result).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+  });
+
+  it("reports a PUT that never arrives as a network failure", async () => {
+    steps(Response.json(presigned, { status: 201 }), new TypeError("Failed to fetch"));
+    expect(await uploadCsv(csv())).toMatchObject({ ok: false, code: "NETWORK" });
+  });
+
+  it("surfaces the api's rejection code from the finalize step", async () => {
+    steps(
+      Response.json(presigned, { status: 201 }),
+      new Response(null, { status: 200 }),
+      Response.json({ error: "MALFORMED_CSV", message: "bad" }, { status: 422 }),
+    );
+    expect(await uploadCsv(csv())).toMatchObject({ ok: false, code: "MALFORMED_CSV", status: 422 });
+  });
+
+  it("reports a network failure rather than throwing", async () => {
+    steps(new TypeError("Failed to fetch"));
+    expect(await uploadCsv(csv())).toMatchObject({ ok: false, code: "NETWORK" });
+  });
+
+  it("reports a non-JSON body as a failure", async () => {
+    steps(new Response("<html>502</html>", { status: 502 }));
+    expect((await uploadCsv(csv())).ok).toBe(false);
   });
 });
 

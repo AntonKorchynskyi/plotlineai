@@ -16,7 +16,9 @@ const SEGMENT = "[A-Za-z0-9-]{1,100}";
 const ROUTES: Route[] = [
   { method: "GET", pattern: /^\/gallery$/, bucket: null },
   { method: "GET", pattern: new RegExp(`^/gallery/${SEGMENT}/csv$`), bucket: null },
-  // A dataset is up to 5 MB stored for up to a week, and a share is a permanent row: the tight bucket.
+  // An upload is up to 5 MB kept for a day (presign, then finalize), and a share is permanent:
+  // the tight bucket.
+  { method: "POST", pattern: /^\/datasets\/uploads$/, bucket: "write" },
   { method: "POST", pattern: /^\/datasets$/, bucket: "write" },
   { method: "POST", pattern: /^\/shares$/, bucket: "write" },
   // An aggregation over up to 100k rows: cheaper, but still work worth bounding.
