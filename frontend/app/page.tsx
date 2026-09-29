@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const HERO_SLUG = "monthly-signups";
 
-const FACTS = ["5 MB · 100k rows", "Files deleted within 7 days", "PNG export and share links"];
+const FACTS = ["5 MB · 100k rows", "Files deleted within 2 days", "PNG export and share links"];
 
 export default async function LandingPage() {
   const gallery = await getGallery();

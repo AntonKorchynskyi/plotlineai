@@ -19,7 +19,7 @@ plotlineai:
     max-rows: ${DATASET_MAX_ROWS:100000}
     max-columns: ${DATASET_MAX_COLUMNS:256}
     max-cell-chars: ${DATASET_MAX_CELL_CHARS:32768}
-    ttl: ${DATASET_TTL:P7D}
+    ttl: ${DATASET_TTL:PT24H}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
     # Uploads the whole service accepts per UTC day: the bound on S3 storage.
     upload-daily-limit: ${UPLOAD_DAILY_LIMIT:300}

@@ -4,9 +4,9 @@ import { defineConfig, devices } from "@playwright/test";
  * Runs against the compose stack with the AI stub:
  *   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
  *
- * The rate-limit spec drains a bucket for the one client address the whole suite shares,
- * so it runs as its own project after everything else. That bucket refills within a
- * minute, after which the suite can run again on the same stack.
+ * The rate-limit spec drains the render limit for the one client address the whole suite
+ * shares, so it runs as its own project after everything else. The limit resets with the
+ * next 60 s window, after which the suite can run again on the same stack.
  */
 export default defineConfig({
   testDir: "./tests",

@@ -138,7 +138,9 @@ test.describe("rejected files", () => {
     await page.goto("/analyze");
     let uploaded = false;
     page.on("request", (r) => {
-      if (r.url().endsWith("/api/backend/datasets")) uploaded = true;
+      if (r.url().includes("/api/backend/datasets") || r.url().includes("/local-s3/")) {
+        uploaded = true;
+      }
     });
 
     const big = Buffer.alloc(5 * 1024 * 1024 + 1, "a");
@@ -154,15 +156,9 @@ test.describe("rejected files", () => {
     request,
     baseURL,
   }) => {
-    const response = await request.post("/api/backend/datasets", {
+    const response = await request.post("/api/backend/datasets/uploads", {
       headers: { origin: baseURL! },
-      multipart: {
-        file: {
-          name: "big.csv",
-          mimeType: "text/csv",
-          buffer: Buffer.alloc(5 * 1024 * 1024 + 1024, "a"),
-        },
-      },
+      data: { filename: "big.csv", contentType: "text/csv", size: 5 * 1024 * 1024 + 1 },
     });
     expect(response.status()).toBe(413);
     expect((await response.json()).error).toBe("FILE_TOO_LARGE");
