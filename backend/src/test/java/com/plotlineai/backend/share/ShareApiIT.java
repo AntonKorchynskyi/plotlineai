@@ -46,7 +46,6 @@ class ShareApiIT {
     @Autowired ObjectMapper objectMapper;
     @Autowired S3Client s3;
     @Autowired DynamoDbClient dynamo;
-    @Autowired ShareRepository shareRepository;
 
     private String datasetId;
 
@@ -54,6 +53,13 @@ class ShareApiIT {
     void uploadDataset() throws Exception {
         datasetId = new TestUploads(mvc, s3, objectMapper)
             .datasetId("data.csv", CSV.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private long storedShares() {
+        return dynamo.scan(b -> b.tableName(AwsTestcontainersConfiguration.APP_TABLE)
+                .filterExpression("begins_with(pk, :share)")
+                .expressionAttributeValues(Map.of(":share", AttributeValue.fromS("SHARE#"))))
+            .count();
     }
 
     private ResultActions createShare(String json) throws Exception {
@@ -153,11 +159,11 @@ class ShareApiIT {
             + "\"measures\":[{\"column\":\"revenue\",\"aggregation\":\"sum\"}],"
             + "\"filters\":[{\"column\":\"region\",\"op\":\"neq\",\"value\":\"" + longValue + "\"}]}";
 
-        long before = shareRepository.count();
+        long before = storedShares();
         createShare("{\"datasetId\":\"" + datasetId + "\",\"spec\":" + specWithFilter + "}")
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value("INVALID_CHART_SPEC"));
-        assertEquals(before, shareRepository.count());
+        assertEquals(before, storedShares());
     }
 
     @Test

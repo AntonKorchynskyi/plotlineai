@@ -36,6 +36,11 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "CAP_EXCEEDED", ex.getMessage());
     }
 
+    @ExceptionHandler(ShareTooLargeException.class)
+    public ResponseEntity<ErrorResponse> onShareTooLarge(ShareTooLargeException ex) {
+        return body(HttpStatus.PAYLOAD_TOO_LARGE, "SHARE_TOO_LARGE", ex.getMessage());
+    }
+
     @ExceptionHandler(UploadQuotaReachedException.class)
     public ResponseEntity<ErrorResponse> onUploadQuotaReached(UploadQuotaReachedException ex) {
         return body(HttpStatus.SERVICE_UNAVAILABLE, "UPLOAD_QUOTA_REACHED", ex.getMessage());
