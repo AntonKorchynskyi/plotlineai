@@ -8,10 +8,13 @@
  *   'unsafe-inline' of their own (style-src-attr): React renders element styles as
  *   attributes, and a nonce cannot cover an attribute. An attribute can restyle the page but
  *   cannot run code.
- * - Everything the page fetches or embeds is same-origin; the PNG export draws through
- *   data: and blob: URLs.
+ * - Everything the page fetches or embeds is same-origin, except the one S3 origin the upload
+ *   PUTs to (UPLOAD_ORIGIN, on AWS); the PNG export draws through data: and blob: URLs.
  */
-export function buildCsp(nonce: string, { dev = false } = {}): string {
+export function buildCsp(
+  nonce: string,
+  { dev = false, uploadOrigin = "" }: { dev?: boolean; uploadOrigin?: string } = {},
+): string {
   const directives: [string, ...string[]][] = [
     ["default-src", "'self'"],
     // React's development build uses eval to rebuild server error stacks; production never does.
@@ -20,7 +23,7 @@ export function buildCsp(nonce: string, { dev = false } = {}): string {
     ["style-src-attr", "'unsafe-inline'"],
     ["img-src", "'self'", "data:", "blob:"],
     ["font-src", "'self'"],
-    ["connect-src", "'self'", ...(dev ? ["ws:"] : [])],
+    ["connect-src", "'self'", ...(uploadOrigin ? [uploadOrigin] : []), ...(dev ? ["ws:"] : [])],
     ["object-src", "'none'"],
     ["base-uri", "'self'"],
     ["form-action", "'self'"],
