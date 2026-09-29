@@ -2,15 +2,15 @@ package com.plotlineai.backend.share;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.plotlineai.backend.AwsTestcontainersConfiguration;
+import com.plotlineai.backend.TestUploads;
 import com.plotlineai.backend.TestcontainersConfiguration;
-import com.plotlineai.backend.dataset.DatasetRepository;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,14 +18,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.s3.S3Client;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
 class ShareApiIT {
 
     private static final String CSV = """
@@ -42,19 +44,16 @@ class ShareApiIT {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
-    @Autowired DatasetRepository datasetRepository;
+    @Autowired S3Client s3;
+    @Autowired DynamoDbClient dynamo;
     @Autowired ShareRepository shareRepository;
 
     private String datasetId;
 
     @BeforeEach
     void uploadDataset() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-            "file", "data.csv", "text/csv", CSV.getBytes(StandardCharsets.UTF_8));
-        String body = mvc.perform(multipart("/datasets").file(file))
-            .andExpect(status().isCreated())
-            .andReturn().getResponse().getContentAsString();
-        datasetId = objectMapper.readTree(body).get("datasetId").asString();
+        datasetId = new TestUploads(mvc, s3, objectMapper)
+            .datasetId("data.csv", CSV.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private ResultActions createShare(String json) throws Exception {
@@ -89,8 +88,9 @@ class ShareApiIT {
     void shareSurvivesDeletionOfTheUnderlyingDataset() throws Exception {
         String shareId = shareIdFor(datasetId);
 
-        // Simulates the TTL sweep: the snapshot is stored, so the share must not need the row.
-        datasetRepository.deleteById(UUID.fromString(datasetId));
+        // Simulates TTL expiry: the snapshot is stored, so the share must not need the dataset.
+        dynamo.deleteItem(b -> b.tableName(AwsTestcontainersConfiguration.APP_TABLE)
+            .key(Map.of("pk", AttributeValue.fromS("DATASET#" + datasetId))));
         mvc.perform(get("/datasets/" + datasetId)).andExpect(status().isNotFound());
 
         mvc.perform(get("/shares/" + shareId))

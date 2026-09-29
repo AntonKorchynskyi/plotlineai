@@ -1,13 +1,19 @@
 package com.plotlineai.backend.dataset;
 
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
+import com.plotlineai.backend.dataset.dto.CreateUploadRequest;
+import com.plotlineai.backend.dataset.dto.CreateUploadResponse;
 import com.plotlineai.backend.dataset.dto.DatasetDetailResponse;
 import com.plotlineai.backend.dataset.dto.UploadResponse;
 import com.plotlineai.backend.error.DatasetNotFoundException;
 import com.plotlineai.backend.error.FileTooLargeException;
 import com.plotlineai.backend.error.InvalidFileTypeException;
-import com.plotlineai.backend.error.StorageFullException;
+import com.plotlineai.backend.error.InvalidRequestException;
+import com.plotlineai.backend.error.UploadQuotaReachedException;
+import com.plotlineai.backend.quota.UploadQuota;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,96 +21,103 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import org.springframework.util.StringUtils;
 
+/**
+ * Uploads happen in two calls around a direct browser-to-S3 PUT: {@link #presign} checks what
+ * the browser declares and hands out a URL for exactly that file, and {@link #finalizeUpload}
+ * parses what arrived. Large bodies never pass through the api or Lambda.
+ */
 @Service
 public class DatasetService {
 
-    private static final TypeReference<List<ColumnSchema>> SCHEMA_LIST =
-        new TypeReference<>() {};
-
-    private final DatasetRepository repository;
+    private final DatasetStore datasets;
+    private final UploadStore uploads;
+    private final UploadQuota uploadQuota;
     private final DatasetCapsProperties caps;
-    private final ObjectMapper objectMapper;
     private final CsvParser csvParser;
     private final SchemaInferrer schemaInferrer;
 
-    public DatasetService(
-            DatasetRepository repository,
-            DatasetCapsProperties caps,
-            ObjectMapper objectMapper) {
-        this.repository = repository;
+    public DatasetService(DatasetStore datasets, UploadStore uploads, UploadQuota uploadQuota,
+            DatasetCapsProperties caps) {
+        this.datasets = datasets;
+        this.uploads = uploads;
+        this.uploadQuota = uploadQuota;
         this.caps = caps;
-        this.objectMapper = objectMapper;
         this.csvParser = new CsvParser(caps);
         this.schemaInferrer = new SchemaInferrer();
     }
 
-    public UploadResponse upload(String originalFilename, String contentType, byte[] bytes) {
-        validateFileType(originalFilename, contentType);
-        if (bytes.length > caps.maxFileBytes()) {
-            throw new FileTooLargeException(
-                "The file exceeds the maximum of " + caps.maxFileBytes() + " bytes");
+    /** Checks come before the quota, so a request that would be refused anyway spends nothing. */
+    public CreateUploadResponse presign(CreateUploadRequest request) {
+        if (!StringUtils.hasText(request.filename()) || !StringUtils.hasText(request.contentType())
+                || request.size() == null) {
+            throw new InvalidRequestException("filename, contentType and size are required");
         }
+        validateFileType(request.filename(), request.contentType());
+        if (request.size() <= 0) {
+            throw new InvalidRequestException("The file is empty");
+        }
+        if (request.size() > caps.maxFileBytes()) {
+            throw new FileTooLargeException("The file exceeds the maximum of " + caps.maxFileBytes() + " bytes");
+        }
+        if (!uploadQuota.tryConsume(LocalDate.now(ZoneOffset.UTC))) {
+            throw new UploadQuotaReachedException();
+        }
+
+        UUID uploadId = UUID.randomUUID();
+        UploadStore.PresignedUpload presigned = uploads.presign(uploadId, "text/csv", request.size());
+        return new CreateUploadResponse(uploadId, presigned.url(), presigned.headers(),
+            UploadStore.URL_LIFETIME.toSeconds());
+    }
+
+    public UploadResponse finalizeUpload(UUID uploadId) {
+        if (uploadId == null) {
+            throw new InvalidRequestException("uploadId is required");
+        }
+        byte[] bytes = uploads.read(uploadId, caps.maxFileBytes());
 
         ParsedCsv parsed = csvParser.parse(bytes);
         List<ColumnSchema> schema = schemaInferrer.infer(parsed);
 
         Instant now = Instant.now();
-        // Uploads are the only thing that adds rows, so clearing expired ones here keeps
-        // storage bounded even where the scheduled sweep never gets to run (Cloud Run).
-        repository.deleteExpired(now);
-        // A free database tier stops taking writes when full, which would break shares too.
-        if (caps.maxTotalBytes() > 0 && repository.liveStorageBytes(now) >= caps.maxTotalBytes()) {
-            throw new StorageFullException("Dataset storage is full");
-        }
+        DatasetRecord record = new DatasetRecord(UUID.randomUUID(), parsed.rows().size(), schema.size(),
+            bytes.length, now, now.plus(caps.ttl()));
+        datasets.save(record, new DatasetStore.Detail(schema, sampleRows(schema, parsed.rows())), parsed.rows());
+        // Only once the dataset is safely stored: a failed save leaves the upload for a retry.
+        uploads.delete(uploadId);
 
-        Dataset dataset = new Dataset();
-        dataset.setId(UUID.randomUUID());
-        dataset.setCreatedAt(now);
-        dataset.setExpiresAt(now.plus(caps.ttl()));
-        dataset.setRowCount(parsed.rows().size());
-        dataset.setSchema(objectMapper.valueToTree(schema));
-        dataset.setRows(objectMapper.valueToTree(parsed.rows()));
-        repository.save(dataset);
-
-        return new UploadResponse(dataset.getId(), schema, dataset.getRowCount());
+        return new UploadResponse(record.id(), schema, record.rowCount());
     }
 
-    @Transactional(readOnly = true)
     public DatasetDetailResponse get(UUID id) {
-        Dataset dataset = repository.findByIdAndExpiresAtAfter(id, Instant.now())
+        DatasetRecord record = datasets.findLive(id, Instant.now())
             .orElseThrow(() -> new DatasetNotFoundException(id));
+        DatasetStore.Detail detail = datasets.readDetail(id);
+        return new DatasetDetailResponse(id, detail.schema(), record.rowCount(), detail.sampleRows());
+    }
 
-        List<ColumnSchema> schema = objectMapper.treeToValue(dataset.getSchema(), SCHEMA_LIST);
-
+    private List<Map<String, String>> sampleRows(List<ColumnSchema> schema, List<List<String>> rows) {
         List<String> headers = schema.stream().map(ColumnSchema::name).toList();
-
-        JsonNode rowsNode = dataset.getRows();
-        int limit = Math.min(caps.sampleRows(), rowsNode.size());
-        List<Map<String, String>> sampleRows = new ArrayList<>(limit);
+        int limit = Math.min(caps.sampleRows(), rows.size());
+        List<Map<String, String>> sample = new ArrayList<>(limit);
         for (int r = 0; r < limit; r++) {
-            JsonNode row = rowsNode.get(r);
+            List<String> row = rows.get(r);
             Map<String, String> mapped = new LinkedHashMap<>();
             for (int c = 0; c < headers.size(); c++) {
-                JsonNode cell = row.get(c);
-                mapped.put(headers.get(c), cell != null ? cell.asString() : "");
+                String cell = c < row.size() ? row.get(c) : null;
+                mapped.put(headers.get(c), cell != null ? cell : "");
             }
-            sampleRows.add(mapped);
+            sample.add(mapped);
         }
-
-        return new DatasetDetailResponse(dataset.getId(), schema, dataset.getRowCount(), sampleRows);
+        return sample;
     }
 
-    private void validateFileType(String originalFilename, String contentType) {
-        if (contentType == null || !isCsvMediaType(contentType)) {
+    private void validateFileType(String filename, String contentType) {
+        if (!isCsvMediaType(contentType)) {
             throw new InvalidFileTypeException("The upload content type must be text/csv");
         }
-        if (originalFilename == null
-                || !originalFilename.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+        if (!filename.toLowerCase(Locale.ROOT).endsWith(".csv")) {
             throw new InvalidFileTypeException("The file name must end with .csv");
         }
     }

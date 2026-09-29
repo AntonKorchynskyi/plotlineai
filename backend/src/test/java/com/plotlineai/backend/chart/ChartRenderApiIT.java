@@ -1,10 +1,11 @@
 package com.plotlineai.backend.chart;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.plotlineai.backend.AwsTestcontainersConfiguration;
+import com.plotlineai.backend.TestUploads;
 import com.plotlineai.backend.TestcontainersConfiguration;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,13 +15,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import software.amazon.awssdk.services.s3.S3Client;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
 class ChartRenderApiIT {
 
     private static final String CSV = """
@@ -37,16 +38,15 @@ class ChartRenderApiIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private S3Client s3;
+
     private String datasetId;
 
     @BeforeEach
     void uploadDataset() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-            "file", "data.csv", "text/csv", CSV.getBytes(StandardCharsets.UTF_8));
-        String body = mockMvc.perform(multipart("/datasets").file(file))
-            .andExpect(status().isCreated())
-            .andReturn().getResponse().getContentAsString();
-        datasetId = objectMapper.readTree(body).get("datasetId").asString();
+        datasetId = new TestUploads(mockMvc, s3, objectMapper)
+            .datasetId("data.csv", CSV.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private org.springframework.test.web.servlet.ResultActions renderRaw(String json)

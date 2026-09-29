@@ -1,54 +1,62 @@
 package com.plotlineai.backend.dataset;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.plotlineai.backend.AwsTestcontainersConfiguration;
+import com.plotlineai.backend.TestUploads;
 import com.plotlineai.backend.TestcontainersConfiguration;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.s3.S3Client;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Expiry must hold without the scheduled sweeper: on Cloud Run an idle instance gets no CPU,
- * so a dataset past its TTL has to look gone to every read, and the next upload clears it out.
+ * DynamoDB's TTL can remove an expired item up to about two days late, so a dataset past its
+ * expiry has to look gone to every read whether or not the item is still there.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
 class DatasetExpiryIT {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
-    @Autowired JdbcTemplate jdbc;
-    @Autowired DatasetRepository repository;
+    @Autowired S3Client s3;
+    @Autowired DynamoDbClient dynamo;
+
+    private TestUploads uploads;
+
+    @BeforeEach
+    void setUp() {
+        uploads = new TestUploads(mvc, s3, objectMapper);
+    }
 
     private UUID upload() throws Exception {
-        var file = new MockMultipartFile("file", "data.csv", "text/csv",
+        return uploads.datasetId("data.csv",
             "region,revenue\nnorth,10\nsouth,20\n".getBytes(StandardCharsets.UTF_8));
-        String body = mvc.perform(multipart("/datasets").file(file))
-            .andExpect(status().isCreated())
-            .andReturn().getResponse().getContentAsString();
-        return UUID.fromString(objectMapper.readTree(body).get("datasetId").asString());
     }
 
     private void expire(UUID id) {
-        jdbc.update("update dataset set expires_at = ? where id = ?",
-            Timestamp.from(Instant.now().minusSeconds(60)), id);
+        dynamo.updateItem(b -> b.tableName(AwsTestcontainersConfiguration.APP_TABLE)
+            .key(Map.of("pk", AttributeValue.fromS("DATASET#" + id)))
+            .updateExpression("SET expiresAt = :past")
+            .expressionAttributeValues(Map.of(":past",
+                AttributeValue.fromN(Long.toString(Instant.now().minusSeconds(60).getEpochSecond())))));
     }
 
     private String renderBody(UUID id) {
@@ -85,15 +93,5 @@ class DatasetExpiryIT {
         mvc.perform(get("/datasets/" + id)).andExpect(status().isOk());
         mvc.perform(post("/charts/render").contentType(MediaType.APPLICATION_JSON).content(renderBody(id)))
             .andExpect(status().isOk());
-    }
-
-    @Test
-    void anUploadClearsOutExpiredDatasets() throws Exception {
-        UUID old = upload();
-        expire(old);
-
-        upload();
-
-        assertTrue(repository.findById(old).isEmpty(), "the expired dataset should be deleted");
     }
 }
