@@ -21,6 +21,14 @@ spring:
       fail-on-unknown-properties: true
 
 plotlineai:
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    # Blank on AWS. Compose and the tests point these at DynamoDB Local and S3Mock.
+    dynamodb-endpoint: ${PLOTLINEAI_DYNAMODB_ENDPOINT:}
+    s3-endpoint: ${PLOTLINEAI_S3_ENDPOINT:}
+    s3-public-endpoint: ${PLOTLINEAI_S3_PUBLIC_ENDPOINT:}
+    app-table: ${PLOTLINEAI_APP_TABLE:plotlineai-app}
+    data-bucket: ${PLOTLINEAI_DATA_BUCKET:plotlineai-data}
   dataset:
     max-file-bytes: ${DATASET_MAX_FILE_BYTES:5242880}
     max-rows: ${DATASET_MAX_ROWS:100000}
