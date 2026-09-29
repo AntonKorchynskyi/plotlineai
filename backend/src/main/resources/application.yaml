@@ -40,6 +40,8 @@ plotlineai:
     # Refuse uploads once live datasets take this many bytes; 0 is no cap. Cloud Run sets one
     # to stay inside the free database tier.
     max-total-bytes: ${DATASET_MAX_TOTAL_BYTES:0}
+    # Uploads the whole service accepts per UTC day: the bound on S3 storage.
+    upload-daily-limit: ${UPLOAD_DAILY_LIMIT:300}
   ai:
     # Provider calls allowed per UTC day, across all clients. web asks before each call.
     daily-call-limit: ${AI_DAILY_CALL_LIMIT:500}

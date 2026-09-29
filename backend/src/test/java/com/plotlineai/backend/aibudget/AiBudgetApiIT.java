@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.plotlineai.backend.AwsTestcontainersConfiguration;
 import com.plotlineai.backend.TestcontainersConfiguration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -19,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = "plotlineai.ai.daily-call-limit=2")
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
 class AiBudgetApiIT {
 
     private static final String CONSUME = "/internal/ai-budget/consume";

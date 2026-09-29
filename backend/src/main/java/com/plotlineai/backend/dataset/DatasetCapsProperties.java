@@ -12,5 +12,7 @@ public record DatasetCapsProperties(
         Duration ttl,
         int sampleRows,
         /** Bytes live datasets may take in Postgres before uploads are refused; 0 or less is no cap. */
-        long maxTotalBytes) {
+        long maxTotalBytes,
+        /** Uploads the whole service accepts per UTC day. */
+        int uploadDailyLimit) {
 }
