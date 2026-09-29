@@ -36,6 +36,7 @@
 		<jackson-bom.version>3.1.7</jackson-bom.version>
 		<awssdk.version>2.55.8</awssdk.version>
 		<s3mock.version>5.2.3</s3mock.version>
+		<serverless-java-container.version>3.0.2</serverless-java-container.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -99,6 +100,12 @@
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>url-connection-client</artifactId>
 		</dependency>
+		<!-- Runs the Spring MVC app inside Lambda (lambda/StreamLambdaHandler); unused under compose. -->
+		<dependency>
+			<groupId>com.amazonaws.serverless</groupId>
+			<artifactId>aws-serverless-java-container-springboot4</artifactId>
+			<version>${serverless-java-container.version}</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -142,6 +149,55 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
+			</plugin>
+			<!-- target/backend-lambda.zip: the Lambda deployment package (classes at the root,
+			     dependencies in lib/, no embedded Tomcat). The Boot jar stays for compose. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>3.8.0</version>
+				<configuration>
+					<finalName>backend-lambda</finalName>
+					<appendAssemblyId>false</appendAssemblyId>
+					<descriptors>
+						<descriptor>src/assembly/lambda-zip.xml</descriptor>
+					</descriptors>
+				</configuration>
+				<executions>
+					<execution>
+						<id>lambda-zip</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Only the SnapStart rules: state captured in the snapshot that must not be shared
+			     between restored instances (random seeds, timestamps, unique ids). -->
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>4.10.4.1</version>
+				<configuration>
+					<includeFilterFile>src/spotbugs/snapstart-only.xml</includeFilterFile>
+					<plugins>
+						<plugin>
+							<groupId>software.amazon.lambda.snapstart</groupId>
+							<artifactId>aws-lambda-snapstart-java-rules</artifactId>
+							<version>0.2.1</version>
+						</plugin>
+					</plugins>
+				</configuration>
+				<executions>
+					<execution>
+						<id>snapstart-rules</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
