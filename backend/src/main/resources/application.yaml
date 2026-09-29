@@ -1,21 +1,6 @@
 spring:
   application:
     name: backend
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/plotlineai}
-    username: ${SPRING_DATASOURCE_USERNAME:plotlineai}
-    password: ${SPRING_DATASOURCE_PASSWORD:plotlineai}
-  jpa:
-    hibernate:
-      ddl-auto: none
-    open-in-view: false
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
   jackson:
     deserialization:
       fail-on-unknown-properties: true
@@ -36,18 +21,14 @@ plotlineai:
     max-cell-chars: ${DATASET_MAX_CELL_CHARS:32768}
     ttl: ${DATASET_TTL:P7D}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
-    sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
-    # Refuse uploads once live datasets take this many bytes; 0 is no cap. Cloud Run sets one
-    # to stay inside the free database tier.
-    max-total-bytes: ${DATASET_MAX_TOTAL_BYTES:0}
     # Uploads the whole service accepts per UTC day: the bound on S3 storage.
     upload-daily-limit: ${UPLOAD_DAILY_LIMIT:300}
   ai:
     # Provider calls allowed per UTC day, across all clients. web asks before each call.
     daily-call-limit: ${AI_DAILY_CALL_LIMIT:500}
 
-# Actuator lives on its own port. The compose healthcheck reaches it from inside the container;
-# web's /api/backend rewrite only targets 8080, so no browser path leads here.
+# Actuator lives on its own port. The compose healthcheck reaches it from inside the container,
+# and web only ever forwards to 8080. Lambda sets MANAGEMENT_PORT=-1: no actuator over HTTP there.
 management:
   server:
     port: ${MANAGEMENT_PORT:8081}

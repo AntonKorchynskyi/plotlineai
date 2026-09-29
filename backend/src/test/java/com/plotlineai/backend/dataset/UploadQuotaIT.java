@@ -5,7 +5,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.plotlineai.backend.AwsTestcontainersConfiguration;
 import com.plotlineai.backend.TestUploads;
-import com.plotlineai.backend.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,7 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = "plotlineai.dataset.upload-daily-limit=2")
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
+@Import(AwsTestcontainersConfiguration.class)
 class UploadQuotaIT {
 
     @Autowired MockMvc mvc;

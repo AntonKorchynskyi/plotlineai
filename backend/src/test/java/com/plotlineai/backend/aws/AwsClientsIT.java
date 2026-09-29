@@ -3,7 +3,6 @@ package com.plotlineai.backend.aws;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.plotlineai.backend.AwsTestcontainersConfiguration;
-import com.plotlineai.backend.TestcontainersConfiguration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
+@Import(AwsTestcontainersConfiguration.class)
 class AwsClientsIT {
 
     @Autowired DynamoDbClient dynamo;

@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.plotlineai.backend.AwsTestcontainersConfiguration;
 import com.plotlineai.backend.TestUploads;
-import com.plotlineai.backend.TestcontainersConfiguration;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -29,7 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
+@Import(AwsTestcontainersConfiguration.class)
 class DatasetApiIT {
 
     @Autowired MockMvc mvc;

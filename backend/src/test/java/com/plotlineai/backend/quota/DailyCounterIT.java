@@ -3,7 +3,6 @@ package com.plotlineai.backend.quota;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.plotlineai.backend.AwsTestcontainersConfiguration;
-import com.plotlineai.backend.TestcontainersConfiguration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -23,7 +22,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 /** Each test counts under its own day, so the tests never share a counter. */
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
+@Import(AwsTestcontainersConfiguration.class)
 class DailyCounterIT {
 
     @Autowired DailyCounter counter;

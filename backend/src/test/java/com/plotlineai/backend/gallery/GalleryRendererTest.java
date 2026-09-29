@@ -18,7 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
 class GalleryRendererTest {
 
     private final DatasetCapsProperties caps =
-        new DatasetCapsProperties(5_242_880L, 100_000, 256, 32_768, Duration.ofDays(1), 20, 0L, 300);
+        new DatasetCapsProperties(5_242_880L, 100_000, 256, 32_768, Duration.ofDays(1), 20, 300);
 
     @Test
     void rendersTheWholeCatalogInDisplayOrder() {

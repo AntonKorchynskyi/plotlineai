@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.plotlineai.backend.AwsTestcontainersConfiguration;
 import com.plotlineai.backend.TestUploads;
-import com.plotlineai.backend.TestcontainersConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
@@ -31,7 +30,7 @@ import tools.jackson.databind.ObjectMapper;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, AwsTestcontainersConfiguration.class})
+@Import(AwsTestcontainersConfiguration.class)
 class DatasetExpiryIT {
 
     @Autowired MockMvc mvc;
