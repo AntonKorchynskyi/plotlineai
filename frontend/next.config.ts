@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   // The Content-Security-Policy is set per request in proxy.ts (it carries a nonce). HSTS is
-  // the proxy's job in production (deploy/hsts.caddy): it would be wrong on plain-HTTP localhost.
+  // CloudFront's job in production (infra/lib/app-stack.ts): it would be wrong on plain-HTTP localhost.
   async headers() {
     return [
       {

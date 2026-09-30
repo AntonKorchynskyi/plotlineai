@@ -14,21 +14,25 @@ with downloadable CSVs.
 
 ## Architecture you must respect
 
-Three containers, wired by the root `docker-compose.yml`:
+Two services, run locally by the root `docker compose` and on AWS as two Lambda
+functions behind CloudFront (`infra/`, `docs/deploy-aws.md`,
+`docs/superpowers/specs/2026-09-29-aws-serverless-design.md`):
 
 - **web** - Next.js 16. UI + all AI orchestration. Holds `OPENAI_API_KEY`. The only
-  publicly exposed service.
-- **api** - Spring Boot 4.1 / Java 25. Data service: CSV upload, parsing, schema
-  inference, Postgres storage, the aggregation engine, share persistence. Internal
-  only.
-- **db** - Postgres 16. Internal only.
+  service the browser reaches.
+- **api** - Spring Boot 4.1 / Java 25. Data service: presigned CSV uploads, parsing,
+  schema inference, DynamoDB + S3 storage, the aggregation engine, share persistence.
+  Internal only (on AWS its function URL accepts only SigV4 requests from web's role).
+- Storage is DynamoDB and S3. Locally, DynamoDB Local and S3Mock stand in for them, so
+  nothing needs an AWS account.
 
 Rules:
 
-- The **browser talks only to `web`**. Never point the browser at `api` directly.
-- `web/next.config.ts` `rewrites` proxy `/api/backend/:path*` -> `http://api:8080/:path*`.
-  Browser calls to `api` go through that path. `web` route handlers may also call `api`
-  server-to-server.
+- The **browser talks only to `web`**, plus the one presigned PUT straight to S3 that
+  `api` hands out for an upload. Never point the browser at `api` directly.
+- `/api/backend/[...path]` is a route handler that forwards the allowed paths
+  (`frontend/lib/security/backend-paths.ts`) to `api`, signing them with SigV4 on AWS.
+  `web` route handlers may also call `api` server-to-server.
 - **AI code lives only in `web`** (`frontend/lib/ai/`), because the Vercel AI SDK and
   LangChain are JS/TS. Do not add an LLM client to the Spring Boot backend.
 - **`api` computes all aggregation** (group-by, sum/avg/min/max/count, time buckets,
@@ -38,7 +42,7 @@ Rules:
 
 ## The framework versions are newer than your training data
 
-- **Next.js 16.2.12.** `frontend/AGENTS.md` says it plainly: APIs, conventions, and
+- **Next.js 16.3.** `frontend/AGENTS.md` says it plainly: APIs, conventions, and
   file structure differ from what you remember. Before writing frontend code, read the
   relevant guide under `frontend/node_modules/next/dist/docs/`. Do not assume Pages
   Router, `next/legacy`, old `next.config` shapes, or old route-handler signatures.
@@ -75,14 +79,16 @@ Rules:
 ## Security checklist (see spec section 8 for detail)
 
 - Uploads: `.csv` + `text/csv` only; own generated IDs, never the client filename;
-  nothing written to disk; byte/row/column/cell caps enforced during a streaming parse;
-  strict UTF-8; malformed CSV -> structured `422`, never a stack trace.
-- Rate limit `/api/suggest` and `/api/chart-spec` per IP (token bucket). Global daily
-  OpenAI call ceiling as a cost circuit breaker.
-- `OPENAI_API_KEY` only in `web` server env. Never sent to the browser, never logged.
-- `api` + `db` never publicly exposed. `api` rejects cross-origin requests.
-- Bean Validation on every DTO; Jackson `FAIL_ON_UNKNOWN_PROPERTIES = true`;
-  parameterized DB access only.
+  presigned PUTs signed for the exact size and type; nothing written to local disk;
+  byte/row/column/cell caps enforced during a streaming parse; strict UTF-8; malformed
+  CSV -> structured `422`, never a stack trace.
+- Rate limit the AI routes and `/api/backend` writes and renders per client and globally
+  (DynamoDB fixed windows). Global daily OpenAI call ceiling as a cost circuit breaker.
+- `OPENAI_API_KEY` only in `web` server env (SSM Parameter Store on AWS). Never sent to
+  the browser, never logged.
+- `api` and storage never publicly exposed. `web` refuses cross-site writes and, on AWS,
+  any request that did not come through CloudFront.
+- Bean Validation on every DTO; Jackson `FAIL_ON_UNKNOWN_PROPERTIES = true`.
 - Actuator: `/health` + `/info` only, internal-only.
 - `web` security headers (CSP, `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`).
 - Generic error responses; logs exclude secrets and full dataset contents.
@@ -140,19 +146,27 @@ Frontend (`frontend/`):
 
 Whole stack:
 
-- `docker compose up --build` -> `web` on `http://localhost:3000`; `api` and `db`
-  internal.
-- `.env` (git-ignored) holds `OPENAI_API_KEY`, `POSTGRES_*`, `AI_MODEL`, and the cap
-  values. `.env.example` lists every key with safe placeholders.
+- `docker compose up --build` -> the app on `http://localhost:3000` (through the
+  `proxy` service); `api` and the storage stand-ins internal.
+- `.env` (git-ignored) holds `OPENAI_API_KEY`, `AI_MODEL`, and the cap values.
+  `.env.example` lists every key with safe placeholders.
+
+Infra (`infra/`):
+
+- Types and tests: `npm run typecheck && npm test` (CDK assertions plus cdk-nag).
+- Synth offline, without the CDK CLI: `CDK_OUTDIR=<dir>
+  CDK_CONTEXT_JSON='{"alertEmail":"x@example.com"}' npx tsx bin/plotlineai.ts`.
 
 ## Deployment scope
 
-This project builds the **local `docker compose` experience only**. Do not add
-Terraform, CDK, cloud pipelines, or provider-specific infra unless the owner asks. Keep
-the app deploy-ready: env-var config (no hardcoded hosts), clean non-root Dockerfiles,
-`web` as `output: "standalone"`, healthchecks, Flyway-on-startup. The likely future
-target is a single cheap VPS (e.g. Hetzner) + Caddy/Traefik; a
-`docker-compose.prod.yml` overlay stub is the only nod to it.
+Production is AWS serverless, defined in `infra/` (CDK) and deployed by
+`.github/workflows/deploy.yml` after the owner approves each run. The owner's rules:
+- No command that talks to AWS (`aws ...`, `cdk diff/deploy/bootstrap`, even read-only
+  ones) runs without the owner's explicit yes, each time. Explain first what it does,
+  what it creates, what it costs and how to undo it.
+- The agent never handles the OpenAI key; the owner puts it in SSM themselves.
+- Every accepted cdk-nag finding is acknowledged next to its resource, with a reason
+  (`infra/lib/nag.ts`).
 
 ## Definition of done for a phase
 
@@ -161,7 +175,7 @@ target is a single cheap VPS (e.g. Hetzner) + Caddy/Traefik; a
 - `cd frontend && npm run lint && npx tsc --noEmit && npx vitest run` is green.
 - `npx playwright test` is green against `docker compose up` (once the E2E phase
   exists).
-- `docker compose up --build` brings all three services healthy and the phase's
+- `docker compose up --build` brings every service healthy and the phase's
   user-visible behavior works when clicked through in a browser.
 - GitHub Actions CI is green on the PR.
 - The `ChartSpec` Zod schema and its Java mirror agree (contract tests pass on both
