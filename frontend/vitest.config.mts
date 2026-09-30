@@ -12,6 +12,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    include: ["{app,components,lib}/**/*.test.{ts,tsx}", "proxy.test.ts"],
+    include: ["{app,components,lib,scripts}/**/*.test.{ts,tsx}", "proxy.test.ts"],
   },
 });

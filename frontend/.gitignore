@@ -19,6 +19,8 @@
 
 # production
 /build
+# the web Lambda bundle (scripts/build-lambda.mjs)
+/.lambda/
 
 # misc
 .DS_Store
