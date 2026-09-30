@@ -16,7 +16,9 @@ export function buildCsp(nonce: string, { dev = false } = {}): string {
     ["default-src", "'self'"],
     // React's development build uses eval to rebuild server error stacks; production never does.
     ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(dev ? ["'unsafe-eval'"] : [])],
-    ["style-src", "'self'", `'nonce-${nonce}'`],
+    // Next's dev tools overlay injects <style> tags without the nonce. Browsers ignore
+    // 'unsafe-inline' next to a nonce, so development trades the nonce for it.
+    ["style-src", "'self'", ...(dev ? ["'unsafe-inline'"] : [`'nonce-${nonce}'`])],
     ["style-src-attr", "'unsafe-inline'"],
     ["img-src", "'self'", "data:", "blob:"],
     ["font-src", "'self'"],
