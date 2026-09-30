@@ -15,7 +15,11 @@ export function isCrossSite(request: Request): boolean {
   // "null" is what a sandboxed iframe or a file: page sends.
   if (origin === "null") return true;
 
-  const host = request.headers.get("host");
+  // The host the browser addressed. Proxies call web under another name and pass that one on:
+  // CloudFront (a viewer-request function in infra/lib/app-stack.ts) and Caddy both set
+  // X-Forwarded-Host. A browser cannot add it to a cross-site request without a CORS
+  // preflight, which web never approves.
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   try {
     return new URL(origin).host !== host;
   } catch {

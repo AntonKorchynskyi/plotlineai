@@ -29,6 +29,16 @@ describe("isCrossSite", () => {
     expect(isCrossSite(request({ origin: "not a url" }))).toBe(true);
   });
 
+  it("compares with the host the browser used when a proxy forwards it", () => {
+    // On AWS: CloudFront calls web's function URL under its own host name and passes the
+    // browser's in X-Forwarded-Host (infra/lib/app-stack.ts); Caddy does the same locally.
+    const behindCloudFront = (headers: Record<string, string>) =>
+      request({ host: "abc.lambda-url.us-east-1.on.aws", "x-forwarded-host": "d1.cloudfront.net", ...headers });
+    expect(isCrossSite(behindCloudFront({ origin: "https://d1.cloudfront.net" }))).toBe(false);
+    expect(isCrossSite(behindCloudFront({ origin: "https://abc.lambda-url.us-east-1.on.aws" }))).toBe(true);
+    expect(isCrossSite(behindCloudFront({ origin: "https://evil.example" }))).toBe(true);
+  });
+
   it("leaves a request with no browser markers to the rate limits", () => {
     expect(isCrossSite(request({}))).toBe(false);
   });

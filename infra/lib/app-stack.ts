@@ -180,6 +180,23 @@ export class AppStack extends Stack {
       },
     });
 
+    // The function URL answers only to its own host name, so CloudFront cannot pass on the
+    // browser's Host. This copies it into X-Forwarded-Host (replacing any value the client
+    // sent), which web's cross-site check compares with Origin (frontend/lib/security/origin.ts).
+    const forwardHost = new cloudfront.Function(this, "ForwardHost", {
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: "Passes the viewer's Host to web as X-Forwarded-Host",
+      code: cloudfront.FunctionCode.fromInline(
+        [
+          "function handler(event) {",
+          "  var request = event.request;",
+          "  request.headers['x-forwarded-host'] = { value: request.headers.host.value };",
+          "  return request;",
+          "}",
+        ].join("\n"),
+      ),
+    });
+
     const site = new cloudfront.Distribution(this, "Site", {
       comment: "PlotlineAI",
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
@@ -196,6 +213,9 @@ export class AppStack extends Stack {
         // CloudFront-Viewer-Address, the client address the rate limiter keys on.
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         responseHeadersPolicy: headers,
+        functionAssociations: [
+          { function: forwardHost, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+        ],
       },
       additionalBehaviors: {
         "_next/static/*": {

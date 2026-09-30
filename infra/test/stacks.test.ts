@@ -214,6 +214,20 @@ describe("AppStack", () => {
     });
   });
 
+  it("passes the browser's host to web, which the cross-site check compares with Origin", () => {
+    const fns = Object.values(site.findResources("AWS::CloudFront::Function"));
+    expect(fns).toHaveLength(1);
+    const code: string = fns[0].Properties.FunctionCode;
+    expect(code).toContain("x-forwarded-host");
+    site.hasResourceProperties("AWS::CloudFront::Distribution", {
+      DistributionConfig: Match.objectLike({
+        DefaultCacheBehavior: Match.objectLike({
+          FunctionAssociations: [Match.objectLike({ EventType: "viewer-request" })],
+        }),
+      }),
+    });
+  });
+
   it("keeps function logs for two weeks", () => {
     const groups = Object.values(site.findResources("AWS::Logs::LogGroup"));
     expect(groups.length).toBeGreaterThanOrEqual(2);
