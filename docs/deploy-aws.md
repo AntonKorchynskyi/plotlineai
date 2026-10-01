@@ -79,7 +79,8 @@ What each piece is, in plain words:
 OpenAI usage is billed by OpenAI, not AWS.
 
 AWS has no hard spending cap, so the setup stacks limits instead:
-- reserved concurrency: at most 20 copies of each function run at once;
+- the account's Lambda concurrency limit: at most 10 copies of the two functions run at
+  once (step 1.4);
 - the rate limits per client and overall (DynamoDB windows of 60 s);
 - the AI daily call limit (`AI_DAILY_CALL_LIMIT=500`) and the upload daily quota
   (`UPLOAD_DAILY_LIMIT=300`);
@@ -114,10 +115,12 @@ reason in `infra/lib/*-stack.ts`.
    aws lambda get-account-settings --region us-east-1 --query AccountLimit.ConcurrentExecutions
    ```
 
-   **What this does:** reads how many function copies may run at once in this account.
-   Reserved concurrency of 20 per function needs at least 100. If the answer is lower (new
-   accounts can start at 10), deploy with `-c reservedConcurrency=0` until AWS raises it, or
-   request 1000 under **Service Quotas > AWS Lambda > Concurrent executions**.
+   **What this does:** reads how many function copies may run at once in this account. New
+   accounts start at 10, which is plenty for a handful of visitors at a time and doubles as
+   the hard cap on both functions together. By default the stacks reserve nothing per
+   function. To cap each function separately (say `-c reservedConcurrency=20`), first raise
+   the limit to at least 100 under **Service Quotas > AWS Lambda > Concurrent executions**:
+   AWS refuses reservations that leave fewer than 10 copies unreserved.
 
 ### 2. Bootstrap CDK
 

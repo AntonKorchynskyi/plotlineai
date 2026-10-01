@@ -13,7 +13,9 @@ import { addNagChecks } from "../lib/nag.js";
  *
  * Context:
  *   alertEmail            where the $5 budget alert goes (required to deploy PlotlineApp)
- *   reservedConcurrency   per-function cap, default 20; 0 leaves it unset
+ *   reservedConcurrency   per-function cap, default 0 (unset): the account's concurrency
+ *                         limit then caps both functions together. Reserving needs a limit
+ *                         of at least the reservations plus 10.
  */
 const app = new App();
 const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: "us-east-1" };
@@ -28,7 +30,7 @@ new AppStack(app, "PlotlineApp", {
   env,
   data,
   alertEmail,
-  reservedConcurrency: Number(app.node.tryGetContext("reservedConcurrency") ?? 20),
+  reservedConcurrency: Number(app.node.tryGetContext("reservedConcurrency") ?? 0),
   apiCode: lambda.Code.fromAsset("../backend/target/backend-lambda.zip"),
   webCode: lambda.Code.fromAsset("../frontend/.lambda"),
   staticAssets: s3deploy.Source.asset("../frontend/.next/static"),
