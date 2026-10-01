@@ -7,7 +7,12 @@ const specPanel = (page: Page) => page.locator("pre");
 async function uploadRevenue(page: Page) {
   await page.goto("/analyze");
   await page.getByLabel("CSV file").setInputFiles(GALLERY_CSV("revenue-by-region"));
-  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible();
+  // The heading waits for the whole chain: presign, the PUT to S3, finalize, the AI call and
+  // three preview renders. On a freshly started stack each first request is slow (CI measured
+  // about 6 s in all), so the default 5 s is too tight for whichever test runs first.
+  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible({
+    timeout: 20_000,
+  });
 }
 
 test("upload, pick a suggestion, refine, export and share", async ({ page, browser }) => {
