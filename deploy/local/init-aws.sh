@@ -1,7 +1,7 @@
 #!/bin/sh
 # Creates what CDK creates on AWS (infra/lib/data-stack.ts) in the local stand-ins: the two
 # DynamoDB tables in DynamoDB Local, with TTL on expiresAt, and a check that S3Mock has made
-# the data bucket. Compose runs it once; api and web wait for it to succeed.
+# the data bucket. api and web wait for it to succeed; it is safe to rerun.
 set -eu
 
 dynamodb=http://dynamodb:8000
@@ -27,9 +27,11 @@ for table in plotlineai-app plotlineai-rate-limits; do
       --attribute-definitions AttributeName=pk,AttributeType=S \
       --key-schema AttributeName=pk,KeyType=HASH \
       --billing-mode PAY_PER_REQUEST > /dev/null
+    # Inside the branch: enabling TTL twice is an error, and compose reruns this script
+    # whenever a service that waits on it is recreated.
+    aws dynamodb update-time-to-live --endpoint-url "$dynamodb" --table-name "$table" \
+      --time-to-live-specification Enabled=true,AttributeName=expiresAt > /dev/null
   fi
-  aws dynamodb update-time-to-live --endpoint-url "$dynamodb" --table-name "$table" \
-    --time-to-live-specification Enabled=true,AttributeName=expiresAt > /dev/null
   echo "table ready: $table"
 done
 
