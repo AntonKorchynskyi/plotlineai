@@ -12,6 +12,8 @@ import { CiStack } from "../lib/ci-stack.js";
 import { DataStack } from "../lib/data-stack.js";
 import { addNagChecks, allowWildcards } from "../lib/nag.js";
 
+const GITHUB = { owner: "AntonKorchynskyi", ownerId: 122495439, repo: "plotlineai", repoId: 1309326523 };
+
 /** A stand-in for the built artifacts, which tests do not need. */
 const stubCode = () => {
   const dir = mkdtempSync(join(tmpdir(), "plotlineai-"));
@@ -32,7 +34,7 @@ const build = ({ reservedConcurrency = 20, nag = false } = {}) => {
     webCode: stubCode(),
     staticAssets: s3deploy.Source.data("chunk.js", "x"),
   });
-  const ci = new CiStack(app, "Ci", { env, repository: "AntonKorchynskyi/plotlineai" });
+  const ci = new CiStack(app, "Ci", { env, github: GITHUB });
   if (nag) {
     addNagChecks(app);
     app.synth();
@@ -258,7 +260,7 @@ describe("CiStack", () => {
               StringEquals: {
                 "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                 "token.actions.githubusercontent.com:sub":
-                  "repo:AntonKorchynskyi/plotlineai:environment:production",
+                  "repo:AntonKorchynskyi@122495439/plotlineai@1309326523:environment:production",
               },
             },
           }),
@@ -289,7 +291,7 @@ describe("cdk-nag (AwsSolutions)", () => {
 
   it("also passes when synth has no account, as in CI", () => {
     const app = new App();
-    new CiStack(app, "Ci", { env: { region: "us-east-1" }, repository: "AntonKorchynskyi/plotlineai" });
+    new CiStack(app, "Ci", { env: { region: "us-east-1" }, github: GITHUB });
     addNagChecks(app);
     expect(() => app.synth()).not.toThrow();
   });
