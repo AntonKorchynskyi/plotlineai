@@ -32,3 +32,20 @@ test("the hero sends people to the analyze flow", async ({ page }) => {
   await expect(page).toHaveURL(/\/analyze$/);
   await expect(page.getByRole("heading", { name: "Start with a CSV" })).toBeVisible();
 });
+
+test("nothing widens the page on a small phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const path of ["/", "/analyze"]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow, `${path} scrolls sideways`).toBe(0);
+  }
+
+  // The hero's longest word must shrink with the column rather than overhang it.
+  await page.goto("/");
+  const headline = page.getByRole("heading", { level: 1 });
+  expect(await headline.evaluate((h) => h.scrollWidth - h.clientWidth)).toBe(0);
+});

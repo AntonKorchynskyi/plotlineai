@@ -53,7 +53,7 @@ export function Thinking() {
         <h2 className="m-0 text-section">Reading your columns</h2>
       </div>
       <p className="mb-7 text-body text-ink-muted">One structured call, usually a few seconds.</p>
-      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
         {[0, 1, 2].map((card) => (
           <div key={card} className="card elev-sm gap-3 p-5">
             {[

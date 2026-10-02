@@ -15,7 +15,7 @@ export default function SuggestionCards({
   disabled: boolean;
 }) {
   return (
-    <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
+    <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
       {suggestions.map((suggestion, index) => (
         <button
           key={`${suggestion.spec.title}-${index}`}

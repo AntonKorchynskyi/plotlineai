@@ -91,7 +91,7 @@ export default function ChartPanel({
         </div>
       )}
 
-      <div className="mt-5 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
+      <div className="mt-5 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))]">
         <div className="card elev-sm gap-3 px-5 py-5">
           <span className="font-heading text-[18px]">Refine it</span>
           <InstructionForm

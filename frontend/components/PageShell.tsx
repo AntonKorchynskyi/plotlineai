@@ -5,6 +5,9 @@
  *
  * Reading width is handled per block (a paragraph caps its own line length), never by
  * squeezing the whole page.
+ *
+ * Decorations may bleed into the gutter, but never past the screen edge: overflow-x-clip
+ * stops them widening the page on a phone without making main a scroll container.
  */
 export default function PageShell({
   children,
@@ -13,5 +16,5 @@ export default function PageShell({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <main className={`w-full px-6 lg:px-12 ${className}`}>{children}</main>;
+  return <main className={`w-full overflow-x-clip px-6 lg:px-12 ${className}`}>{children}</main>;
 }

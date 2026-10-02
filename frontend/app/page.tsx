@@ -18,7 +18,7 @@ export default async function LandingPage() {
 
   return (
     <PageShell className="pt-11 pb-22">
-      <section className="grid items-center gap-12 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
+      <section className="grid items-center gap-12 [grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))]">
         <div>
           <h1 className="mb-4 max-w-[13em] text-hero">
             Hand it a spreadsheet. Get the chart you meant to make.
