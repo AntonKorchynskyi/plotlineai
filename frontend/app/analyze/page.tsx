@@ -58,6 +58,8 @@ export default function AnalyzePage() {
 
   const onChart = state.step === "chart";
   const onResult = onChart || state.step === "empty";
+  const hasSuggestions =
+    (state.step === "suggestions" || state.step === "rendering") && state.suggestions.length > 0;
 
   return (
     <PageShell className="pt-13 pb-30">
@@ -79,24 +81,32 @@ export default function AnalyzePage() {
 
       {(state.step === "suggestions" || state.step === "rendering") && (
         <>
-          <h2 className="mb-2 text-page">Three charts worth a look</h2>
-          <p className="mb-6 text-body text-ink-muted">
-            Pick one to render it over every row, or describe the chart you had in mind.
-          </p>
-          {state.suggestions.length > 0 ? (
-            <SuggestionCards
-              suggestions={state.suggestions}
-              onChoose={flow.choose}
-              disabled={busy}
-            />
+          {hasSuggestions ? (
+            <>
+              <h2 className="mb-2 text-page">Three charts worth a look</h2>
+              <p className="mb-6 text-body text-ink-muted">
+                Pick one to render it over every row, or describe the chart you had in mind.
+              </p>
+              <SuggestionCards
+                suggestions={state.suggestions}
+                onChoose={flow.choose}
+                disabled={busy}
+              />
+            </>
           ) : (
-            <p className="text-body text-ink-faint">
-              No suggestions this time. Describe the chart you want below.
-            </p>
+            // The notice above says why; the form is the only way on from here.
+            <>
+              <h2 className="mb-2 text-page">Describe the chart you want</h2>
+              <p className="text-body text-ink-muted">
+                No suggestions this time. Say what to draw, and it is rendered over every row.
+              </p>
+            </>
           )}
 
           <div className="card elev-sm mt-6 gap-3 px-5 py-5">
-            <span className="font-heading text-[18px]">Or describe it yourself</span>
+            {hasSuggestions && (
+              <span className="font-heading text-[18px]">Or describe it yourself</span>
+            )}
             <InstructionForm
               placeholder="e.g. revenue by region as a doughnut, biggest first"
               submitLabel="Draw it"

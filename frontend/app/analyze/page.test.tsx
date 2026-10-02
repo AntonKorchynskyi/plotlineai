@@ -173,6 +173,19 @@ describe("the suggestions screen", () => {
 
     expect(screen.getByText(/no suggestions this time/i)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/unavailable/i);
+    // Nothing promises charts that are not there, and the form is the only way forward.
+    expect(screen.getByRole("heading", { name: "Describe the chart you want" })).toBeInTheDocument();
+    expect(screen.queryByText("Three charts worth a look")).not.toBeInTheDocument();
+    expect(screen.queryByText(/pick one/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/or describe it yourself/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Draw it" })).toBeInTheDocument();
+  });
+
+  it("offers the suggestions first, and the description as the alternative", () => {
+    show(state);
+    expect(screen.getByRole("heading", { name: "Three charts worth a look" })).toBeInTheDocument();
+    expect(screen.getByText(/pick one to render it/i)).toBeInTheDocument();
+    expect(screen.getByText("Or describe it yourself")).toBeInTheDocument();
   });
 });
 
