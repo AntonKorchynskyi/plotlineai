@@ -143,7 +143,7 @@ npx cdk deploy PlotlineCi -c alertEmail=<your email>
 **What this does:** creates the GitHub OIDC provider and the `plotlineai-deploy` role. The
 role trusts only jobs in this repository's `production` environment, and its only permission
 is to hand the deployment to CDK's bootstrap roles. Free. Undo: `npx cdk destroy PlotlineCi`.
-Note the role ARN it prints, `arn:aws:iam::<account-id>:role/plotlineai-deploy`.
+The role's ARN is `arn:aws:iam::<account-id>:role/plotlineai-deploy`; step 5 needs it.
 
 (`alertEmail` is required by every CDK command in this app; it is only used by `PlotlineApp`.)
 
@@ -258,7 +258,17 @@ Run after the first deploy and after any infrastructure change. `SITE` is the `S
 
    Record them below.
 
-**Measured cold starts:** not measured yet.
+**Measured cold starts** (2026-10-02, landing page after 16 idle minutes, both functions cold):
+
+| | Cold | Warm |
+|---|---|---|
+| Landing page, time to first byte at the browser | 4.1 s | 0.25 s |
+| web: `Init Duration` (Node and the Web Adapter start) | 0.54 s | - |
+| web: first request (loads the secrets and Next's server code, renders the page) | 2.7 s | 0.06-0.12 s |
+| api: `Restore Duration` (SnapStart resumes the snapshot) | 0.67 s | - |
+| api: first request (`/gallery`) | 0.16 s | 0.006 s |
+
+The api waits inside web's first request, so the cold total is mostly web's first render.
 
 ## Operations
 
