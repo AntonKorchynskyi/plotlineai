@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import { Annotations, CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import * as budgets from "aws-cdk-lib/aws-budgets";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
@@ -84,6 +84,10 @@ export class AppStack extends Stack {
       },
     });
     const apiLive = new lambda.Alias(this, "ApiLive", { aliasName: "live", version: api.currentVersion });
+    Annotations.of(api).acknowledgeWarning(
+      "@aws-cdk/aws-lambda:snapStartRequirePublish",
+      "Every deploy publishes api.currentVersion, and the live alias points at it.",
+    );
     const apiUrl = apiLive.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.AWS_IAM });
 
     data.appTable.grantReadWriteData(api);
