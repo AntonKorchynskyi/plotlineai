@@ -46,6 +46,9 @@ describe("buildCsp", () => {
     const csp = buildCsp("n", { dev: true });
     expect(directive(csp, "script-src")).toContain("'unsafe-eval'");
     expect(directive(csp, "connect-src")).toContain("ws:");
+    // The dev tools overlay injects <style> tags without the nonce. A nonce in the list would
+    // make browsers ignore 'unsafe-inline', so development drops it for styles.
+    expect(directive(csp, "style-src")).toEqual(["'self'", "'unsafe-inline'"]);
   });
 });
 
