@@ -1,4 +1,4 @@
-import { backendUrl } from "@/lib/backend";
+import { backendFetch } from "@/lib/backend";
 import type { RenderedData } from "@/lib/chart-config";
 
 /** One entry of GET /gallery. `renderedData` is the RenderResponse shape, verbatim. */
@@ -14,22 +14,28 @@ export type GalleryExample = {
 
 
 /**
- * Reads the gallery server-to-server.
+ * Reads the gallery server-to-server, through backendFetch so it is signed on AWS.
  *
- * The /api/backend rewrite is browser-facing and its destination is baked into the
- * routes manifest at build time, so a server render has to address the api directly.
- * Returns null instead of throwing: the landing page degrades to a hero and a notice
- * rather than 500-ing when the api is down.
+ * A server render cannot use the browser-facing /api/backend route, so it addresses the
+ * api directly. Returns null instead of throwing: the landing page degrades to a hero and a
+ * notice rather than 500-ing when the api is down. The page cannot say why, so the log does.
  */
 export async function getGallery(): Promise<GalleryExample[] | null> {
   try {
-    const response = await fetch(`${backendUrl()}/gallery`);
-    if (!response.ok) return null;
+    const response = await backendFetch("/gallery");
+    if (!response.ok) {
+      logFailure(`api answered ${response.status}`);
+      return null;
+    }
     return (await response.json()) as GalleryExample[];
-  } catch {
+  } catch (failure) {
+    logFailure(failure instanceof Error ? failure.name : typeof failure);
     return null;
   }
 }
+
+const logFailure = (error: string) =>
+  console.error(JSON.stringify({ event: "gallery_unavailable", error }));
 
 /** Turns the api-relative `csvPath` into a URL the browser can follow. */
 export const csvHref = (csvPath: string) => `/api/backend${csvPath}`;

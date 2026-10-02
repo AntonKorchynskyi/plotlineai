@@ -16,6 +16,7 @@ const mockFetch = (impl: () => Promise<Response>) => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("getGallery", () => {
@@ -45,6 +46,22 @@ describe("getGallery", () => {
     expect(String(url)).not.toContain("/api/backend");
   });
 
+  it("signs the request on AWS, where the api only accepts web's role", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "https://abc.lambda-url.us-east-1.on.aws/");
+    vi.stubEnv("BACKEND_AUTH", "iam");
+    vi.stubEnv("AWS_REGION", "us-east-1");
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "secret");
+    mockFetch(async () => new Response("[]", { status: 200 }));
+
+    await getGallery();
+
+    const [input, init] = vi.mocked(fetch).mock.calls[0];
+    const request = new Request(input, init);
+    expect(request.url).toBe("https://abc.lambda-url.us-east-1.on.aws/gallery");
+    expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+  });
+
   it("falls back to localhost when the internal URL is unset", async () => {
     vi.stubEnv("BACKEND_INTERNAL_URL", "");
     mockFetch(async () => new Response("[]", { status: 200 }));
@@ -54,16 +71,30 @@ describe("getGallery", () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe("http://localhost:8080/gallery");
   });
 
-  it("returns null on a non-200 rather than throwing", async () => {
-    mockFetch(async () => new Response("nope", { status: 503 }));
+  it("returns null on a non-200 rather than throwing, and logs the status", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockFetch(async () => new Response("nope", { status: 403 }));
+
     await expect(getGallery()).resolves.toBeNull();
+
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toEqual({
+      event: "gallery_unavailable",
+      error: "api answered 403",
+    });
   });
 
-  it("returns null when the backend is unreachable", async () => {
+  it("returns null when the backend is unreachable, and logs the error name only", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     mockFetch(async () => {
-      throw new Error("ECONNREFUSED");
+      throw new TypeError("fetch failed: ECONNREFUSED 10.0.0.1");
     });
+
     await expect(getGallery()).resolves.toBeNull();
+
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toEqual({
+      event: "gallery_unavailable",
+      error: "TypeError",
+    });
   });
 
   it("returns null when the body is not JSON", async () => {
