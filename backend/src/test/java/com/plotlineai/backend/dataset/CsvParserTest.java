@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class CsvParserTest {
 
     private final DatasetCapsProperties caps =
-        new DatasetCapsProperties(5_242_880L, 100_000, 256, 32_768, Duration.ofDays(7), 20, 0L);
+        new DatasetCapsProperties(5_242_880L, 100_000, 256, 32_768, Duration.ofDays(7), 20, 300);
     private final CsvParser parser = new CsvParser(caps);
 
     private byte[] fixture(String name) throws Exception {
@@ -72,7 +72,7 @@ class CsvParserTest {
 
     @Test
     void rowCapBoundaryAllowsExactlyMaxRows() {
-        var caps2 = new DatasetCapsProperties(5_242_880L, 2, 256, 32_768, Duration.ofDays(7), 20, 0L);
+        var caps2 = new DatasetCapsProperties(5_242_880L, 2, 256, 32_768, Duration.ofDays(7), 20, 300);
         var p = new CsvParser(caps2);
         ParsedCsv csv = p.parse("a\n1\n2\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(2, csv.rows().size());
@@ -120,7 +120,7 @@ class CsvParserTest {
 
     @Test
     void enforcesRowCap() {
-        var caps2 = new DatasetCapsProperties(5_242_880L, 2, 256, 32_768, Duration.ofDays(7), 20, 0L);
+        var caps2 = new DatasetCapsProperties(5_242_880L, 2, 256, 32_768, Duration.ofDays(7), 20, 300);
         var p = new CsvParser(caps2);
         byte[] bytes = "a\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);
         assertThrows(CapExceededException.class, () -> p.parse(bytes));
@@ -128,7 +128,7 @@ class CsvParserTest {
 
     @Test
     void enforcesColumnCap() {
-        var caps2 = new DatasetCapsProperties(5_242_880L, 100_000, 2, 32_768, Duration.ofDays(7), 20, 0L);
+        var caps2 = new DatasetCapsProperties(5_242_880L, 100_000, 2, 32_768, Duration.ofDays(7), 20, 300);
         var p = new CsvParser(caps2);
         byte[] bytes = "a,b,c\n1,2,3\n".getBytes(StandardCharsets.UTF_8);
         assertThrows(CapExceededException.class, () -> p.parse(bytes));
@@ -136,7 +136,7 @@ class CsvParserTest {
 
     @Test
     void enforcesCellCap() {
-        var caps2 = new DatasetCapsProperties(5_242_880L, 100_000, 256, 4, Duration.ofDays(7), 20, 0L);
+        var caps2 = new DatasetCapsProperties(5_242_880L, 100_000, 256, 4, Duration.ofDays(7), 20, 300);
         var p = new CsvParser(caps2);
         byte[] bytes = "a\nhello-world\n".getBytes(StandardCharsets.UTF_8);
         assertThrows(CapExceededException.class, () -> p.parse(bytes));

@@ -28,6 +28,8 @@ test("actuator and unlisted api paths are unreachable from outside", async ({ re
     "/api/backend/actuator/health",
     "/api/backend/actuator/env",
     "/api/backend/datasets",
+    "/api/backend/datasets/uploads",
+    "/api/backend/internal/ai-budget/consume",
     "/api/backend/gallery/..%2Factuator%2Fhealth/csv",
   ]) {
     expect((await request.get(path)).status(), path).toBe(404);
@@ -35,7 +37,12 @@ test("actuator and unlisted api paths are unreachable from outside", async ({ re
 });
 
 test("another site cannot post through a visitor's browser", async ({ request }) => {
-  for (const path of ["/api/backend/shares", "/api/suggest", "/api/backend/datasets"]) {
+  for (const path of [
+    "/api/backend/shares",
+    "/api/suggest",
+    "/api/backend/datasets",
+    "/api/backend/datasets/uploads",
+  ]) {
     const response = await request.post(path, {
       headers: { origin: "https://evil.example", "content-type": "application/json" },
       data: {},

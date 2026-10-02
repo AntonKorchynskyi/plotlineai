@@ -1,43 +1,34 @@
 spring:
   application:
     name: backend
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/plotlineai}
-    username: ${SPRING_DATASOURCE_USERNAME:plotlineai}
-    password: ${SPRING_DATASOURCE_PASSWORD:plotlineai}
-  jpa:
-    hibernate:
-      ddl-auto: none
-    open-in-view: false
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
   jackson:
     deserialization:
       fail-on-unknown-properties: true
 
 plotlineai:
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    # Blank on AWS. Compose and the tests point these at DynamoDB Local and S3Mock.
+    dynamodb-endpoint: ${PLOTLINEAI_DYNAMODB_ENDPOINT:}
+    s3-endpoint: ${PLOTLINEAI_S3_ENDPOINT:}
+    s3-public-endpoint: ${PLOTLINEAI_S3_PUBLIC_ENDPOINT:}
+    app-table: ${PLOTLINEAI_APP_TABLE:plotlineai-app}
+    data-bucket: ${PLOTLINEAI_DATA_BUCKET:plotlineai-data}
   dataset:
     max-file-bytes: ${DATASET_MAX_FILE_BYTES:5242880}
     max-rows: ${DATASET_MAX_ROWS:100000}
     max-columns: ${DATASET_MAX_COLUMNS:256}
     max-cell-chars: ${DATASET_MAX_CELL_CHARS:32768}
-    ttl: ${DATASET_TTL:P7D}
+    ttl: ${DATASET_TTL:PT24H}
     sample-rows: ${DATASET_SAMPLE_ROWS:20}
-    sweep-delay: ${DATASET_SWEEP_DELAY:PT1H}
-    # Refuse uploads once live datasets take this many bytes; 0 is no cap. Cloud Run sets one
-    # to stay inside the free database tier.
-    max-total-bytes: ${DATASET_MAX_TOTAL_BYTES:0}
+    # Uploads the whole service accepts per UTC day: the bound on S3 storage.
+    upload-daily-limit: ${UPLOAD_DAILY_LIMIT:300}
   ai:
     # Provider calls allowed per UTC day, across all clients. web asks before each call.
     daily-call-limit: ${AI_DAILY_CALL_LIMIT:500}
 
-# Actuator lives on its own port. The compose healthcheck reaches it from inside the container;
-# web's /api/backend rewrite only targets 8080, so no browser path leads here.
+# Actuator lives on its own port. The compose healthcheck reaches it from inside the container,
+# and web only ever forwards to 8080. Lambda sets MANAGEMENT_PORT=-1: no actuator over HTTP there.
 management:
   server:
     port: ${MANAGEMENT_PORT:8081}

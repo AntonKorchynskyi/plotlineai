@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Run only the Lambda SnapStart detector (software.amazon.lambda.snapstart rules). -->
+<FindBugsFilter>
+    <Match>
+        <Bug pattern="AWS_LAMBDA_SNAP_START_BUG"/>
+    </Match>
+</FindBugsFilter>

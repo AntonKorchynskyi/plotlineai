@@ -7,7 +7,12 @@ const specPanel = (page: Page) => page.locator("pre");
 async function uploadRevenue(page: Page) {
   await page.goto("/analyze");
   await page.getByLabel("CSV file").setInputFiles(GALLERY_CSV("revenue-by-region"));
-  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible();
+  // The heading waits for the whole chain: presign, the PUT to S3, finalize, the AI call and
+  // three preview renders. On a freshly started stack each first request is slow (CI measured
+  // about 6 s in all), so the default 5 s is too tight for whichever test runs first.
+  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible({
+    timeout: 20_000,
+  });
 }
 
 test("upload, pick a suggestion, refine, export and share", async ({ page, browser }) => {
@@ -138,7 +143,9 @@ test.describe("rejected files", () => {
     await page.goto("/analyze");
     let uploaded = false;
     page.on("request", (r) => {
-      if (r.url().endsWith("/api/backend/datasets")) uploaded = true;
+      if (r.url().includes("/api/backend/datasets") || r.url().includes("/local-s3/")) {
+        uploaded = true;
+      }
     });
 
     const big = Buffer.alloc(5 * 1024 * 1024 + 1, "a");
@@ -154,15 +161,9 @@ test.describe("rejected files", () => {
     request,
     baseURL,
   }) => {
-    const response = await request.post("/api/backend/datasets", {
+    const response = await request.post("/api/backend/datasets/uploads", {
       headers: { origin: baseURL! },
-      multipart: {
-        file: {
-          name: "big.csv",
-          mimeType: "text/csv",
-          buffer: Buffer.alloc(5 * 1024 * 1024 + 1024, "a"),
-        },
-      },
+      data: { filename: "big.csv", contentType: "text/csv", size: 5 * 1024 * 1024 + 1 },
     });
     expect(response.status()).toBe(413);
     expect((await response.json()).error).toBe("FILE_TOO_LARGE");

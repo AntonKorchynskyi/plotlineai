@@ -50,7 +50,7 @@ export async function handleAiRoute<B extends { datasetId: string }>(
   schema: z.ZodType<B>,
   run: (body: B, dataset: DatasetDetail) => Promise<unknown>,
 ): Promise<Response> {
-  const limit = aiRateLimiter.check(clientKey(request));
+  const limit = await aiRateLimiter.check(clientKey(request));
   if (!limit.ok) {
     return error(429, "RATE_LIMITED", "Too many requests. Try again shortly.", {
       "Retry-After": String(limit.retryAfterSeconds),

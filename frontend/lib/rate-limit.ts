@@ -1,93 +1,93 @@
+import { defaultStore, type CounterStore } from "@/lib/rate-limit-store";
+
 /**
- * Token-bucket rate limiting, in memory (one web instance).
+ * Fixed-window rate limiting with counters in a shared store (DynamoDB on AWS and under
+ * compose), so every web instance agrees on the count.
  *
- * Two buckets guard every request. The per-client bucket keeps one visitor from using up
- * everyone's allowance. The global bucket caps all clients together, and is what finally
- * protects the provider bill and the database.
+ * Two counters guard every request. The per-client one keeps one visitor from using up
+ * everyone's allowance. The global one caps all clients together, and is what finally protects
+ * the provider bill and the database. A fixed window can let up to twice the limit through
+ * around a window boundary; that is the price of one atomic write per counter and no
+ * read-modify-write race.
  *
- * The client key comes from X-Forwarded-For, read from the right. web is never reached
- * directly: a trusted proxy in front of it records the real peer address. Caddy
- * (deploy/Caddyfile) replaces the header with that address; Google's front end on Cloud Run
- * appends it to whatever the client sent. Either way the trusted entry is the last one, and
- * everything to its left is the client's to forge. TRUSTED_PROXY_HOPS counts the proxies
- * that append an entry, for when a second one (a load balancer) sits in front.
+ * Rate limiting fails open: if the store errors or is slow, the request goes ahead and the
+ * failure is logged. The AI daily budget (lib/ai/budget.ts) fails closed, and that is the
+ * actual cost ceiling.
  *
- * In-memory buckets are only correct while web runs as a single instance, which is why the
- * Cloud Run service caps itself at one (deploy/cloudrun/service.yaml).
+ * The client key depends on what sits in front of web (CLIENT_IP_SOURCE):
+ * - `cloudfront` (AWS): CloudFront-Viewer-Address, which CloudFront sets from the TCP peer.
+ *   web only accepts requests that came through CloudFront (proxy.ts, X-Origin-Verify), so a
+ *   client cannot supply it, and X-Forwarded-For, which a client can write, is ignored.
+ * - `xff` (default, compose): X-Forwarded-For read from the right. Caddy (deploy/Caddyfile)
+ *   replaces the header with the peer address, so the trusted entry is the last one and
+ *   everything to its left is the client's to forge. TRUSTED_PROXY_HOPS counts the proxies
+ *   that append an entry, for when a second one sits in front.
  */
 
 export type TakeResult = { ok: true } | { ok: false; retryAfterSeconds: number };
 
-type Bucket = { tokens: number; updatedAt: number };
+export type WindowLimits = { clientLimit: number; globalLimit: number; windowSeconds: number };
 
-export type BucketLimits = { capacity: number; refillMs: number };
-
-export function createTokenBucket(
-  options: BucketLimits & { maxKeys?: number; now?: () => number },
-) {
-  const { capacity, refillMs } = options;
-  const maxKeys = options.maxKeys ?? 10_000;
-  const now = options.now ?? Date.now;
-  const buckets = new Map<string, Bucket>();
-
-  /** Tops a bucket up for the time elapsed, keeping partial progress towards the next token. */
-  const refill = (bucket: Bucket, at: number) => {
-    const earned = Math.floor((at - bucket.updatedAt) / refillMs);
-    if (earned <= 0) return;
-    bucket.tokens = Math.min(capacity, bucket.tokens + earned);
-    bucket.updatedAt = bucket.tokens === capacity ? at : bucket.updatedAt + earned * refillMs;
-  };
-
-  /**
-   * A full bucket holds no information: a new one would behave identically. Drop those, and
-   * if that is not enough (a flood of distinct keys), start over rather than grow without
-   * bound. The global bucket still holds the line while the per-client state is rebuilt.
-   */
-  const sweep = (at: number) => {
-    for (const [key, bucket] of buckets) {
-      refill(bucket, at);
-      if (bucket.tokens >= capacity) buckets.delete(key);
-    }
-    if (buckets.size > maxKeys) buckets.clear();
-  };
-
-  return {
-    take(key: string): TakeResult {
-      const at = now();
-      let bucket = buckets.get(key);
-      if (!bucket) {
-        bucket = { tokens: capacity, updatedAt: at };
-        buckets.set(key, bucket);
-      }
-      refill(bucket, at);
-
-      let result: TakeResult;
-      if (bucket.tokens >= 1) {
-        bucket.tokens -= 1;
-        result = { ok: true };
-      } else {
-        const waitMs = refillMs - (at - bucket.updatedAt);
-        result = { ok: false, retryAfterSeconds: Math.max(1, Math.ceil(waitMs / 1000)) };
-      }
-
-      if (buckets.size > maxKeys) sweep(at);
-      return result;
-    },
-    size: () => buckets.size,
-  };
-}
+/** How long the store gets before a request goes ahead without it. */
+const STORE_TIMEOUT_MS = 300;
 
 export function createRateLimiter(options: {
-  perClient: BucketLimits;
-  global: BucketLimits;
+  bucket: string;
+  limits: WindowLimits;
+  store?: CounterStore;
   now?: () => number;
+  timeoutMs?: number;
 }) {
-  const perClient = createTokenBucket({ ...options.perClient, now: options.now });
-  const global = createTokenBucket({ ...options.global, now: options.now });
+  const { bucket, limits } = options;
+  const now = options.now ?? Date.now;
+  const timeoutMs = options.timeoutMs ?? STORE_TIMEOUT_MS;
+  const store = () => options.store ?? defaultStore();
+
+  /** True when the counter had room, or when the store could not say. */
+  const increment = async (key: string, limit: number, expiresAt: number) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), timeoutMs);
+    });
+    try {
+      const answer = await Promise.race([store().increment(key, limit, expiresAt), timeout]);
+      if (answer === "timeout") throw new Error("rate limit store timed out");
+      return answer;
+    } catch (failure) {
+      console.error(
+        JSON.stringify({
+          event: "rate_limit_store_failed",
+          bucket,
+          error: failure instanceof Error ? failure.name : typeof failure,
+        }),
+      );
+      return true;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   return {
-    check(clientKey: string): TakeResult {
-      const own = perClient.take(clientKey);
-      return own.ok ? global.take("*") : own;
+    async check(clientKey: string): Promise<TakeResult> {
+      const at = now();
+      const windowMs = limits.windowSeconds * 1000;
+      const start = Math.floor(at / windowMs) * windowMs;
+      const end = start + windowMs;
+      const window = start / 1000;
+      // Kept a minute past the window, so a slow clock elsewhere never sees it reset early.
+      const expiresAt = end / 1000 + 60;
+      const refused: TakeResult = {
+        ok: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((end - at) / 1000)),
+      };
+
+      if (!(await increment(`${bucket}#c:${clientKey}#${window}`, limits.clientLimit, expiresAt))) {
+        return refused;
+      }
+      if (!(await increment(`${bucket}#g#${window}`, limits.globalLimit, expiresAt))) {
+        return refused;
+      }
+      return { ok: true };
     },
   };
 }
@@ -100,42 +100,40 @@ const positiveInt = (raw: string | undefined, fallback: number) => {
 /** How many proxies in front of web append to X-Forwarded-For; see the module comment. */
 export const trustedProxyHops = () => positiveInt(process.env.TRUSTED_PROXY_HOPS, 1);
 
-/** The client address the nearest trusted proxy recorded; see the module comment. */
+/** The client address the trusted front recorded; see the module comment. */
 export function clientKey(request: Request, hops = trustedProxyHops()): string {
-  const chain = (request.headers.get("x-forwarded-for") ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const forwarded = chain.length >= hops ? chain[chain.length - hops] : "";
-  const key = forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
-  return key.slice(0, 64);
+  let key: string | undefined;
+  if (process.env.CLIENT_IP_SOURCE === "cloudfront") {
+    // "203.0.113.9:4432", or for IPv6 "2001:db8::1:4432": the port follows the last colon.
+    const viewer = request.headers.get("cloudfront-viewer-address")?.trim() ?? "";
+    const portAt = viewer.lastIndexOf(":");
+    key = portAt > 0 ? viewer.slice(0, portAt) : viewer;
+  } else {
+    const chain = (request.headers.get("x-forwarded-for") ?? "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    const forwarded = chain.length >= hops ? chain[chain.length - hops] : "";
+    key = forwarded || request.headers.get("x-real-ip")?.trim();
+  }
+  return (key || "unknown").slice(0, 64);
 }
 
-export type Limits = { perClient: BucketLimits; global: BucketLimits };
-
-/** The AI routes' limits: per client a burst of 10, one more every 6s; 30 / 2s globally. */
-export const AI_LIMITS: Limits = {
-  perClient: { capacity: 10, refillMs: 6000 },
-  global: { capacity: 30, refillMs: 2000 },
-};
+/** The AI routes' limits, per 60 s window. */
+export const AI_LIMITS: WindowLimits = { clientLimit: 10, globalLimit: 30, windowSeconds: 60 };
 
 /**
- * Limits from `${prefix}_CLIENT_BURST`, `${prefix}_CLIENT_REFILL_MS`, `${prefix}_GLOBAL_BURST`
- * and `${prefix}_GLOBAL_REFILL_MS`, each falling back to `defaults`.
+ * Limits from `RATE_LIMIT_<bucket>_CLIENT_LIMIT`, `..._GLOBAL_LIMIT` and `..._WINDOW_SECONDS`,
+ * each falling back to `defaults`.
  */
-export function limitsFromEnv(prefix = "RATE_LIMIT", defaults: Limits = AI_LIMITS): Limits {
-  const env = (name: string) => process.env[`${prefix}_${name}`];
+export function limitsFromEnv(bucket: "AI" | "WRITE" | "RENDER", defaults: WindowLimits): WindowLimits {
+  const env = (name: string) => process.env[`RATE_LIMIT_${bucket}_${name}`];
   return {
-    perClient: {
-      capacity: positiveInt(env("CLIENT_BURST"), defaults.perClient.capacity),
-      refillMs: positiveInt(env("CLIENT_REFILL_MS"), defaults.perClient.refillMs),
-    },
-    global: {
-      capacity: positiveInt(env("GLOBAL_BURST"), defaults.global.capacity),
-      refillMs: positiveInt(env("GLOBAL_REFILL_MS"), defaults.global.refillMs),
-    },
+    clientLimit: positiveInt(env("CLIENT_LIMIT"), defaults.clientLimit),
+    globalLimit: positiveInt(env("GLOBAL_LIMIT"), defaults.globalLimit),
+    windowSeconds: positiveInt(env("WINDOW_SECONDS"), defaults.windowSeconds),
   };
 }
 
 /** The limiter both AI routes share. */
-export const aiRateLimiter = createRateLimiter(limitsFromEnv());
+export const aiRateLimiter = createRateLimiter({ bucket: "ai", limits: limitsFromEnv("AI", AI_LIMITS) });

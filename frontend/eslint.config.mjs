@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The web Lambda bundle: a copy of the build output.
+    ".lambda/**",
   ]),
 ]);
 

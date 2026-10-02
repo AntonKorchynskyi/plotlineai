@@ -105,7 +105,9 @@
   --font-sans: var(--font-figtree), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --text-hero: 3.375rem;      /* 54px */
+  /* 54px. On screens under ~394px it shrinks with the column (the screen less the gutters),
+     so the hero's longest word, "spreadsheet." at about 6.2em, never overhangs it. */
+  --text-hero: min(3.375rem, 16vw - 9px);
   --text-hero--line-height: 1.08;
   --text-page: 2.125rem;      /* 34px */
   --text-section: 1.875rem;   /* 30px */

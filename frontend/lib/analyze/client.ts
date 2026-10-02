@@ -3,15 +3,15 @@ import type { ChartSpec } from "@/lib/chart-spec";
 import type { ColumnInfo } from "@/lib/backend";
 
 /**
- * Everything the analyze flow calls from the browser. The browser talks only to web: the
- * api is reached through the /api/backend rewrite, and the AI goes through the phase 7
- * routes.
+ * Everything the analyze flow calls from the browser. The browser talks to web, which
+ * reaches the api through /api/backend and the AI through the phase 7 routes. The one
+ * exception is the CSV itself, which goes straight to S3 on a presigned URL.
  *
  * Nothing here throws. Each call returns a result carrying the api's error code, so the UI
  * can show the copy that code deserves.
  */
 
-/** spring.servlet.multipart.max-file-size */
+/** The api's DATASET_MAX_FILE_BYTES, which the presigned upload URL enforces. */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export type Failure = {
@@ -92,10 +92,34 @@ const postJson = <T>(url: string, payload: unknown) =>
     body: JSON.stringify(payload),
   });
 
-export function uploadCsv(file: File): Promise<Result<UploadedDataset>> {
-  const body = new FormData();
-  body.append("file", file);
-  return request<UploadedDataset>("/api/backend/datasets", { method: "POST", body });
+type PresignedUpload = { uploadId: string; url: string; headers: Record<string, string> };
+
+/**
+ * Three steps: the api hands out a URL for exactly this file, the file goes straight to S3,
+ * and the api then reads and parses it. S3 refuses the PUT if the file is not the size and
+ * type the URL was signed for.
+ */
+export async function uploadCsv(file: File): Promise<Result<UploadedDataset>> {
+  const presigned = await postJson<PresignedUpload>("/api/backend/datasets/uploads", {
+    filename: file.name,
+    contentType: "text/csv",
+    size: file.size,
+  });
+  if (!presigned.ok) return presigned;
+
+  // Content-Length is signed too, but a browser refuses to set it by hand; it sends the
+  // file's own size, which is what was declared.
+  const headers = Object.fromEntries(
+    Object.entries(presigned.value.headers).filter(([name]) => name.toLowerCase() !== "content-length"),
+  );
+  try {
+    const put = await fetch(presigned.value.url, { method: "PUT", headers, body: file });
+    if (!put.ok) return failure("NETWORK", "The file could not be uploaded.", put.status);
+  } catch {
+    return failure("NETWORK", "Could not reach the server.");
+  }
+
+  return postJson<UploadedDataset>("/api/backend/datasets", { uploadId: presigned.value.uploadId });
 }
 
 export async function suggest(datasetId: string): Promise<Result<Suggestion[]>> {

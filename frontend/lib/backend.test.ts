@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BackendError,
   DatasetNotFoundError,
+  backendFetch,
   backendUrl,
   fetchDataset,
   fetchShare,
@@ -40,6 +41,63 @@ describe("backendUrl", () => {
   it("falls back to localhost", () => {
     vi.stubEnv("BACKEND_INTERNAL_URL", "");
     expect(backendUrl()).toBe("http://localhost:8080");
+  });
+
+  it("drops a trailing slash, as a Lambda function URL has one", () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "https://abc.lambda-url.us-east-1.on.aws/");
+    expect(backendUrl()).toBe("https://abc.lambda-url.us-east-1.on.aws");
+  });
+});
+
+describe("backendFetch", () => {
+  const capture = () => {
+    const calls: Request[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push(new Request(input, init));
+        return new Response("{}");
+      }),
+    );
+    return calls;
+  };
+
+  it("sends a plain request when the api needs no signature (compose)", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
+    vi.stubEnv("BACKEND_AUTH", "");
+    const calls = capture();
+
+    await backendFetch("/gallery");
+
+    expect(calls[0].url).toBe("http://api:8080/gallery");
+    expect(calls[0].headers.get("authorization")).toBeNull();
+  });
+
+  it("signs with the function's AWS credentials when BACKEND_AUTH=iam", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "https://abc.lambda-url.us-east-1.on.aws/");
+    vi.stubEnv("BACKEND_AUTH", "iam");
+    vi.stubEnv("AWS_REGION", "us-east-1");
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "secret");
+    vi.stubEnv("AWS_SESSION_TOKEN", "token");
+    const calls = capture();
+
+    await backendFetch("/charts/render", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+
+    const signed = calls[0];
+    expect(signed.url).toBe("https://abc.lambda-url.us-east-1.on.aws/charts/render");
+    expect(signed.method).toBe("POST");
+    expect(signed.headers.get("authorization")).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\/\d{8}\/us-east-1\/lambda\/aws4_request/,
+    );
+    expect(signed.headers.get("x-amz-date")).toMatch(/^\d{8}T\d{6}Z$/);
+    expect(signed.headers.get("x-amz-security-token")).toBe("token");
+    // The body is part of the signature; Lambda needs no separate payload-hash header.
+    expect(await signed.text()).toBe("{}");
   });
 });
 

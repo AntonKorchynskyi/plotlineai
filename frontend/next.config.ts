@@ -1,20 +1,10 @@
 import type { NextConfig } from "next";
 
-const backendUrl = process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
-
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  async rewrites() {
-    return [
-      {
-        source: "/api/backend/:path*",
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
-  },
   // The Content-Security-Policy is set per request in proxy.ts (it carries a nonce). HSTS is
-  // the proxy's job in production (deploy/hsts.caddy): it would be wrong on plain-HTTP localhost.
+  // CloudFront's job in production (infra/lib/app-stack.ts): it would be wrong on plain-HTTP localhost.
   async headers() {
     return [
       {

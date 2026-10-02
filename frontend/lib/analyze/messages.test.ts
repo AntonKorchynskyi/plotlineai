@@ -28,11 +28,22 @@ describe("rejectionCopy", () => {
     expect(`${copy.heading} ${copy.detail}`).not.toContain("raw server message");
   });
 
-  it("says a full store is not the file's fault, and that it clears on its own", () => {
-    const copy = rejectionCopy(failure("STORAGE_FULL", { status: 503 }));
-    expect(copy.heading).toBe("Uploads are paused for now");
-    expect(copy.detail).toBe(
-      "The demo's storage is full. Older uploads clear out within a day, so try again later.",
+  it("says a spent daily upload allowance is not the file's fault, and when it resets", () => {
+    const copy = rejectionCopy(failure("UPLOAD_QUOTA_REACHED", { status: 503 }));
+    expect(copy.heading).toBe("Uploads are paused for today");
+    expect(copy.detail).toBe("The demo's daily upload allowance is used up. Try again tomorrow.");
+    expect(copy.fileFault).toBe(false);
+  });
+
+  it("asks for another go when the upload expired before it was read", () => {
+    const copy = rejectionCopy(failure("UPLOAD_NOT_FOUND"));
+    expect(copy.heading).toBe("The upload did not finish");
+    expect(copy.fileFault).toBe(false);
+  });
+
+  it("no longer knows the old storage-full code", () => {
+    expect(rejectionCopy(failure("STORAGE_FULL", { status: 503 })).heading).not.toBe(
+      "Uploads are paused for now",
     );
   });
 
@@ -79,5 +90,13 @@ describe("noticeCopy", () => {
 
   it("never shows the server's raw message", () => {
     expect(noticeCopy(failure("AI_UNAVAILABLE"))).not.toContain("raw server message");
+  });
+});
+
+describe("noticeCopy for shares", () => {
+  it("explains a chart too large to share and how to shrink it", () => {
+    expect(noticeCopy(failure("SHARE_TOO_LARGE", { status: 413 }))).toBe(
+      "This chart is too large to share. Narrow it with a filter or a limit.",
+    );
   });
 });

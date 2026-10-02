@@ -1,7 +1,12 @@
-# Dev overlay: publishes Postgres on the host for running the backend/frontend
-# outside Docker. Use explicitly:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+# Dev overlay: publishes the local AWS stand-ins on the host, for running the backend or
+# frontend outside Docker. Use explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d dynamodb s3 aws-init
+# then point the api at them: PLOTLINEAI_DYNAMODB_ENDPOINT=http://localhost:8000,
+# PLOTLINEAI_S3_ENDPOINT=http://localhost:9090, and any AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.
 services:
-  db:
+  dynamodb:
     ports:
-      - "5432:5432"
+      - "8000:8000"
+  s3:
+    ports:
+      - "9090:9090"

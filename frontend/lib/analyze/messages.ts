@@ -33,10 +33,14 @@ const REJECTIONS: Record<string, Rejection> = {
       "It went past the limits below. A smaller extract of the same data will work.",
     fileFault: true,
   },
-  STORAGE_FULL: {
-    heading: "Uploads are paused for now",
-    detail:
-      "The demo's storage is full. Older uploads clear out within a day, so try again later.",
+  UPLOAD_QUOTA_REACHED: {
+    heading: "Uploads are paused for today",
+    detail: "The demo's daily upload allowance is used up. Try again tomorrow.",
+    fileFault: false,
+  },
+  UPLOAD_NOT_FOUND: {
+    heading: "The upload did not finish",
+    detail: "The file did not arrive in time to be read. Try uploading it again.",
     fileFault: false,
   },
   NETWORK: {
@@ -60,7 +64,7 @@ export function rejectionCopy(failure: Failure): Rejection {
   const known = REJECTIONS[failure.code];
   if (known) return known;
   // No answer, or a server error with no code we know (a restart, a cold start that timed
-  // out, a database refusing writes): nothing another file would change.
+  // out): nothing another file would change.
   if (failure.status === 0 || failure.status >= 500) {
     return {
       heading: "Something went wrong on our side",
@@ -87,6 +91,8 @@ export function noticeCopy(failure: Failure): string {
       return "That came back in a shape we could not use. Try rewording your request.";
     case "NOT_FOUND":
       return "This dataset has expired. Upload the file again to carry on.";
+    case "SHARE_TOO_LARGE":
+      return "This chart is too large to share. Narrow it with a filter or a limit.";
     case "INVALID_CHART_SPEC":
       return "That chart could not be built from this data. Try rewording your request.";
     case "NETWORK":

@@ -47,6 +47,12 @@ describe("landing page", () => {
       );
     });
 
+    it("promises only the retention the deployment keeps: datasets are gone within two days", async () => {
+      await renderPage();
+      expect(screen.getByText("Files deleted within 2 days")).toBeInTheDocument();
+      expect(screen.queryByText(/within 7 days/)).not.toBeInTheDocument();
+    });
+
     it("draws the monthly signups example in the hero card", async () => {
       await renderPage();
 

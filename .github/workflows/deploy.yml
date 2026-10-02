@@ -1,0 +1,75 @@
+name: Deploy
+
+# Deploys the data and app stacks to AWS after CI passes on main, or by hand. Every run waits
+# for the owner's approval: the production environment has them as a required reviewer, and
+# only jobs in that environment may assume the deploy role (infra/lib/ci-stack.ts).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # A pull request whose branch is named main also completes CI "on main"; only pushes count.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The commit CI tested, not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            infra/package-lock.json
+      - name: api Lambda zip
+        working-directory: backend
+        run: ./mvnw -B package -DskipTests
+      - name: web Lambda bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm run build:lambda
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: deploy
+        working-directory: infra
+        env:
+          ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+        run: |
+          npm ci
+          npx cdk deploy PlotlineData PlotlineApp --require-approval never --no-notices \
+            -c "alertEmail=$ALERT_EMAIL" --outputs-file outputs.json
+      - name: site URL
+        working-directory: infra
+        run: |
+          url=$(jq -r '.PlotlineApp.SiteUrl' outputs.json)
+          echo "Site: $url"
+          echo "### Deployed to $url" >> "$GITHUB_STEP_SUMMARY"

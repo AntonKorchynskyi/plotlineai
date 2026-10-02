@@ -10,7 +10,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -27,13 +26,6 @@ public class ApiExceptionHandler {
         return body(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", ex.getMessage());
     }
 
-    /** Spring's own message names its internals; the uploader only needs the limit. */
-    @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorResponse> onUploadTooLarge(MaxUploadSizeExceededException ex) {
-        return body(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE",
-            "The file exceeds the maximum upload size of 5 MB");
-    }
-
     @ExceptionHandler(CsvParseException.class)
     public ResponseEntity<ErrorResponse> onMalformedCsv(CsvParseException ex) {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "MALFORMED_CSV", ex.getMessage());
@@ -44,9 +36,24 @@ public class ApiExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, "CAP_EXCEEDED", ex.getMessage());
     }
 
-    @ExceptionHandler(StorageFullException.class)
-    public ResponseEntity<ErrorResponse> onStorageFull(StorageFullException ex) {
-        return body(HttpStatus.SERVICE_UNAVAILABLE, "STORAGE_FULL", "Dataset storage is full");
+    @ExceptionHandler(ShareTooLargeException.class)
+    public ResponseEntity<ErrorResponse> onShareTooLarge(ShareTooLargeException ex) {
+        return body(HttpStatus.PAYLOAD_TOO_LARGE, "SHARE_TOO_LARGE", ex.getMessage());
+    }
+
+    @ExceptionHandler(UploadQuotaReachedException.class)
+    public ResponseEntity<ErrorResponse> onUploadQuotaReached(UploadQuotaReachedException ex) {
+        return body(HttpStatus.SERVICE_UNAVAILABLE, "UPLOAD_QUOTA_REACHED", ex.getMessage());
+    }
+
+    @ExceptionHandler(UploadNotFoundException.class)
+    public ResponseEntity<ErrorResponse> onUploadNotFound(UploadNotFoundException ex) {
+        return body(HttpStatus.BAD_REQUEST, "UPLOAD_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ErrorResponse> onInvalidRequest(InvalidRequestException ex) {
+        return body(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", ex.getMessage());
     }
 
     @ExceptionHandler(NotFoundException.class)

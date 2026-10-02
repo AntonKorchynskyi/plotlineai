@@ -8,30 +8,25 @@ import org.springframework.stereotype.Service;
 @Service
 public class GalleryService {
 
-    private final GalleryExampleRepository repository;
+    private final GalleryRenderer renderer;
 
-    public GalleryService(GalleryExampleRepository repository) {
-        this.repository = repository;
+    public GalleryService(GalleryRenderer renderer) {
+        this.renderer = renderer;
     }
 
     public List<GalleryExampleResponse> list() {
-        return repository.findAllByOrderByDisplayOrderAscSlugAsc().stream()
-            .map(e -> new GalleryExampleResponse(e.getSlug(), e.getTitle(), e.getDescription(),
-                e.getChartType(), e.getRenderedData(), "/gallery/" + e.getSlug() + "/csv"))
-            .toList();
+        return renderer.examples();
     }
 
     /**
-     * The filename comes from the stored row, never from the request path, so a slug can only
-     * ever select one of the seeded files. An unknown slug is a 404 from {@code findBySlug}; a
-     * row whose backing file is missing from the classpath is a server-side configuration
-     * problem and propagates as {@link IllegalStateException}, mapped to 500 by the catch-all
-     * handler.
+     * The filename comes from the catalog, never from the request path, so a slug can only
+     * ever select one of the curated files. An unknown slug is a 404; an entry whose backing
+     * file is missing from the classpath is a server-side configuration problem and propagates
+     * as {@link IllegalStateException}, mapped to 500 by the catch-all handler.
      */
     public CsvDownload csv(String slug) {
-        GalleryExample example = repository.findBySlug(slug)
-            .orElseThrow(GalleryExampleNotFoundException::new);
-        return new CsvDownload(example.getCsvFilename(), GalleryCatalog.readCsv(example.getCsvFilename()));
+        GalleryCatalog.Entry entry = renderer.find(slug).orElseThrow(GalleryExampleNotFoundException::new);
+        return new CsvDownload(entry.csvFilename(), GalleryCatalog.readCsv(entry.csvFilename()));
     }
 
     public record CsvDownload(String filename, byte[] content) {

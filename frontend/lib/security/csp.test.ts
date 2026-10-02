@@ -33,6 +33,15 @@ describe("buildCsp", () => {
     expect(directive(csp, "form-action")).toEqual(["'self'"]);
   });
 
+  it("lets the page upload to the S3 bucket's origin, and nowhere else", () => {
+    const csp = buildCsp("n", { uploadOrigin: "https://plotlineai-data.s3.us-east-1.amazonaws.com" });
+    expect(directive(csp, "connect-src")).toEqual([
+      "'self'",
+      "https://plotlineai-data.s3.us-east-1.amazonaws.com",
+    ]);
+    expect(directive(csp, "default-src")).toEqual(["'self'"]);
+  });
+
   it("loosens only what the development server needs", () => {
     const csp = buildCsp("n", { dev: true });
     expect(directive(csp, "script-src")).toContain("'unsafe-eval'");

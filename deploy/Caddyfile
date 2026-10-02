@@ -1,11 +1,9 @@
-# The only ingress. web, api and db sit on the internal network behind this.
+# The only ingress of the local stack. Everything else sits on the internal network behind it.
+# On AWS, CloudFront plays this part and Caddy is not deployed.
 #
 # Caddy trusts no upstream proxy (no trusted_proxies), so it drops any X-Forwarded-For a
 # client sends and writes the socket address instead. Next only fills that header when it
 # is absent, so web's rate limiter keys on the real client address.
-#
-# SITE_ADDRESS is ":80" locally (plain HTTP, published on localhost:3000). The prod overlay
-# sets it to the domain, and Caddy then provisions and renews TLS on its own.
 {
 	admin off
 	servers {
@@ -18,14 +16,13 @@
 	}
 }
 
-# Liveness of the proxy itself, for the compose healthcheck. Plain HTTP on a port that is
-# never published, so it works the same whether the site below serves HTTP or HTTPS.
+# Liveness of the proxy itself, for the compose healthcheck, on a port that is never published.
 http://:9000 {
 	respond /healthz "ok" 200
 }
 
 {$SITE_ADDRESS::80} {
-	# The largest legitimate body is a CSV upload: 5 MB of file plus multipart framing.
+	# The largest legitimate body is a CSV upload: a 5 MB file PUT to /local-s3.
 	request_body {
 		max_size 6MB
 	}
@@ -35,7 +32,12 @@ http://:9000 {
 		-Via
 		defer
 	}
-	# Site-specific additions. Nothing locally; the prod overlay mounts HSTS here.
-	import /etc/caddy/site.d/*.caddy
-	reverse_proxy web:3000
+	# The browser PUTs uploads to S3Mock through here, so locally they are same-origin and
+	# need neither CORS nor a CSP exception. On AWS they go to the S3 bucket itself.
+	handle_path /local-s3/* {
+		reverse_proxy s3:9090
+	}
+	handle {
+		reverse_proxy web:3000
+	}
 }

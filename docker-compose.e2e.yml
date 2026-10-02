@@ -17,23 +17,23 @@ services:
 
   api:
     environment:
-      # The daily AI count lives in Postgres and survives restarts, so a day of suite runs
-      # (plus any dev use of the same volume) would otherwise spend it. The stub costs nothing.
+      # A day of suite runs against one stack would otherwise spend these. The stub costs
+      # nothing, and the suite uploads far more than any visitor would.
       AI_DAILY_CALL_LIMIT: 1000000
+      UPLOAD_DAILY_LIMIT: 1000000
 
   web:
     environment:
       OPENAI_API_KEY: stub
       OPENAI_BASE_URL: http://ai-stub:8787/v1
-      # The suite shares one client address, so the AI and write buckets are sized for a
-      # whole run. The rate-limit spec drains the render bucket on purpose; it refills in a
-      # minute, so the suite can run again without restarting web.
-      RATE_LIMIT_CLIENT_BURST: 200
-      RATE_LIMIT_GLOBAL_BURST: 400
-      RATE_LIMIT_WRITE_CLIENT_BURST: 200
-      RATE_LIMIT_WRITE_GLOBAL_BURST: 400
-      RATE_LIMIT_RENDER_CLIENT_BURST: 40
-      RATE_LIMIT_RENDER_CLIENT_REFILL_MS: 1500
+      # The suite shares one client address, so the AI and write limits are sized for a whole
+      # run. The rate-limit spec drains the render limit on purpose; it resets with the next
+      # 60 s window, so the suite can run again without restarting anything.
+      RATE_LIMIT_AI_CLIENT_LIMIT: 400
+      RATE_LIMIT_AI_GLOBAL_LIMIT: 800
+      RATE_LIMIT_WRITE_CLIENT_LIMIT: 400
+      RATE_LIMIT_WRITE_GLOBAL_LIMIT: 800
+      RATE_LIMIT_RENDER_CLIENT_LIMIT: 40
     depends_on:
       ai-stub:
         condition: service_healthy
