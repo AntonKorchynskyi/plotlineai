@@ -36,7 +36,10 @@ new AppStack(app, "PlotlineApp", {
   staticAssets: s3deploy.Source.asset("../frontend/.next/static"),
 });
 
-new CiStack(app, "PlotlineCi", { env, repository: "AntonKorchynskyi/plotlineai" });
+new CiStack(app, "PlotlineCi", {
+  env,
+  github: { owner: "AntonKorchynskyi", ownerId: 122495439, repo: "plotlineai", repoId: 1309326523 },
+});
 
 // The AWS Solutions security rules; an unacknowledged finding fails synth.
 addNagChecks(app, { verbose: true });

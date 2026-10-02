@@ -4,8 +4,12 @@ import type { Construct } from "constructs";
 import { allowWildcards } from "./nag.js";
 
 export interface CiStackProps extends StackProps {
-  /** "owner/repo" on GitHub. */
-  repository: string;
+  /**
+   * The GitHub repository, with the numeric IDs of its owner and itself. The repository's OIDC
+   * tokens use GitHub's immutable subject format, which names both IDs, so a repository recreated
+   * under the same name by someone else never matches.
+   */
+  github: { owner: string; ownerId: number; repo: string; repoId: number };
 }
 
 /**
@@ -20,6 +24,7 @@ export class CiStack extends Stack {
 
   constructor(scope: Construct, id: string, props: CiStackProps) {
     super(scope, id, props);
+    const { owner, ownerId, repo, repoId } = props.github;
 
     const github = new iam.OpenIdConnectProvider(this, "GitHub", {
       url: "https://token.actions.githubusercontent.com",
@@ -31,7 +36,7 @@ export class CiStack extends Stack {
       assumedBy: new iam.WebIdentityPrincipal(github.openIdConnectProviderArn, {
         StringEquals: {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": `repo:${props.repository}:environment:production`,
+          "token.actions.githubusercontent.com:sub": `repo:${owner}@${ownerId}/${repo}@${repoId}:environment:production`,
         },
       }),
     });

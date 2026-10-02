@@ -145,6 +145,11 @@ role trusts only jobs in this repository's `production` environment, and its onl
 is to hand the deployment to CDK's bootstrap roles. Free. Undo: `npx cdk destroy PlotlineCi`.
 The role's ARN is `arn:aws:iam::<account-id>:role/plotlineai-deploy`; step 5 needs it.
 
+The trust matches GitHub's immutable subject format, which names the owner's and the
+repository's numeric IDs (`bin/plotlineai.ts`). If the deploy job fails with "Not authorized
+to perform sts:AssumeRoleWithWebIdentity", compare the format with
+`gh api repos/<owner>/<repo>/actions/oidc/customization/sub`.
+
 (`alertEmail` is required by every CDK command in this app; it is only used by `PlotlineApp`.)
 
 ### 4. The OpenAI key
