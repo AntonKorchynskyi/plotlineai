@@ -1,6 +1,7 @@
 package com.plotlineai.backend.aibudget;
 
 import com.plotlineai.backend.quota.DailyCounter;
+import com.plotlineai.backend.quota.QuotaAlert;
 import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -18,11 +19,13 @@ public class AiBudgetService {
     private static final Logger log = LoggerFactory.getLogger(AiBudgetService.class);
 
     private final DailyCounter counter;
+    private final QuotaAlert alert;
     private final int limit;
     private final AtomicReference<LocalDate> lastReported = new AtomicReference<>();
 
-    public AiBudgetService(DailyCounter counter, AiBudgetProperties properties) {
+    public AiBudgetService(DailyCounter counter, QuotaAlert alert, AiBudgetProperties properties) {
         this.counter = counter;
+        this.alert = alert;
         this.limit = properties.dailyCallLimit();
     }
 
@@ -33,6 +36,7 @@ public class AiBudgetService {
         LocalDate previous = lastReported.getAndSet(day);
         if (!day.equals(previous)) {
             log.warn("{\"event\":\"ai_daily_limit_reached\",\"limit\":{},\"day\":\"{}\"}", limit, day);
+            alert.exhausted("ai", day, limit);
         }
         return false;
     }

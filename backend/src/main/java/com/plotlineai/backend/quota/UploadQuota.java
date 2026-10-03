@@ -18,11 +18,13 @@ public class UploadQuota {
     private static final Logger log = LoggerFactory.getLogger(UploadQuota.class);
 
     private final DailyCounter counter;
+    private final QuotaAlert alert;
     private final int limit;
     private final AtomicReference<LocalDate> lastReported = new AtomicReference<>();
 
-    public UploadQuota(DailyCounter counter, DatasetCapsProperties caps) {
+    public UploadQuota(DailyCounter counter, QuotaAlert alert, DatasetCapsProperties caps) {
         this.counter = counter;
+        this.alert = alert;
         this.limit = caps.uploadDailyLimit();
     }
 
@@ -33,6 +35,7 @@ public class UploadQuota {
         LocalDate previous = lastReported.getAndSet(day);
         if (!day.equals(previous)) {
             log.warn("{\"event\":\"upload_daily_limit_reached\",\"limit\":{},\"day\":\"{}\"}", limit, day);
+            alert.exhausted("upload", day, limit);
         }
         return false;
     }

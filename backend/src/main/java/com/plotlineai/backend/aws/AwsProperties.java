@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param s3PublicEndpoint the address presigned URLs are signed for, which the browser uses.
  *     Locally that is Caddy's /local-s3 route rather than S3Mock's container address.
+ * @param eventBus the EventBridge bus for usage events; blank publishes nothing.
  */
 @ConfigurationProperties(prefix = "plotlineai.aws")
 public record AwsProperties(
@@ -16,5 +17,6 @@ public record AwsProperties(
         String s3Endpoint,
         String s3PublicEndpoint,
         String appTable,
-        String dataBucket) {
+        String dataBucket,
+        String eventBus) {
 }

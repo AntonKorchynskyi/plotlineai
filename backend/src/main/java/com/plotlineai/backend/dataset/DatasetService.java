@@ -10,6 +10,7 @@ import com.plotlineai.backend.error.FileTooLargeException;
 import com.plotlineai.backend.error.InvalidFileTypeException;
 import com.plotlineai.backend.error.InvalidRequestException;
 import com.plotlineai.backend.error.UploadQuotaReachedException;
+import com.plotlineai.backend.events.EventPublisher;
 import com.plotlineai.backend.quota.UploadQuota;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -35,15 +36,17 @@ public class DatasetService {
     private final UploadStore uploads;
     private final UploadQuota uploadQuota;
     private final DatasetCapsProperties caps;
+    private final EventPublisher events;
     private final CsvParser csvParser;
     private final SchemaInferrer schemaInferrer;
 
     public DatasetService(DatasetStore datasets, UploadStore uploads, UploadQuota uploadQuota,
-            DatasetCapsProperties caps) {
+            DatasetCapsProperties caps, EventPublisher events) {
         this.datasets = datasets;
         this.uploads = uploads;
         this.uploadQuota = uploadQuota;
         this.caps = caps;
+        this.events = events;
         this.csvParser = new CsvParser(caps);
         this.schemaInferrer = new SchemaInferrer();
     }
@@ -77,8 +80,10 @@ public class DatasetService {
         }
         byte[] bytes = uploads.read(uploadId, caps.maxFileBytes());
 
+        long parseStart = System.nanoTime();
         ParsedCsv parsed = csvParser.parse(bytes);
         List<ColumnSchema> schema = schemaInferrer.infer(parsed);
+        long parseMs = (System.nanoTime() - parseStart) / 1_000_000;
 
         Instant now = Instant.now();
         DatasetRecord record = new DatasetRecord(UUID.randomUUID(), parsed.rows().size(), schema.size(),
@@ -87,6 +92,8 @@ public class DatasetService {
         // Only once the dataset is safely stored: a failed save leaves the upload for a retry.
         uploads.delete(uploadId);
 
+        events.publish("dataset.uploaded", Map.of("rowCount", record.rowCount(),
+            "columnCount", record.columnCount(), "bytes", record.bytes(), "parseMs", parseMs));
         return new UploadResponse(record.id(), schema, record.rowCount());
     }
 
