@@ -1,8 +1,8 @@
 name: Deploy
 
-# Deploys the data, pipeline and app stacks to AWS whenever CI passes on a push to main, or by
-# hand. A failed CI run never deploys. Only jobs in the production environment may assume the
-# deploy role (infra/lib/ci-stack.ts), and that environment only admits main.
+# Deploys the data, pipeline, app and analytics stacks to AWS whenever CI passes on a push to
+# main, or by hand. A failed CI run never deploys. Only jobs in the production environment may
+# assume the deploy role (infra/lib/ci-stack.ts), and that environment only admits main.
 on:
   workflow_run:
     workflows: [CI]
@@ -66,7 +66,7 @@ jobs:
         run: |
           npm ci
           npm run build:lambda
-          npx cdk deploy PlotlineData PlotlinePipeline PlotlineApp --require-approval never --no-notices \
+          npx cdk deploy PlotlineData PlotlinePipeline PlotlineApp PlotlineAnalytics --require-approval never --no-notices \
             -c "alertEmail=$ALERT_EMAIL" --outputs-file outputs.json
       - name: site URL
         working-directory: infra

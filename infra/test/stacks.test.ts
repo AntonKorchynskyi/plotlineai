@@ -7,6 +7,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import { describe, expect, it } from "vitest";
+import { AnalyticsStack } from "../lib/analytics-stack.js";
 import { AppStack } from "../lib/app-stack.js";
 import { CiStack } from "../lib/ci-stack.js";
 import { DataStack } from "../lib/data-stack.js";
@@ -42,6 +43,7 @@ const build = ({ reservedConcurrency = 20, nag = false } = {}) => {
     webCode: stubCode(),
     staticAssets: s3deploy.Source.data("chunk.js", "x"),
   });
+  const analytics = new AnalyticsStack(app, "Analytics", { env, data, pipeline, loaderCode: stubCode() });
   const ci = new CiStack(app, "Ci", { env, github: GITHUB });
   if (nag) {
     addNagChecks(app);
@@ -51,11 +53,12 @@ const build = ({ reservedConcurrency = 20, nag = false } = {}) => {
     data: Template.fromStack(data),
     pipeline: Template.fromStack(pipeline),
     site: Template.fromStack(site),
+    analytics: Template.fromStack(analytics),
     ci: Template.fromStack(ci),
   };
 };
 
-const { data, pipeline, site, ci } = build();
+const { data, pipeline, site, analytics, ci } = build();
 
 const functionNamed = (name: string) =>
   Object.values(site.findResources("AWS::Lambda::Function")).find(
@@ -148,6 +151,7 @@ describe("PipelineStack", () => {
   const alarms = () => [
     ...Object.values(pipeline.findResources("AWS::CloudWatch::Alarm")),
     ...Object.values(site.findResources("AWS::CloudWatch::Alarm")),
+    ...Object.values(analytics.findResources("AWS::CloudWatch::Alarm")),
   ];
 
   it("names the bus both publishers use", () => {
@@ -218,13 +222,14 @@ describe("PipelineStack", () => {
     });
   });
 
-  it("has six alarms, each emailing the owner when it fires and when it clears", () => {
+  it("has seven alarms, each emailing the owner when it fires and when it clears", () => {
     const all = alarms();
     expect(all.map((a) => a.Properties.AlarmName).sort()).toEqual([
       "plotlineai-analytics-dlq-not-empty",
       "plotlineai-api-errors",
       "plotlineai-archiver-errors",
       "plotlineai-cloudfront-5xx",
+      "plotlineai-redshift-loader-errors",
       "plotlineai-throttles",
       "plotlineai-web-errors",
     ]);
@@ -315,12 +320,20 @@ describe("AppStack", () => {
   });
 
   it("grants no IAM statement a wildcard action or a bare wildcard resource", () => {
-    for (const stack of [site, pipeline, ci]) {
+    // The one exception: IAM cannot name Data API statement ids, so reading a statement's status
+    // and result is limited to the statement's owner instead, as AWS's own Data API policies do.
+    const ownStatementsOnly = (statement: { Action: unknown; Condition?: unknown }) =>
+      JSON.stringify([statement.Action].flat().sort()) ===
+        JSON.stringify(["redshift-data:DescribeStatement", "redshift-data:GetStatementResult"]) &&
+      JSON.stringify(statement.Condition) ===
+        JSON.stringify({ StringEquals: { "redshift-data:statement-owner-iam-userid": "${aws:userid}" } });
+    for (const stack of [site, pipeline, analytics, ci]) {
       for (const policy of Object.values(stack.findResources("AWS::IAM::Policy"))) {
         for (const statement of policy.Properties.PolicyDocument.Statement) {
           const actions = [statement.Action].flat();
           const resources = [statement.Resource].flat();
           expect(actions, JSON.stringify(statement)).not.toContain("*");
+          if (ownStatementsOnly(statement)) continue;
           expect(resources, JSON.stringify(statement)).not.toContain("*");
         }
       }
@@ -376,6 +389,94 @@ describe("AppStack", () => {
         }),
       ]),
     });
+  });
+});
+
+describe("AnalyticsStack", () => {
+  it("runs a private 4-RPU Redshift Serverless workgroup in three subnets", () => {
+    analytics.hasResourceProperties("AWS::RedshiftServerless::Namespace", {
+      NamespaceName: "plotlineai",
+      DbName: "analytics",
+      AdminUsername: "plotline_admin",
+      DefaultIamRoleArn: { "Fn::GetAtt": [Match.stringLikeRegexp("CopyRole"), "Arn"] },
+    });
+    analytics.hasResourceProperties("AWS::RedshiftServerless::Workgroup", {
+      WorkgroupName: "plotlineai",
+      BaseCapacity: 4,
+      PubliclyAccessible: false,
+      EnhancedVpcRouting: false,
+    });
+    const workgroup = Object.values(analytics.findResources("AWS::RedshiftServerless::Workgroup"))[0];
+    expect(workgroup.Properties.SubnetIds).toHaveLength(3);
+  });
+
+  it("switches Redshift off once a month's 20 RPU-hours are spent", () => {
+    const limits = Object.values(analytics.findResources("Custom::AWS"));
+    expect(limits).toHaveLength(1);
+    // The call is JSON joined around the workgroup ARN, which resolves at deploy time.
+    const parts: unknown[] = limits[0].Properties.Create["Fn::Join"][1];
+    const create = JSON.parse(parts.map((part) => (typeof part === "string" ? part : "<arn>")).join(""));
+    expect(create).toMatchObject({
+      service: "redshift-serverless",
+      action: "CreateUsageLimit",
+      parameters: { usageType: "serverless-compute", period: "monthly", amount: 20, breachAction: "deactivate" },
+    });
+    expect(JSON.stringify(limits[0].Properties.Delete)).toContain("DeleteUsageLimit");
+  });
+
+  it("keeps the VPC closed: isolated subnets, no gateways, a security group that admits nothing", () => {
+    analytics.resourceCountIs("AWS::EC2::InternetGateway", 0);
+    analytics.resourceCountIs("AWS::EC2::NatGateway", 0);
+    analytics.resourceCountIs("AWS::EC2::Subnet", 3);
+    analytics.resourceCountIs("AWS::EC2::SecurityGroupIngress", 0);
+    for (const group of Object.values(analytics.findResources("AWS::EC2::SecurityGroup"))) {
+      expect(group.Properties.SecurityGroupIngress).toBeUndefined();
+    }
+  });
+
+  it("lets COPY read the archive and nothing else", () => {
+    const [, role] = Object.entries(analytics.findResources("AWS::IAM::Role")).find(([id]) => id.startsWith("CopyRole"))!;
+    expect(JSON.stringify(role.Properties.AssumeRolePolicyDocument)).toContain("redshift-serverless.amazonaws.com");
+    const statements = Object.values(analytics.findResources("AWS::IAM::Policy"))
+      .filter((p) => JSON.stringify(p.Properties.Roles).includes("CopyRole"))
+      .flatMap((p) => p.Properties.PolicyDocument.Statement);
+    expect(statements.map((st) => st.Action).sort()).toEqual(["s3:GetObject", "s3:ListBucket"]);
+    expect(JSON.stringify(statements)).toContain("/events/*");
+  });
+
+  it("loads yesterday every morning at 06:00 UTC, retried by the schedule rather than by Lambda", () => {
+    analytics.hasResourceProperties("AWS::Scheduler::Schedule", {
+      ScheduleExpression: "cron(0 6 * * ? *)",
+      Target: Match.objectLike({
+        Input: JSON.stringify({ scheduledTime: "<aws.scheduler.scheduled-time>" }),
+        RetryPolicy: Match.objectLike({ MaximumRetryAttempts: 2 }),
+      }),
+    });
+    analytics.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "plotlineai-redshift-loader",
+      Runtime: "nodejs24.x",
+      Timeout: 300,
+      Environment: {
+        Variables: Match.objectLike({ WORKGROUP_NAME: "plotlineai", DATABASE_NAME: "analytics" }),
+      },
+    });
+    analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 0 });
+  });
+
+  it("lets the loader run statements on the one workgroup and read only the admin secret", () => {
+    const statements = Object.values(analytics.findResources("AWS::IAM::Policy"))
+      .filter((p) => JSON.stringify(p.Properties.Roles).includes("LoaderServiceRole"))
+      .flatMap((p) => p.Properties.PolicyDocument.Statement);
+    const batch = statements.find((st) => st.Action === "redshift-data:BatchExecuteStatement");
+    expect(JSON.stringify(batch.Resource)).toContain("WorkgroupArn");
+    const secret = statements.find((st) => st.Action === "secretsmanager:GetSecretValue");
+    expect(JSON.stringify(secret.Resource)).toMatch(/AdminSecret/);
+  });
+
+  it("keeps every log group for two weeks", () => {
+    const groups = Object.values(analytics.findResources("AWS::Logs::LogGroup"));
+    expect(groups).toHaveLength(2);
+    for (const group of groups) expect(group.Properties.RetentionInDays).toBe(14);
   });
 });
 

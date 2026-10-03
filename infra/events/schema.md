@@ -50,7 +50,10 @@ Notes:
 ## Archive format
 
 `s3://<analytics bucket>/events/dt=YYYY-MM-DD/<uuid>.json.gz`: gzipped JSON Lines, one row
-per event, with keys matching the Phase 13 Redshift table:
+per event, with keys matching the Redshift table `analytics.events`
+(`infra/analytics/01-schema.sql`), which `lambda/redshift-loader` fills a day at a time. The
+views in `infra/analytics/02-views.sql` read the fields listed above, so a renamed field
+needs its view changed too:
 
 ```json
 {"dt":"2026-10-02","occurred_at":"2026-10-02T23:59:58.123Z","detail_type":"chart.rendered","source":"plotlineai.api","request_id":"...","detail":{"version":1,"occurredAt":"...","requestId":"...","chartType":"bar","groups":2,"seriesCount":1,"ms":4}}
