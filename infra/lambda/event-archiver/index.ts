@@ -6,8 +6,8 @@ import type { SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 /**
  * Archives usage events (infra/events/schema.md) for analytics. EventBridge sends every event on
  * the bus to an SQS queue, and this function drains it in batches: each batch becomes one
- * gzipped JSON Lines object per event date, `events/dt=YYYY-MM-DD/<uuid>.json.gz`, which Phase
- * 13 loads into Redshift a day at a time. Row keys are the Redshift column names.
+ * gzipped JSON Lines object per event date, `events/dt=YYYY-MM-DD/<uuid>.json.gz`, which the
+ * redshift-loader copies into Redshift a day at a time. Row keys are the Redshift column names.
  *
  * A message that is not a PlotlineAI event, and every message of a date whose object could not
  * be written, is reported back as a batch item failure: SQS retries it, then moves it to the DLQ.

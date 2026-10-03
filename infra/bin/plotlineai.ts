@@ -1,6 +1,7 @@
 import { App } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
+import { AnalyticsStack } from "../lib/analytics-stack.js";
 import { AppStack } from "../lib/app-stack.js";
 import { CiStack } from "../lib/ci-stack.js";
 import { DataStack } from "../lib/data-stack.js";
@@ -11,7 +12,7 @@ import { PipelineStack } from "../lib/pipeline-stack.js";
  * The PlotlineAI stacks, all in us-east-1. Built artifacts are expected in place:
  *   backend:  ./mvnw -B package -DskipTests        -> backend/target/backend-lambda.zip
  *   frontend: npm run build && npm run build:lambda -> frontend/.lambda, frontend/.next/static
- *   infra:    npm run build:lambda                  -> infra/lambda/event-archiver/dist
+ *   infra:    npm run build:lambda                  -> infra/lambda/{event-archiver,redshift-loader}/dist
  *
  * Context:
  *   alertEmail            where alerts go: the $5 budget and the SNS alerts topic (required)
@@ -43,6 +44,13 @@ new AppStack(app, "PlotlineApp", {
   apiCode: lambda.Code.fromAsset("../backend/target/backend-lambda.zip"),
   webCode: lambda.Code.fromAsset("../frontend/.lambda"),
   staticAssets: s3deploy.Source.asset("../frontend/.next/static"),
+});
+
+new AnalyticsStack(app, "PlotlineAnalytics", {
+  env,
+  data,
+  pipeline,
+  loaderCode: lambda.Code.fromAsset("lambda/redshift-loader/dist"),
 });
 
 new CiStack(app, "PlotlineCi", {
