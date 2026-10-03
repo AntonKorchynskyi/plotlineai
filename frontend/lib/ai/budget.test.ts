@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createApiBudget } from "@/lib/ai/budget";
-import { AiUnavailableError } from "@/lib/ai/errors";
+import { AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -28,7 +28,8 @@ describe("createApiBudget", () => {
 
   it("refuses once the day's allowance is spent", async () => {
     const { budget } = budgetAnswering(async () => json({ allowed: false }));
-    await expect(budget.consume()).rejects.toBeInstanceOf(AiUnavailableError);
+    // Still an AiUnavailableError to the routes, but told apart in the ai.called event.
+    await expect(budget.consume()).rejects.toBeInstanceOf(AiBudgetRefusedError);
   });
 
   it("fails closed when the api cannot be reached", async () => {

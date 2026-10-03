@@ -52,12 +52,12 @@ describe("POST /api/chart-spec", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ spec });
-    expect(mocks.describeChart).toHaveBeenCalledWith(dataset, "revenue by region", undefined);
+    expect(mocks.describeChart).toHaveBeenCalledWith(dataset, "revenue by region", undefined, { record: expect.any(Object) });
   });
 
   it("passes the current spec through when refining", async () => {
     await post({ datasetId: ID, instruction: "make it a doughnut", currentSpec: spec });
-    expect(mocks.describeChart).toHaveBeenCalledWith(dataset, "make it a doughnut", spec);
+    expect(mocks.describeChart).toHaveBeenCalledWith(dataset, "make it a doughnut", spec, { record: expect.any(Object) });
   });
 
   it("trims the instruction", async () => {

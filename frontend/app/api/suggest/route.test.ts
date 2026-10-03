@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
+import { AiBadOutputError, AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
 import { BackendError, DatasetNotFoundError } from "@/lib/backend";
 import { dataset } from "@/test/ai";
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   check: vi.fn(),
   fetchDataset: vi.fn(),
   suggestCharts: vi.fn(),
+  publishEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
@@ -20,6 +21,11 @@ vi.mock("@/lib/backend", async (importOriginal) => ({
 vi.mock("@/lib/ai/suggest", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/suggest")>()),
   suggestCharts: mocks.suggestCharts,
+}));
+
+vi.mock("@/lib/events", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events")>()),
+  publishEvent: mocks.publishEvent,
 }));
 
 const { POST } = await import("@/app/api/suggest/route");
@@ -60,7 +66,7 @@ describe("POST /api/suggest", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ suggestions });
     expect(mocks.fetchDataset).toHaveBeenCalledWith(ID);
-    expect(mocks.suggestCharts).toHaveBeenCalledWith(dataset);
+    expect(mocks.suggestCharts).toHaveBeenCalledWith(dataset, { record: expect.any(Object) });
   });
 
   it("limits by the client address", async () => {
@@ -139,5 +145,59 @@ describe("POST /api/suggest", () => {
     expect(response.status).toBe(500);
     expect(JSON.parse(text)).toMatchObject({ error: "INTERNAL" });
     expect(text).not.toContain("undefined is not a function");
+  });
+});
+
+describe("the ai.called event", () => {
+  const reported = () => {
+    expect(mocks.publishEvent).toHaveBeenCalledTimes(1);
+    const [detailType, fields, options] = mocks.publishEvent.mock.calls[0];
+    expect(detailType).toBe("ai.called");
+    return { fields, options };
+  };
+
+  it("reports a successful call with the model and its token counts", async () => {
+    mocks.suggestCharts.mockImplementation(async (_dataset, deps) => {
+      Object.assign(deps.record, {
+        model: "gpt-5-nano",
+        inputTokens: 1500,
+        outputTokens: 950,
+        reasoningTokens: 680,
+      });
+      return suggestions;
+    });
+    const lambdaContext = JSON.stringify({ request_id: "0f8fad5b-d9cb-469f-a165-70867728950e" });
+
+    await post({ datasetId: ID }, { "x-amzn-lambda-context": lambdaContext });
+
+    const { fields, options } = reported();
+    expect(fields).toEqual({
+      route: "suggest",
+      model: "gpt-5-nano",
+      inputTokens: 1500,
+      outputTokens: 950,
+      reasoningTokens: 680,
+      ms: expect.any(Number),
+      outcome: "ok",
+    });
+    expect(options).toEqual({ requestId: "0f8fad5b-d9cb-469f-a165-70867728950e" });
+  });
+
+  it.each([
+    ["bad_output", new AiBadOutputError("bad")],
+    ["budget_refused", new AiBudgetRefusedError("spent")],
+    ["unavailable", new AiUnavailableError("down")],
+  ])("reports the %s outcome", async (outcome, failure) => {
+    mocks.suggestCharts.mockRejectedValue(failure);
+    await post({ datasetId: ID });
+    expect(reported().fields).toMatchObject({ route: "suggest", outcome });
+  });
+
+  it("reports nothing when no AI call was attempted", async () => {
+    mocks.fetchDataset.mockRejectedValue(new DatasetNotFoundError());
+    await post({ datasetId: ID });
+    mocks.fetchDataset.mockRejectedValue(new BackendError("down"));
+    await post({ datasetId: ID });
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
   });
 });
