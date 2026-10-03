@@ -79,18 +79,21 @@ long before running the suite again on the same stack.
 
 The public deployment runs on AWS: CloudFront in front of two Lambda functions (web on
 Node 24 through the Lambda Web Adapter, api on Java 25 with SnapStart), with DynamoDB and S3
-for storage. Nothing runs while no one visits, so an idle month costs well under a dollar; a
-$5 budget alert, reserved concurrency, the rate limits and the daily AI and upload caps bound
+for storage. Nothing runs while no one visits, so an idle month costs a dollar or two; a
+$5 budget alert, a Redshift usage limit, reserved concurrency, the rate limits and the daily AI and upload caps bound
 the rest. OpenAI usage is billed separately and capped by the daily call limit.
 
 Usage events (counts and timings only, never the data) go to an EventBridge bus. An SQS queue
 feeds them to an archiver function that files them by day in S3 for analytics, and SNS emails
-the owner when a daily quota runs out or a CloudWatch alarm fires.
+the owner when a daily quota runs out or a CloudWatch alarm fires. Every morning EventBridge
+Scheduler starts a loader that copies the previous day's archive into Redshift Serverless,
+where reporting views (`infra/analytics/`) answer questions such as daily activity, the chart
+type mix, AI cost per day and render latency.
 
-`infra/` defines four CDK stacks: `PlotlineData` (tables and the data and analytics buckets,
+`infra/` defines five CDK stacks: `PlotlineData` (tables and the data and analytics buckets,
 retained on delete), `PlotlinePipeline` (the event bus, queues, archiver, alerts topic and
-alarms), `PlotlineApp` (the functions, CloudFront, the budget) and `PlotlineCi` (the GitHub
-OIDC role). After the one-time setup, every merge to `main` whose CI passes deploys through
+alarms), `PlotlineApp` (the functions, CloudFront, the budget), `PlotlineAnalytics` (Redshift
+Serverless, the nightly loader and its schedule) and `PlotlineCi` (the GitHub OIDC role). After the one-time setup, every merge to `main` whose CI passes deploys through
 `.github/workflows/deploy.yml`.
 
 The one-time setup, the smoke checklist, rollback and tear-down are in

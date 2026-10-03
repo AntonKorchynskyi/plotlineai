@@ -18,7 +18,7 @@ export class DataStack extends Stack {
   readonly rateLimitTable: dynamodb.TableV2;
   /** Uploaded CSVs and parsed rows, both short-lived. */
   readonly dataBucket: s3.Bucket;
-  /** The usage event archive the event-archiver writes and Phase 13 loads into Redshift. */
+  /** The usage event archive the event-archiver writes and the redshift-loader reads. */
   readonly analyticsBucket: s3.Bucket;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
