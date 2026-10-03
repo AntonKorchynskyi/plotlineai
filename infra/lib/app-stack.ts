@@ -1,6 +1,7 @@
 import { Annotations, CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import * as budgets from "aws-cdk-lib/aws-budgets";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
@@ -9,8 +10,10 @@ import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import type { Construct } from "constructs";
+import { emailingAlarm } from "./alarms.js";
 import type { DataStack } from "./data-stack.js";
 import { acknowledge, allowWildcards } from "./nag.js";
+import type { PipelineStack } from "./pipeline-stack.js";
 
 /** The action groups CDK's bucket grants use (grantReadWrite and the deployment's own). */
 const S3_GRANT_ACTIONS = /^Action::s3:(Abort|DeleteObject|GetBucket|GetObject|List)\*$/;
@@ -27,6 +30,8 @@ export const OPENAI_KEY_PARAMETER = "/plotlineai/openai-api-key";
 
 export interface AppStackProps extends StackProps {
   data: DataStack;
+  /** The event bus both functions publish to, and the topic this stack's alarms email. */
+  pipeline: PipelineStack;
   /** Where the monthly budget alert goes. */
   alertEmail: string;
   /** Per-function cap on concurrent instances; 0 leaves it unset (accounts with a low quota). */
@@ -49,7 +54,7 @@ export interface AppStackProps extends StackProps {
 export class AppStack extends Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props);
-    const { data } = props;
+    const { data, pipeline } = props;
     const reserved = props.reservedConcurrency > 0 ? props.reservedConcurrency : undefined;
 
     const logGroup = (logId: string, name: string) =>
@@ -77,6 +82,7 @@ export class AppStack extends Stack {
         DATASET_TTL: "PT24H",
         AI_DAILY_CALL_LIMIT: "500",
         UPLOAD_DAILY_LIMIT: "300",
+        EVENT_BUS_NAME: pipeline.bus.eventBusName,
         // Actuator has no use behind a function URL, and a separate port breaks the container.
         MANAGEMENT_PORT: "-1",
         // A short-lived function gains little from the optimizing compiler's warm-up.
@@ -93,6 +99,7 @@ export class AppStack extends Stack {
     data.appTable.grantReadWriteData(api);
     data.dataBucket.grantReadWrite(api, "uploads/*");
     data.dataBucket.grantReadWrite(api, "datasets/*");
+    pipeline.bus.grantPutEventsTo(api);
     acknowledge(api, BASIC_EXECUTION_ROLE, LOGS_ONLY_REASON);
     allowWildcards(api, S3_GRANT_ACTIONS, S3_GRANT_REASON);
     allowWildcards(
@@ -151,6 +158,7 @@ export class AppStack extends Stack {
         // The origin the api's presigned URLs point at, for the page's CSP (connect-src).
         UPLOAD_ORIGIN: `https://${data.dataBucket.bucketDomainName}`,
         AI_MODEL: "gpt-5-nano",
+        EVENT_BUS_NAME: pipeline.bus.eventBusName,
       },
     });
     const webUrl = web.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.NONE });
@@ -161,6 +169,7 @@ export class AppStack extends Stack {
     data.rateLimitTable.grantReadWriteData(web);
     originSecret.grantRead(web);
     openAiKey.grantRead(web);
+    pipeline.bus.grantPutEventsTo(web);
 
     // --- CloudFront: the only public entry ---
     // The site's build output. It lives here rather than in the data stack because its access
@@ -286,6 +295,49 @@ export class AppStack extends Stack {
           subscribers: [{ subscriptionType: "EMAIL", address: props.alertEmail }],
         },
       ],
+    });
+
+    // --- alarms, emailed through the pipeline's alerts topic ---
+    const errorsAlarm = (alarmId: string, fn: lambda.Function, name: string) =>
+      emailingAlarm(this, alarmId, pipeline.alerts, {
+        alarmName: `plotlineai-${name}-errors`,
+        alarmDescription: `The ${name} function failed 5 or more times in 5 minutes.`,
+        metric: fn.metricErrors({ period: Duration.minutes(5), statistic: cloudwatch.Stats.SUM }),
+        threshold: 5,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      });
+    errorsAlarm("ApiErrors", api, "api");
+    errorsAlarm("WebErrors", web, "web");
+
+    const throttles = (fn: lambda.IFunction) =>
+      fn.metricThrottles({ period: Duration.minutes(5), statistic: cloudwatch.Stats.SUM });
+    emailingAlarm(this, "Throttles", pipeline.alerts, {
+      alarmName: "plotlineai-throttles",
+      alarmDescription:
+        "A function was refused for lack of concurrency (the account allows 10 at once in total).",
+      metric: new cloudwatch.MathExpression({
+        expression: "api + web + archiver",
+        usingMetrics: { api: throttles(api), web: throttles(web), archiver: throttles(pipeline.archiver) },
+        period: Duration.minutes(5),
+        label: "Throttles",
+      }),
+      threshold: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    });
+
+    emailingAlarm(this, "CloudFront5xx", pipeline.alerts, {
+      alarmName: "plotlineai-cloudfront-5xx",
+      alarmDescription: "More than 5% of responses over 15 minutes were server errors.",
+      // CloudFront publishes its metrics in us-east-1 under Region=Global.
+      metric: new cloudwatch.Metric({
+        namespace: "AWS/CloudFront",
+        metricName: "5xxErrorRate",
+        dimensionsMap: { DistributionId: site.distributionId, Region: "Global" },
+        period: Duration.minutes(15),
+        statistic: cloudwatch.Stats.AVERAGE,
+      }),
+      threshold: 5,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
     });
 
     new CfnOutput(this, "SiteUrl", { value: `https://${site.distributionDomainName}` });

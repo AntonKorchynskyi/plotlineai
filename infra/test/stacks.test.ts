@@ -11,6 +11,7 @@ import { AppStack } from "../lib/app-stack.js";
 import { CiStack } from "../lib/ci-stack.js";
 import { DataStack } from "../lib/data-stack.js";
 import { addNagChecks, allowWildcards } from "../lib/nag.js";
+import { PipelineStack } from "../lib/pipeline-stack.js";
 
 const GITHUB = { owner: "AntonKorchynskyi", ownerId: 122495439, repo: "plotlineai", repoId: 1309326523 };
 
@@ -25,9 +26,16 @@ const build = ({ reservedConcurrency = 20, nag = false } = {}) => {
   const app = new App();
   const env = { account: "123456789012", region: "us-east-1" };
   const data = new DataStack(app, "Data", { env });
+  const pipeline = new PipelineStack(app, "Pipeline", {
+    env,
+    data,
+    alertEmail: "owner@example.com",
+    archiverCode: stubCode(),
+  });
   const site = new AppStack(app, "Site", {
     env,
     data,
+    pipeline,
     alertEmail: "owner@example.com",
     reservedConcurrency,
     apiCode: stubCode(),
@@ -41,12 +49,13 @@ const build = ({ reservedConcurrency = 20, nag = false } = {}) => {
   }
   return {
     data: Template.fromStack(data),
+    pipeline: Template.fromStack(pipeline),
     site: Template.fromStack(site),
     ci: Template.fromStack(ci),
   };
 };
 
-const { data, site, ci } = build();
+const { data, pipeline, site, ci } = build();
 
 const functionNamed = (name: string) =>
   Object.values(site.findResources("AWS::Lambda::Function")).find(
@@ -90,7 +99,7 @@ describe("DataStack", () => {
       ...data.findResources("AWS::S3::Bucket"),
       ...site.findResources("AWS::S3::Bucket"),
     };
-    expect(Object.keys(buckets)).toHaveLength(2);
+    expect(Object.keys(buckets)).toHaveLength(3);
     for (const bucket of Object.values(buckets)) {
       expect(bucket.Properties.PublicAccessBlockConfiguration).toEqual({
         BlockPublicAcls: true,
@@ -104,7 +113,7 @@ describe("DataStack", () => {
       ...Object.values(data.findResources("AWS::S3::BucketPolicy")),
       ...Object.values(site.findResources("AWS::S3::BucketPolicy")),
     ];
-    expect(policies).toHaveLength(2);
+    expect(policies).toHaveLength(3);
     for (const policy of policies) {
       expect(JSON.stringify(policy)).toContain('"aws:SecureTransport":"false"');
     }
@@ -123,6 +132,116 @@ describe("DataStack", () => {
       },
     });
   });
+
+  it("keeps the event archive for 400 days", () => {
+    data.hasResourceProperties("AWS::S3::Bucket", {
+      LifecycleConfiguration: {
+        Rules: Match.arrayWith([
+          Match.objectLike({ Prefix: "events/", ExpirationInDays: 400, Status: "Enabled" }),
+        ]),
+      },
+    });
+  });
+});
+
+describe("PipelineStack", () => {
+  const alarms = () => [
+    ...Object.values(pipeline.findResources("AWS::CloudWatch::Alarm")),
+    ...Object.values(site.findResources("AWS::CloudWatch::Alarm")),
+  ];
+
+  it("names the bus both publishers use", () => {
+    pipeline.hasResourceProperties("AWS::Events::EventBus", { Name: "plotlineai" });
+  });
+
+  it("queues every PlotlineAI event for the archiver, with a dead-letter queue", () => {
+    pipeline.hasResourceProperties("AWS::Events::Rule", {
+      EventPattern: { source: [{ prefix: "plotlineai." }] },
+      Targets: [Match.objectLike({ Arn: { "Fn::GetAtt": [Match.stringLikeRegexp("ArchiveQueue"), "Arn"] } })],
+    });
+    pipeline.hasResourceProperties("AWS::SQS::Queue", {
+      QueueName: "analytics-events",
+      SqsManagedSseEnabled: true,
+      VisibilityTimeout: 240,
+      RedrivePolicy: {
+        deadLetterTargetArn: { "Fn::GetAtt": [Match.stringLikeRegexp("ArchiveDlq"), "Arn"] },
+        maxReceiveCount: 5,
+      },
+    });
+    pipeline.hasResourceProperties("AWS::SQS::Queue", {
+      QueueName: "analytics-events-dlq",
+      MessageRetentionPeriod: 14 * 24 * 3600,
+    });
+  });
+
+  it("drains the queue in batches, retrying only the messages that failed", () => {
+    pipeline.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "plotlineai-event-archiver",
+      Runtime: "nodejs24.x",
+      Handler: "index.handler",
+      MemorySize: 256,
+      Timeout: 30,
+    });
+    pipeline.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+      BatchSize: 100,
+      MaximumBatchingWindowInSeconds: 60,
+      FunctionResponseTypes: ["ReportBatchItemFailures"],
+      ScalingConfig: { MaximumConcurrency: 2 },
+    });
+  });
+
+  it("lets the archiver add objects under events/ and nothing else in S3", () => {
+    const statements = Object.values(pipeline.findResources("AWS::IAM::Policy")).flatMap(
+      (p) => p.Properties.PolicyDocument.Statement,
+    );
+    const s3Statements = statements.filter((st) => [st.Action].flat().some((a: string) => a.startsWith("s3:")));
+    expect(s3Statements).toHaveLength(1);
+    expect(s3Statements[0].Action).toBe("s3:PutObject");
+    expect(JSON.stringify(s3Statements[0].Resource)).toContain("/events/*");
+  });
+
+  it("emails the owner when a daily quota runs out", () => {
+    pipeline.hasResourceProperties("AWS::SNS::Subscription", {
+      Protocol: "email",
+      Endpoint: "owner@example.com",
+    });
+    pipeline.hasResourceProperties("AWS::Events::Rule", {
+      EventPattern: { source: ["plotlineai.api"], "detail-type": ["quota.exhausted"] },
+      Targets: [
+        Match.objectLike({
+          Arn: { Ref: Match.stringLikeRegexp("Alerts") },
+          InputTransformer: Match.objectLike({
+            InputPathsMap: { "detail-quota": "$.detail.quota", "detail-limit": "$.detail.limit", "detail-day": "$.detail.day" },
+          }),
+        }),
+      ],
+    });
+  });
+
+  it("has six alarms, each emailing the owner when it fires and when it clears", () => {
+    const all = alarms();
+    expect(all.map((a) => a.Properties.AlarmName).sort()).toEqual([
+      "plotlineai-analytics-dlq-not-empty",
+      "plotlineai-api-errors",
+      "plotlineai-archiver-errors",
+      "plotlineai-cloudfront-5xx",
+      "plotlineai-throttles",
+      "plotlineai-web-errors",
+    ]);
+    for (const alarm of all) {
+      expect(alarm.Properties.AlarmActions).toHaveLength(1);
+      expect(alarm.Properties.OKActions).toEqual(alarm.Properties.AlarmActions);
+      expect(JSON.stringify(alarm.Properties.AlarmActions)).toContain("Alerts");
+      expect(alarm.Properties.TreatMissingData).toBe("notBreaching");
+    }
+  });
+
+  it("keeps the archiver's logs for two weeks", () => {
+    pipeline.hasResourceProperties("AWS::Logs::LogGroup", {
+      LogGroupName: "/aws/lambda/plotlineai-event-archiver",
+      RetentionInDays: 14,
+    });
+  });
 });
 
 describe("AppStack", () => {
@@ -139,6 +258,7 @@ describe("AppStack", () => {
     expect(api.Properties.MemorySize).toBe(1536);
     expect(api.Properties.Timeout).toBe(30);
     expect(api.Properties.Environment.Variables.MANAGEMENT_PORT).toBe("-1");
+    expect(api.Properties.Environment.Variables.EVENT_BUS_NAME).toBeDefined();
     site.hasResourceProperties("AWS::Lambda::Alias", { Name: "live" });
     site.hasResourceProperties("AWS::Lambda::Url", {
       AuthType: "AWS_IAM",
@@ -160,6 +280,7 @@ describe("AppStack", () => {
     });
     expect(env.ORIGIN_VERIFY_SECRET_ARN).toBeDefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.EVENT_BUS_NAME).toBeDefined();
     expect(JSON.stringify(web.Properties.Layers)).toContain("LambdaAdapterLayerX86:30");
     site.hasResourceProperties("AWS::Lambda::Url", { AuthType: "NONE" });
   });
@@ -183,8 +304,18 @@ describe("AppStack", () => {
     });
   });
 
+  it("lets both functions publish to the bus, and only to it", () => {
+    const putEvents = Object.values(site.findResources("AWS::IAM::Policy"))
+      .flatMap((p) => p.Properties.PolicyDocument.Statement)
+      .filter((st) => st.Action === "events:PutEvents");
+    expect(putEvents).toHaveLength(2);
+    for (const statement of putEvents) {
+      expect(JSON.stringify(statement.Resource)).toMatch(/GetAttBus[A-Za-z0-9]*Arn/);
+    }
+  });
+
   it("grants no IAM statement a wildcard action or a bare wildcard resource", () => {
-    for (const stack of [site, ci]) {
+    for (const stack of [site, pipeline, ci]) {
       for (const policy of Object.values(stack.findResources("AWS::IAM::Policy"))) {
         for (const statement of policy.Properties.PolicyDocument.Statement) {
           const actions = [statement.Action].flat();
