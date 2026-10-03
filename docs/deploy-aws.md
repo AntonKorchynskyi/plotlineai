@@ -25,8 +25,8 @@ web, api --usage events--> EventBridge bus "plotlineai"
    +-- quota.exhausted --> SNS "plotlineai-alerts" --> email
 CloudWatch alarms ------> SNS "plotlineai-alerts" --> email
 
-EventBridge Scheduler (06:00 UTC) --> redshift-loader --Data API--> Redshift Serverless
-                                       (COPY yesterday's files from the "analytics" bucket)
+EventBridge Scheduler (Mondays 06:00 UTC) --> redshift-loader --Data API--> Redshift Serverless
+                                       (COPY the past week's files from the "analytics" bucket)
 ```
 
 What each piece is, in plain words:
@@ -77,20 +77,25 @@ What each piece is, in plain words:
   idle. Capacity is measured in **RPUs** (Redshift Processing Units); ours uses the minimum,
   4 RPU, at about $0.375 per RPU-hour. A **usage limit** turns it off for the rest of the
   month after 20 RPU-hours (about $7.50), so it cannot run away. It holds the table
-  `analytics.events` and the views in `infra/analytics/02-views.sql`.
+  `public.events` and the views in `infra/analytics/02-views.sql`, in the database
+  `analytics`.
   - It has to live in a **VPC** (a private network). Ours has three subnets and nothing else:
     no internet access in or out, and a firewall (security group) that lets nothing in.
-  - The **namespace** holds the data and the admin sign-in (kept in Secrets Manager as
-    `plotlineai/redshift-admin`); the **workgroup** is the compute that runs queries.
-- **EventBridge Scheduler:** runs a task on a timetable. Every day at 06:00 UTC it starts
-  `plotlineai-redshift-loader`, which loads yesterday's archive files into Redshift through
+  - The **namespace** holds the data; the **workgroup** is the compute that runs queries.
+  - There is no admin password. The loader signs in as its IAM role (database user
+    `IAMR:plotlineai-redshift-loader`, which owns the table and views), and you sign in as
+    your own IAM user, which may read them.
+- **EventBridge Scheduler:** runs a task on a timetable. Every Monday at 06:00 UTC it starts
+  `plotlineai-redshift-loader`, which loads the past 7 days' archive files into Redshift in
+  one go (each start of Redshift bills at least 60 seconds, so once a week is cheapest, and a
+  week with no visitors does not start Redshift at all) through
   the **Redshift Data API** (SQL over HTTPS, no database connection to manage). A load
   replaces the whole day, so running it twice gives the same result.
 - **SNS:** sends notifications. The `plotlineai-alerts` topic emails your alert address.
 - **CloudWatch alarms:** watch a metric and email through SNS when it crosses a line, then
   again when it recovers: api or web failing 5+ times in 5 minutes, any function throttled,
   more than 5% CloudFront server errors over 15 minutes, the archiver failing, anything in
-  the DLQ, or the nightly Redshift load failing.
+  the DLQ, or the weekly Redshift load failing.
 - **CloudWatch Logs:** the functions' logs, kept 14 days.
 - **AWS Budgets:** emails you when the month's bill heads past $5.
 - **CDK and CloudFormation:** CDK turns the TypeScript in `infra/` into CloudFormation
@@ -103,9 +108,9 @@ What each piece is, in plain words:
     and the alarms on those.
   - `PlotlineApp`: the functions, CloudFront, the assets bucket, the secret, the budget, and
     the alarms on the functions and CloudFront.
-  - `PlotlineAnalytics`: Redshift Serverless (namespace, workgroup, usage limit, admin
-    secret), its VPC, the loader, its schedule and its alarm. Everything in Redshift can be
-    rebuilt from the archive, so deleting this stack loses nothing for good.
+  - `PlotlineAnalytics`: Redshift Serverless (namespace, workgroup, usage limit), its VPC,
+    the loader, its schedule and its alarm. Everything in Redshift can be rebuilt from the
+    archive, so deleting this stack loses nothing for good.
   - `PlotlineCi`: the GitHub OIDC trust and the deploy role (deployed once, by hand).
 - **GitHub OIDC:** lets the deploy job prove to AWS that it is this repository's
   `production` job and receive one-hour credentials. No AWS key is stored in GitHub.
@@ -118,15 +123,15 @@ What each piece is, in plain words:
 | DynamoDB on-demand, point-in-time recovery on `plotlineai-app` | about $0-0.05 |
 | S3 (data, assets, CDK's asset bucket) | about $0.05-0.20 |
 | CloudFront, and its CloudFront Function | $0 (always-free) |
-| Secrets Manager (the origin-verify secret, the Redshift admin sign-in) | $0.80 |
+| Secrets Manager (the origin-verify secret) | $0.40 |
 | SSM Parameter Store standard | $0 |
 | CloudWatch Logs, 14-day retention | $0 (5 GB always-free) |
 | EventBridge, SQS, SNS email, Scheduler | $0 (always-free) |
 | CloudWatch alarms (7) | $0 (10 always-free) |
 | Event archive in S3 | well under $0.01 |
-| Redshift Serverless: the nightly load (60 s minimum at 4 RPU, about $0.025 each) | about $0.75 |
+| Redshift Serverless: the weekly load (60 s minimum at 4 RPU, about $0.025 each; none in a week without visitors) | about $0.10 |
 | Redshift Serverless: your own queries (about $0.025 per minute of querying) | $0-1 |
-| **Total** | **about $1.50-3** |
+| **Total** | **about $0.50-1** |
 
 OpenAI usage is billed by OpenAI, not AWS.
 
@@ -372,7 +377,7 @@ The api waits inside web's first request, so the cold total is mostly web's firs
      ```
 
 9. **Analytics.** Use the site a little (step 2), wait two minutes for the archive, then
-   load today by hand (the schedule only loads yesterday):
+   load today by hand (the schedule only loads past days):
 
    ```bash
    aws lambda invoke --region us-east-1 --function-name plotlineai-redshift-loader \
@@ -387,14 +392,14 @@ The api waits inside web's first request, so the cold total is mostly web's firs
    has the details.
 
    Then query it: in the AWS console, **Amazon Redshift > Query editor v2**, open
-   **Serverless: plotlineai**, choose **AWS Secrets Manager**, pick the secret
-   `plotlineai/redshift-admin`, database `analytics`, and run:
+   **Serverless: plotlineai**, choose **Federated user** (your own IAM sign-in), database
+   `analytics`, and run:
 
    ```sql
-   SELECT * FROM analytics.daily_activity ORDER BY day DESC;
-   SELECT * FROM analytics.chart_type_mix ORDER BY renders DESC;
-   SELECT * FROM analytics.ai_cost_daily ORDER BY day DESC;
-   SELECT * FROM analytics.render_latency_p95 ORDER BY day DESC;
+   SELECT * FROM daily_activity ORDER BY day DESC;
+   SELECT * FROM chart_type_mix ORDER BY renders DESC;
+   SELECT * FROM ai_cost_daily ORDER BY day DESC;
+   SELECT * FROM render_latency_p95 ORDER BY day DESC;
    ```
 
    Expected: today's uploads, renders, shares and AI calls match what you did. The loader
@@ -411,9 +416,9 @@ The api waits inside web's first request, so the cold total is mostly web's firs
 - **A DLQ alarm:** events the archiver gave up on are in `analytics-events-dlq`. Look at one
   (`aws sqs receive-message --queue-url <dlq url>`), fix the cause, then send them back with
   **SQS > analytics-events-dlq > Start DLQ redrive** in the console.
-- **A failed nightly load:** the loader alarm emails you. Its logs say why
+- **A failed weekly load:** the loader alarm emails you. Its logs say why
   (`aws logs tail /aws/lambda/plotlineai-redshift-loader --region us-east-1 --since 1d`).
-  Fix the cause, then load the day again by hand as in smoke step 9, with that day. A
+  Fix the cause, then load each missed day by hand as in smoke step 9. A
   failed load changes nothing, because each load is one transaction.
 - **Loading past days (backfill):** invoke the loader once per day, oldest first, with
   `{"day":"YYYY-MM-DD"}`. The archive goes back 400 days.
@@ -422,8 +427,7 @@ The api waits inside web's first request, so the cold total is mostly web's firs
   merge, then load the missed days. **Redshift Serverless > Workgroup plotlineai > Limits**
   shows the usage so far.
 - **Changing the tables or views:** edit `infra/analytics/*.sql` and merge; the next load
-  applies them. A view whose columns change needs `DROP VIEW analytics.<name> CASCADE` in
-  Query Editor first.
+  applies them (the views are dropped and created again on every load).
 - **Changing a limit:** the api's limits are environment variables in
   `infra/lib/app-stack.ts`; change them there and merge.
 - **Rotating the CloudFront header secret:** in Secrets Manager, set a new value for the
@@ -447,8 +451,8 @@ The api waits inside web's first request, so the cold total is mostly web's firs
 ## Tear-down
 
 1. `npx cdk destroy PlotlineAnalytics -c alertEmail=<email>` removes Redshift (with its
-   data, which the archive can rebuild), the admin secret, the VPC, the loader and its
-   schedule. Then `npx cdk destroy PlotlineApp -c alertEmail=<email>` removes the functions, CloudFront,
+   data, which the archive can rebuild), the VPC, the loader and its schedule. Then
+   `npx cdk destroy PlotlineApp -c alertEmail=<email>` removes the functions, CloudFront,
    the secret, the budget and the logs. The `assets` bucket is kept (it is retained on
    purpose); empty and delete it in S3. Then `npx cdk destroy PlotlinePipeline -c
    alertEmail=<email>` removes the bus, the queues, the archiver and the alerts.

@@ -1,13 +1,15 @@
 -- The usage event archive in Redshift. The redshift-loader applies these files in order before
 -- every load, so each statement must be safe to run again. A statement ends with a semicolon
 -- at the end of a line.
-
-CREATE SCHEMA IF NOT EXISTS analytics;
+--
+-- Everything lives in the `public` schema, where every database user may create tables: the
+-- loader signs in as its IAM role (no admin password exists), and that user owns what it
+-- creates here.
 
 -- One row per event, loaded a day at a time from s3://<analytics bucket>/events/dt=<day>/.
 -- The columns are the archive row keys (infra/events/schema.md); `detail` keeps the event's
 -- own fields as they were published.
-CREATE TABLE IF NOT EXISTS analytics.events (
+CREATE TABLE IF NOT EXISTS public.events (
   dt DATE NOT NULL,
   occurred_at TIMESTAMPTZ NOT NULL,
   detail_type VARCHAR(64) NOT NULL,

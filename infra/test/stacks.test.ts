@@ -397,7 +397,6 @@ describe("AnalyticsStack", () => {
     analytics.hasResourceProperties("AWS::RedshiftServerless::Namespace", {
       NamespaceName: "plotlineai",
       DbName: "analytics",
-      AdminUsername: "plotline_admin",
       DefaultIamRoleArn: { "Fn::GetAtt": [Match.stringLikeRegexp("CopyRole"), "Arn"] },
     });
     analytics.hasResourceProperties("AWS::RedshiftServerless::Workgroup", {
@@ -444,9 +443,9 @@ describe("AnalyticsStack", () => {
     expect(JSON.stringify(statements)).toContain("/events/*");
   });
 
-  it("loads yesterday every morning at 06:00 UTC, retried by the schedule rather than by Lambda", () => {
+  it("loads the past week every Monday at 06:00 UTC, retried by the schedule rather than by Lambda", () => {
     analytics.hasResourceProperties("AWS::Scheduler::Schedule", {
-      ScheduleExpression: "cron(0 6 * * ? *)",
+      ScheduleExpression: "cron(0 6 ? * MON *)",
       Target: Match.objectLike({
         Input: JSON.stringify({ scheduledTime: "<aws.scheduler.scheduled-time>" }),
         RetryPolicy: Match.objectLike({ MaximumRetryAttempts: 2 }),
@@ -463,14 +462,19 @@ describe("AnalyticsStack", () => {
     analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 0 });
   });
 
-  it("lets the loader run statements on the one workgroup and read only the admin secret", () => {
+  it("signs the loader in with IAM on the one workgroup; no admin password or secret exists", () => {
+    analytics.resourceCountIs("AWS::SecretsManager::Secret", 0);
+    const namespace = Object.values(analytics.findResources("AWS::RedshiftServerless::Namespace"))[0];
+    expect(namespace.Properties.AdminUsername).toBeUndefined();
+    expect(namespace.Properties.AdminUserPassword).toBeUndefined();
+    analytics.hasResourceProperties("AWS::IAM::Role", { RoleName: "plotlineai-redshift-loader" });
     const statements = Object.values(analytics.findResources("AWS::IAM::Policy"))
-      .filter((p) => JSON.stringify(p.Properties.Roles).includes("LoaderServiceRole"))
+      .filter((p) => JSON.stringify(p.Properties.Roles).includes("LoaderRole"))
       .flatMap((p) => p.Properties.PolicyDocument.Statement);
-    const batch = statements.find((st) => st.Action === "redshift-data:BatchExecuteStatement");
-    expect(JSON.stringify(batch.Resource)).toContain("WorkgroupArn");
-    const secret = statements.find((st) => st.Action === "secretsmanager:GetSecretValue");
-    expect(JSON.stringify(secret.Resource)).toMatch(/AdminSecret/);
+    const signIn = statements.find((st) => [st.Action].flat().includes("redshift-serverless:GetCredentials"));
+    expect([signIn.Action].flat().sort()).toEqual(["redshift-data:BatchExecuteStatement", "redshift-serverless:GetCredentials"]);
+    expect(JSON.stringify(signIn.Resource)).toContain("WorkgroupArn");
+    expect(JSON.stringify(statements)).not.toContain("secretsmanager");
   });
 
   it("keeps every log group for two weeks", () => {

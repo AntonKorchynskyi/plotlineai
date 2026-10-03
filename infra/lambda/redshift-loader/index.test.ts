@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createHandler,
-  loadDay,
+  loadDays,
   splitStatements,
   type LoaderDeps,
   type StatementState,
   type Warehouse,
 } from "./index.js";
 
-const DDL = ["CREATE SCHEMA IF NOT EXISTS analytics", "CREATE OR REPLACE VIEW analytics.v AS SELECT 1"];
+const DDL = ["CREATE TABLE IF NOT EXISTS public.events (dt DATE)", "CREATE OR REPLACE VIEW public.v AS SELECT 1"];
 
 type Fake = {
   deps: LoaderDeps;
@@ -17,12 +17,15 @@ type Fake = {
   slept: number[];
 };
 
-/** A warehouse whose statement goes through the given states, one per DescribeStatement. */
+/**
+ * A warehouse whose statement goes through the given states, one per DescribeStatement, and an
+ * archive with objects for the given days (every day unless told otherwise).
+ */
 const fake = ({
   states = [{ status: "FINISHED" }] as StatementState[],
-  objects = true,
+  archived = (_day: string): boolean => true,
   rows = 42,
-  now = new Date("2026-10-03T12:00:00Z"),
+  now = new Date("2026-10-05T12:00:00Z"),
   maxWaitMs = 60_000,
 } = {}): Fake => {
   const batches: string[][] = [];
@@ -56,7 +59,7 @@ const fake = ({
       warehouse,
       hasObjects: async (prefix) => {
         listed.push(prefix);
-        return objects;
+        return archived(prefix.slice("events/dt=".length, -1));
       },
       sleep: async (ms) => {
         slept.push(ms);
@@ -68,6 +71,10 @@ const fake = ({
   };
 };
 
+const copy = (day: string) =>
+  `COPY public.events FROM 's3://analytics-bucket/events/dt=${day}/' IAM_ROLE default ` +
+  "FORMAT JSON 'auto' GZIP DATEFORMAT 'auto' TIMEFORMAT 'auto'";
+
 beforeEach(() => {
   vi.spyOn(console, "info").mockImplementation(() => {});
 });
@@ -78,7 +85,7 @@ describe("splitStatements", () => {
     const sql = [
       "-- header",
       "",
-      "CREATE SCHEMA IF NOT EXISTS analytics;",
+      "CREATE TABLE a (x INT);",
       "",
       "-- the table",
       "CREATE TABLE t (",
@@ -88,36 +95,51 @@ describe("splitStatements", () => {
       "",
     ].join("\n");
     expect(splitStatements(sql)).toEqual([
-      "-- header\n\nCREATE SCHEMA IF NOT EXISTS analytics",
+      "-- header\n\nCREATE TABLE a (x INT)",
       "-- the table\nCREATE TABLE t (\n  a INT -- not the end; still the table\n)",
     ]);
   });
+
+  it("handles Windows line endings", () => {
+    expect(splitStatements("SELECT 1;\r\nSELECT 2;\r\n")).toEqual(["SELECT 1", "SELECT 2"]);
+  });
 });
 
-describe("createHandler: which day", () => {
-  it("loads the UTC day before the scheduled time, so a retry loads the same day", async () => {
+describe("createHandler: which days", () => {
+  it("loads the 7 UTC days before the scheduled time, so a retry loads the same days", async () => {
     const f = fake();
-    await createHandler(f.deps)({ scheduledTime: "2026-10-03T06:00:00Z" });
-    expect(f.listed).toEqual(["events/dt=2026-10-02/"]);
+    const result = await createHandler(f.deps)({ scheduledTime: "2026-10-05T06:00:00Z" });
+    expect(result.days).toEqual([
+      "2026-09-28",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-03",
+      "2026-10-04",
+    ]);
+    expect(f.listed).toHaveLength(7);
   });
 
-  it("crosses month and year boundaries", async () => {
+  it("crosses year boundaries", async () => {
     const f = fake();
-    await createHandler(f.deps)({ scheduledTime: "2027-01-01T06:00:00Z" });
-    expect(f.listed).toEqual(["events/dt=2026-12-31/"]);
+    const result = await createHandler(f.deps)({ scheduledTime: "2027-01-02T06:00:00Z" });
+    expect(result.days[0]).toBe("2026-12-26");
+    expect(result.days.at(-1)).toBe("2027-01-01");
   });
 
-  it("loads the given day, for backfills", async () => {
+  it("loads the given day, for backfills and same-day checks", async () => {
     const f = fake();
     const result = await createHandler(f.deps)({ day: "2026-09-30" });
     expect(f.listed).toEqual(["events/dt=2026-09-30/"]);
-    expect(result).toEqual({ day: "2026-09-30", rows: 42 });
+    expect(result).toEqual({ days: ["2026-09-30"], loaded: ["2026-09-30"], rows: 42 });
   });
 
-  it("loads yesterday when invoked with nothing", async () => {
-    const f = fake({ now: new Date("2026-10-03T00:30:00Z") });
-    await createHandler(f.deps)({});
-    expect(f.listed).toEqual(["events/dt=2026-10-02/"]);
+  it("loads the last 7 days when invoked with nothing", async () => {
+    const f = fake({ now: new Date("2026-10-05T00:30:00Z") });
+    const result = await createHandler(f.deps)({});
+    expect(result.days.at(-1)).toBe("2026-10-04");
+    expect(result.days).toHaveLength(7);
   });
 
   it.each(["2026-02-30", "2026-9-30", "2026-09-30'; DROP TABLE x; --", "yesterday", ""])(
@@ -136,37 +158,39 @@ describe("createHandler: which day", () => {
   });
 });
 
-describe("loadDay", () => {
-  it("applies the DDL, then replaces the day with what the archive holds, in one batch", async () => {
-    const f = fake();
-    await loadDay("2026-10-02", f.deps);
+describe("loadDays", () => {
+  it("applies the DDL, then replaces the archived days, in one batch", async () => {
+    const f = fake({ archived: (day) => day !== "2026-10-02" });
+    const result = await loadDays(["2026-10-01", "2026-10-02", "2026-10-03"], f.deps);
     expect(f.batches).toEqual([
       [
         ...DDL,
-        "DELETE FROM analytics.events WHERE dt = '2026-10-02'",
-        "COPY analytics.events FROM 's3://analytics-bucket/events/dt=2026-10-02/' IAM_ROLE default " +
-          "FORMAT JSON 'auto' GZIP DATEFORMAT 'auto' TIMEFORMAT 'auto'",
-        "SELECT COUNT(*) FROM analytics.events WHERE dt = '2026-10-02'",
+        "DELETE FROM public.events WHERE dt IN ('2026-10-01', '2026-10-03')",
+        copy("2026-10-01"),
+        copy("2026-10-03"),
+        "SELECT COUNT(*) FROM public.events WHERE dt IN ('2026-10-01', '2026-10-03')",
       ],
     ]);
+    expect(result).toEqual({
+      days: ["2026-10-01", "2026-10-02", "2026-10-03"],
+      loaded: ["2026-10-01", "2026-10-03"],
+      rows: 42,
+    });
   });
 
-  it("skips the COPY for a day with no archive objects, which COPY would reject", async () => {
-    const f = fake({ objects: false, rows: 0 });
-    const result = await loadDay("2026-10-02", f.deps);
-    expect(f.batches[0]).toEqual([
-      ...DDL,
-      "DELETE FROM analytics.events WHERE dt = '2026-10-02'",
-      "SELECT COUNT(*) FROM analytics.events WHERE dt = '2026-10-02'",
-    ]);
-    expect(result).toEqual({ day: "2026-10-02", rows: 0 });
+  it("does not start Redshift at all when the archive has nothing for those days", async () => {
+    const f = fake({ archived: () => false });
+    const result = await loadDays(["2026-10-01", "2026-10-02"], f.deps);
+    expect(f.batches).toEqual([]);
+    expect(result).toEqual({ days: ["2026-10-01", "2026-10-02"], loaded: [], rows: 0 });
+    expect(console.info).toHaveBeenCalledWith(expect.stringContaining('"event":"analytics_load_skipped"'));
   });
 
   it("waits for the batch to finish, backing off between checks", async () => {
     const f = fake({
       states: [{ status: "SUBMITTED" }, { status: "PICKED" }, { status: "STARTED" }, { status: "FINISHED" }],
     });
-    const result = await loadDay("2026-10-02", f.deps);
+    const result = await loadDays(["2026-10-02"], f.deps);
     expect(result.rows).toBe(42);
     expect(f.slept).toEqual([1000, 1500, 2250]);
     expect(console.info).toHaveBeenCalledWith(expect.stringContaining('"event":"analytics_load_done"'));
@@ -174,13 +198,13 @@ describe("loadDay", () => {
 
   it.each(["FAILED", "ABORTED"])("throws with Redshift's error when the batch is %s", async (status) => {
     const f = fake({ states: [{ status, error: "S3ServiceException: Access Denied" }] });
-    await expect(loadDay("2026-10-02", f.deps)).rejects.toThrow(
+    await expect(loadDays(["2026-10-02"], f.deps)).rejects.toThrow(
       `load of 2026-10-02 ${status}: S3ServiceException: Access Denied`,
     );
   });
 
   it("gives up once the wait runs out", async () => {
     const f = fake({ states: [{ status: "STARTED" }], maxWaitMs: 5000 });
-    await expect(loadDay("2026-10-02", f.deps)).rejects.toThrow(/still running/);
+    await expect(loadDays(["2026-10-02"], f.deps)).rejects.toThrow(/still running/);
   });
 });

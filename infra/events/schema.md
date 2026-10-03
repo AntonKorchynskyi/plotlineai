@@ -50,7 +50,7 @@ Notes:
 ## Archive format
 
 `s3://<analytics bucket>/events/dt=YYYY-MM-DD/<uuid>.json.gz`: gzipped JSON Lines, one row
-per event, with keys matching the Redshift table `analytics.events`
+per event, with keys matching the Redshift table `public.events`
 (`infra/analytics/01-schema.sql`), which `lambda/redshift-loader` fills a day at a time. The
 views in `infra/analytics/02-views.sql` read the fields listed above, so a renamed field
 needs its view changed too:

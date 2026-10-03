@@ -85,15 +85,16 @@ the rest. OpenAI usage is billed separately and capped by the daily call limit.
 
 Usage events (counts and timings only, never the data) go to an EventBridge bus. An SQS queue
 feeds them to an archiver function that files them by day in S3 for analytics, and SNS emails
-the owner when a daily quota runs out or a CloudWatch alarm fires. Every morning EventBridge
-Scheduler starts a loader that copies the previous day's archive into Redshift Serverless,
+the owner when a daily quota runs out or a CloudWatch alarm fires. Every Monday EventBridge
+Scheduler starts a loader that copies the past week's archive into Redshift Serverless,
 where reporting views (`infra/analytics/`) answer questions such as daily activity, the chart
 type mix, AI cost per day and render latency.
 
 `infra/` defines five CDK stacks: `PlotlineData` (tables and the data and analytics buckets,
 retained on delete), `PlotlinePipeline` (the event bus, queues, archiver, alerts topic and
 alarms), `PlotlineApp` (the functions, CloudFront, the budget), `PlotlineAnalytics` (Redshift
-Serverless, the nightly loader and its schedule) and `PlotlineCi` (the GitHub OIDC role). After the one-time setup, every merge to `main` whose CI passes deploys through
+Serverless, the weekly loader and its schedule) and `PlotlineCi` (the GitHub OIDC role).
+After the one-time setup, every merge to `main` whose CI passes deploys through
 `.github/workflows/deploy.yml`.
 
 The one-time setup, the smoke checklist, rollback and tear-down are in
