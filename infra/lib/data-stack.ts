@@ -18,6 +18,8 @@ export class DataStack extends Stack {
   readonly rateLimitTable: dynamodb.TableV2;
   /** Uploaded CSVs and parsed rows, both short-lived. */
   readonly dataBucket: s3.Bucket;
+  /** The usage event archive the event-archiver writes and Phase 13 loads into Redshift. */
+  readonly analyticsBucket: s3.Bucket;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, { ...props, terminationProtection: true });
@@ -67,5 +69,14 @@ export class DataStack extends Stack {
       ],
     });
     acknowledge(this.dataBucket, "S1", "Access logs would cost more than the app; objects live a day or two.");
+
+    this.analyticsBucket = privateBucket("AnalyticsBucket", {
+      lifecycleRules: [
+        // A little over a year: enough for year-on-year questions, and the files are tiny.
+        { id: "events", prefix: "events/", expiration: Duration.days(400) },
+        { id: "abandoned-multipart", abortIncompleteMultipartUploadAfter: Duration.days(1) },
+      ],
+    });
+    acknowledge(this.analyticsBucket, "S1", "Only the archiver writes here; its own logs record every object.");
   }
 }

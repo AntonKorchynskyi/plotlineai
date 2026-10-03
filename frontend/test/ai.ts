@@ -1,6 +1,6 @@
 import { MockLanguageModelV4 } from "ai/test";
 import type { DailyBudget } from "@/lib/ai/budget";
-import { AiUnavailableError } from "@/lib/ai/errors";
+import { AiBudgetRefusedError } from "@/lib/ai/errors";
 import type { CallSettings } from "@/lib/ai/provider";
 import type { DatasetDetail } from "@/lib/backend";
 
@@ -47,7 +47,7 @@ export function freshBudget(limit = 100): DailyBudget & { remaining(): number } 
   let used = 0;
   return {
     async consume() {
-      if (used >= limit) throw new AiUnavailableError("daily AI call limit reached");
+      if (used >= limit) throw new AiBudgetRefusedError("daily AI call limit reached");
       used += 1;
     },
     remaining: () => limit - used,

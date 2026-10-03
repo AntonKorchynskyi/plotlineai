@@ -5,6 +5,7 @@ import com.plotlineai.backend.chart.dto.RenderResponse;
 import com.plotlineai.backend.chart.spec.ChartSpec;
 import com.plotlineai.backend.error.ShareNotFoundException;
 import com.plotlineai.backend.error.ShareTooLargeException;
+import com.plotlineai.backend.events.EventPublisher;
 import com.plotlineai.backend.share.dto.CreateShareResponse;
 import com.plotlineai.backend.share.dto.ShareResponse;
 import java.io.ByteArrayInputStream;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -29,11 +31,14 @@ public class ShareService {
     private final ShareStore store;
     private final ChartService chartService;
     private final ObjectMapper objectMapper;
+    private final EventPublisher events;
 
-    public ShareService(ShareStore store, ChartService chartService, ObjectMapper objectMapper) {
+    public ShareService(ShareStore store, ChartService chartService, ObjectMapper objectMapper,
+            EventPublisher events) {
         this.store = store;
         this.chartService = chartService;
         this.objectMapper = objectMapper;
+        this.events = events;
     }
 
     /**
@@ -49,6 +54,7 @@ public class ShareService {
 
         UUID id = UUID.randomUUID();
         store.save(id, Instant.now(), objectMapper.writeValueAsString(spec), snapshot);
+        events.publish("share.created", Map.of("chartType", rendered.chartType(), "snapshotBytes", snapshot.length));
         return new CreateShareResponse(id);
     }
 

@@ -11,6 +11,14 @@ export class AiUnavailableError extends Error {
   }
 }
 
+/** The daily ceiling is spent: the api refused the call before any provider was asked. */
+export class AiBudgetRefusedError extends AiUnavailableError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "AiBudgetRefusedError";
+  }
+}
+
 /** The model answered, but with something the ChartSpec contract rejects. */
 export class AiBadOutputError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {

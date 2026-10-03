@@ -25,7 +25,7 @@ const Body = z.strictObject({
 
 /** POST { datasetId, instruction, currentSpec? } -> { spec } */
 export async function POST(request: Request) {
-  return handleAiRoute(request, "chart-spec", Body, async (body, dataset) => ({
-    spec: await describeChart(dataset, body.instruction, body.currentSpec),
+  return handleAiRoute(request, "chart-spec", Body, async (body, dataset, deps) => ({
+    spec: await describeChart(dataset, body.instruction, body.currentSpec, deps),
   }));
 }

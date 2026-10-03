@@ -1,12 +1,15 @@
 package com.plotlineai.backend.aws;
 
 import java.net.URI;
+import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -38,6 +41,21 @@ public class AwsClientsConfig {
             builder.endpointOverride(URI.create(aws.s3Endpoint())).forcePathStyle(true);
         }
         return builder.build();
+    }
+
+    /**
+     * Publishes usage events. A request waits for the publish (a Lambda freezes once it has
+     * answered), so the whole call, retries included, gets one second.
+     */
+    @Bean
+    EventBridgeClient eventBridgeClient(AwsProperties aws) {
+        return EventBridgeClient.builder()
+            .region(Region.of(aws.region()))
+            .httpClient(UrlConnectionHttpClient.create())
+            .overrideConfiguration(ClientOverrideConfiguration.builder()
+                .apiCallTimeout(Duration.ofSeconds(1))
+                .build())
+            .build();
     }
 
     /** Signs the URLs the browser uploads to, so locally it targets the public address. */

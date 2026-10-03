@@ -6,7 +6,7 @@ const Body = z.strictObject({ datasetId: z.uuid() });
 
 /** POST { datasetId } -> { suggestions: [{ rationale, spec }] x3 } */
 export async function POST(request: Request) {
-  return handleAiRoute(request, "suggest", Body, async (_body, dataset) => ({
-    suggestions: await suggestCharts(dataset),
+  return handleAiRoute(request, "suggest", Body, async (_body, dataset, deps) => ({
+    suggestions: await suggestCharts(dataset, deps),
   }));
 }

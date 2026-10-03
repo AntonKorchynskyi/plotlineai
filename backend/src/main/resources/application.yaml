@@ -14,6 +14,8 @@ plotlineai:
     s3-public-endpoint: ${PLOTLINEAI_S3_PUBLIC_ENDPOINT:}
     app-table: ${PLOTLINEAI_APP_TABLE:plotlineai-app}
     data-bucket: ${PLOTLINEAI_DATA_BUCKET:plotlineai-data}
+    # The EventBridge bus usage events go to. Blank (compose, tests) publishes nothing.
+    event-bus: ${EVENT_BUS_NAME:}
   dataset:
     max-file-bytes: ${DATASET_MAX_FILE_BYTES:5242880}
     max-rows: ${DATASET_MAX_ROWS:100000}

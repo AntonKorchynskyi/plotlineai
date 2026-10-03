@@ -148,6 +148,9 @@ jobs:
       - name: install
         working-directory: infra
         run: npm ci
+      - name: Lambda bundles
+        working-directory: infra
+        run: npm run build:lambda
       - name: typecheck
         working-directory: infra
         run: npm run typecheck

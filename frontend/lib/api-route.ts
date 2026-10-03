@@ -1,6 +1,8 @@
 import type { z } from "zod";
-import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
+import { AiBadOutputError, AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
+import { emptyCallRecord, type AiCallRecord, type AiDeps } from "@/lib/ai/structured-call";
 import { BackendError, DatasetNotFoundError, fetchDataset, type DatasetDetail } from "@/lib/backend";
+import { lambdaRequestId, publishEvent } from "@/lib/events";
 import { aiRateLimiter, clientKey } from "@/lib/rate-limit";
 
 /**
@@ -28,6 +30,20 @@ function logFailure(route: string, failure: unknown) {
   );
 }
 
+type AiOutcome = "ok" | "bad_output" | "unavailable" | "budget_refused";
+
+const outcomeOf = (failure: unknown): AiOutcome | null => {
+  if (failure instanceof AiBadOutputError) return "bad_output";
+  if (failure instanceof AiBudgetRefusedError) return "budget_refused";
+  if (failure instanceof AiUnavailableError) return "unavailable";
+  return null;
+};
+
+/** One `ai.called` per AI attempt, whatever its outcome (infra/events/schema.md). */
+function reportCall(request: Request, route: string, record: AiCallRecord, ms: number, outcome: AiOutcome) {
+  return publishEvent("ai.called", { route, ...record, ms, outcome }, { requestId: lambdaRequestId(request) });
+}
+
 async function readBody(request: Request): Promise<{ ok: true; json: unknown } | Response> {
   const declared = Number(request.headers.get("content-length"));
   if (declared > MAX_BODY_BYTES) {
@@ -48,7 +64,7 @@ export async function handleAiRoute<B extends { datasetId: string }>(
   request: Request,
   route: string,
   schema: z.ZodType<B>,
-  run: (body: B, dataset: DatasetDetail) => Promise<unknown>,
+  run: (body: B, dataset: DatasetDetail, deps: AiDeps) => Promise<unknown>,
 ): Promise<Response> {
   const limit = await aiRateLimiter.check(clientKey(request));
   if (!limit.ok) {
@@ -65,10 +81,20 @@ export async function handleAiRoute<B extends { datasetId: string }>(
     return error(400, "INVALID_REQUEST", "The request is not valid.");
   }
 
+  const record = emptyCallRecord();
+  let start = 0;
+  const elapsed = () => Math.round(performance.now() - start);
   try {
     const dataset = await fetchDataset(parsed.data.datasetId);
-    return Response.json(await run(parsed.data, dataset));
+    start = performance.now();
+    const result = await run(parsed.data, dataset, { record });
+    await reportCall(request, route, record, elapsed(), "ok");
+    return Response.json(result);
   } catch (failure) {
+    // Only the AI call throws these, so the dataset lookup never counts as an attempt.
+    const outcome = outcomeOf(failure);
+    if (outcome) await reportCall(request, route, record, elapsed(), outcome);
+
     if (failure instanceof DatasetNotFoundError) {
       return error(404, "NOT_FOUND", "That dataset does not exist or has expired.");
     }

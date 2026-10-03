@@ -5,14 +5,16 @@ import { AppStack } from "../lib/app-stack.js";
 import { CiStack } from "../lib/ci-stack.js";
 import { DataStack } from "../lib/data-stack.js";
 import { addNagChecks } from "../lib/nag.js";
+import { PipelineStack } from "../lib/pipeline-stack.js";
 
 /**
  * The PlotlineAI stacks, all in us-east-1. Built artifacts are expected in place:
  *   backend:  ./mvnw -B package -DskipTests        -> backend/target/backend-lambda.zip
  *   frontend: npm run build && npm run build:lambda -> frontend/.lambda, frontend/.next/static
+ *   infra:    npm run build:lambda                  -> infra/lambda/event-archiver/dist
  *
  * Context:
- *   alertEmail            where the $5 budget alert goes (required to deploy PlotlineApp)
+ *   alertEmail            where alerts go: the $5 budget and the SNS alerts topic (required)
  *   reservedConcurrency   per-function cap, default 0 (unset): the account's concurrency
  *                         limit then caps both functions together. Reserving needs a limit
  *                         of at least the reservations plus 10.
@@ -24,11 +26,18 @@ const data = new DataStack(app, "PlotlineData", { env });
 
 const alertEmail: string = app.node.tryGetContext("alertEmail") ?? "";
 if (!alertEmail) {
-  throw new Error("Pass the budget alert address: cdk <command> -c alertEmail=you@example.com");
+  throw new Error("Pass the alert address: cdk <command> -c alertEmail=you@example.com");
 }
+const pipeline = new PipelineStack(app, "PlotlinePipeline", {
+  env,
+  data,
+  alertEmail,
+  archiverCode: lambda.Code.fromAsset("lambda/event-archiver/dist"),
+});
 new AppStack(app, "PlotlineApp", {
   env,
   data,
+  pipeline,
   alertEmail,
   reservedConcurrency: Number(app.node.tryGetContext("reservedConcurrency") ?? 0),
   apiCode: lambda.Code.fromAsset("../backend/target/backend-lambda.zip"),

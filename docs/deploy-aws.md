@@ -1,9 +1,10 @@
 # Deploying to AWS
 
 PlotlineAI runs on AWS as two Lambda functions behind CloudFront, with DynamoDB and S3 for
-storage. There is no server, container cluster or database instance to run, so an idle
-month costs well under a dollar. Everything is defined in code in `infra/` (AWS CDK) and
-deployed from GitHub Actions after the owner approves each deploy.
+storage, and an event pipeline that archives anonymous usage events and emails alerts. There
+is no server, container cluster or database instance to run, so an idle month costs well
+under a dollar. Everything is defined in code in `infra/` (AWS CDK) and deployed from GitHub
+Actions whenever CI passes on `main`.
 
 This page is the one-time setup, then the smoke checklist, then operations. Run the commands
 in **Git Bash** from the repository root.
@@ -17,6 +18,12 @@ browser -> CloudFront -+-> S3 "assets" bucket    (/_next/static/*: JavaScript, C
                               v
                            api function URL -> DynamoDB "plotlineai-app", S3 "data" bucket
 browser -- presigned PUT --> S3 "data" bucket (uploads/)
+
+web, api --usage events--> EventBridge bus "plotlineai"
+   +-- every event --> SQS "analytics-events" --> event-archiver --> S3 "analytics" bucket
+   |                     (5 failures: SQS "analytics-events-dlq")
+   +-- quota.exhausted --> SNS "plotlineai-alerts" --> email
+CloudWatch alarms ------> SNS "plotlineai-alerts" --> email
 ```
 
 What each piece is, in plain words:
@@ -51,14 +58,34 @@ What each piece is, in plain words:
 - **SSM Parameter Store / Secrets Manager:** encrypted storage for secrets, read by web when
   it starts. The OpenAI key is in Parameter Store (free); the CloudFront header value is in
   Secrets Manager.
+- **EventBridge:** an event router. web and api publish a small event for each upload,
+  render, share and AI call, and when a daily quota runs out (the full list is
+  `infra/events/schema.md`). Events carry counts and timings, never an IP, a file name or
+  any of the data. Rules on the bus decide where each event goes.
+- **SQS:** a queue that holds events until the archiver takes them, so a burst or an archiver
+  failure loses nothing. A message that fails 5 times moves to the **dead-letter queue**
+  (DLQ), where it waits 14 days for a look.
+- **`plotlineai-event-archiver`:** a small Lambda function that drains the queue in batches
+  of up to 100 (or every minute) and writes each batch to the `analytics` bucket as one
+  compressed file per day, `events/dt=YYYY-MM-DD/<id>.json.gz`. Phase 13 loads these into
+  Redshift.
+- **SNS:** sends notifications. The `plotlineai-alerts` topic emails your alert address.
+- **CloudWatch alarms:** watch a metric and email through SNS when it crosses a line, then
+  again when it recovers: api or web failing 5+ times in 5 minutes, any function throttled,
+  more than 5% CloudFront server errors over 15 minutes, the archiver failing, or anything
+  in the DLQ.
 - **CloudWatch Logs:** the functions' logs, kept 14 days.
 - **AWS Budgets:** emails you when the month's bill heads past $5.
 - **CDK and CloudFormation:** CDK turns the TypeScript in `infra/` into CloudFormation
   templates, and CloudFormation creates or updates the resources to match. A **stack** is a
   group of resources managed together:
-  - `PlotlineData`: the tables and the data bucket. Termination protection is on, and every
-    resource is kept even if the stack is deleted.
-  - `PlotlineApp`: the functions, CloudFront, the assets bucket, the secret, the budget.
+  - `PlotlineData`: the tables, the data bucket and the analytics bucket (events are kept
+    400 days). Termination protection is on, and every resource is kept even if the stack
+    is deleted.
+  - `PlotlinePipeline`: the event bus, its rules, the queues, the archiver, the alerts topic
+    and the alarms on those.
+  - `PlotlineApp`: the functions, CloudFront, the assets bucket, the secret, the budget, and
+    the alarms on the functions and CloudFront.
   - `PlotlineCi`: the GitHub OIDC trust and the deploy role (deployed once, by hand).
 - **GitHub OIDC:** lets the deploy job prove to AWS that it is this repository's
   `production` job and receive one-hour credentials. No AWS key is stored in GitHub.
@@ -74,6 +101,9 @@ What each piece is, in plain words:
 | Secrets Manager (the origin-verify secret) | $0.40 |
 | SSM Parameter Store standard | $0 |
 | CloudWatch Logs, 14-day retention | $0 (5 GB always-free) |
+| EventBridge, SQS, SNS email | $0 (1M each always-free) |
+| CloudWatch alarms (6) | $0 (10 always-free) |
+| Event archive in S3 | well under $0.01 |
 | **Total** | **about $0.50-1** |
 
 OpenAI usage is billed by OpenAI, not AWS.
@@ -168,8 +198,11 @@ it up on its next cold start.
 ### 5. The GitHub `production` environment
 
 In the repository, **Settings > Environments > New environment**, name it `production`:
-- **Required reviewers:** yourself. Every deploy then waits for your approval click.
-- **Deployment branches and tags:** selected branches, `main`.
+- **Required reviewers:** none. Every push to `main` whose CI run passes deploys on its own;
+  a failing check (tests, lint, e2e, scans, synth) stops it. Add yourself here to approve
+  each deploy by hand instead.
+- **Deployment branches and tags:** selected branches, `main`. The deploy role trusts only
+  this environment, so nothing but `main` can deploy.
 - **Environment variables:** `AWS_DEPLOY_ROLE_ARN` (the role ARN from step 3) and
   `ALERT_EMAIL` (where the budget alert goes).
 
@@ -185,20 +218,23 @@ platform that built it; Docker does that on Windows:
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/frontend:/app" -w /app node:24 \
   sh -c "npm ci && npm run build && npm run build:lambda"
 cd infra
-npx cdk diff PlotlineData PlotlineApp -c alertEmail=<your email>
-npx cdk deploy PlotlineData PlotlineApp -c alertEmail=<your email>
+npm ci && npm run build:lambda
+npx cdk diff PlotlineData PlotlinePipeline PlotlineApp -c alertEmail=<your email>
+npx cdk deploy PlotlineData PlotlinePipeline PlotlineApp -c alertEmail=<your email>
 ```
 
 The container's `npm ci` replaces `frontend/node_modules` with Linux builds; run `npm ci` in
 `frontend/` again afterwards for local work.
 
 **What this does:** `diff` lists every resource that would be created, without changing
-anything. `deploy` creates both stacks (about 5-10 minutes, mostly CloudFront) and prints
+anything. `deploy` creates the stacks (about 5-10 minutes, mostly CloudFront) and prints
 `PlotlineApp.SiteUrl`, the `https://<id>.cloudfront.net` address of the site.
 
-After that, every merge to `main` deploys through GitHub: CI passes, `Deploy` starts and
-waits for your approval in the Actions tab. A manual deploy of `main` is **Actions > Deploy >
-Run workflow**.
+SNS then emails the alert address "AWS Notification - Subscription Confirmation". Click
+**Confirm subscription** in it, or no alert will ever arrive.
+
+After that, every merge to `main` deploys through GitHub: CI passes and `Deploy` runs on its
+own. A manual deploy of `main` is **Actions > Deploy > Run workflow**.
 
 ## Smoke checklist
 
@@ -275,10 +311,48 @@ Run after the first deploy and after any infrastructure change. `SITE` is the `S
 
 The api waits inside web's first request, so the cold total is mostly web's first render.
 
+8. **Events and alerts.**
+   - Upload a CSV and render a chart on the site. Within about two minutes (the archiver
+     waits up to a minute to fill a batch) a file appears in the archive; read it:
+
+     ```bash
+     BUCKET=$(aws cloudformation describe-stack-resources --region us-east-1 \
+       --stack-name PlotlineData --logical-resource-id AnalyticsBucket39EAAEEA \
+       --query 'StackResources[0].PhysicalResourceId' --output text)
+     aws s3 ls "s3://$BUCKET/events/" --recursive | tail -3
+     aws s3 cp "s3://$BUCKET/<key from above>" - | gunzip
+     ```
+
+     Expected: one JSON line per event (`dataset.uploaded`, `chart.rendered`, ...) with
+     counts and timings only.
+   - A quota alert: put a sample `quota.exhausted` event on the bus. The alert address gets
+     the readable quota email within a minute:
+
+     ```bash
+     DETAIL='{"version":1,"occurredAt":"2026-01-01T00:00:00Z","requestId":"smoke","quota":"ai","limit":500,"day":"smoke-test"}'
+     aws events put-events --region us-east-1 --entries "$(jq -cn --arg d "$DETAIL" \
+       '[{EventBusName:"plotlineai",Source:"plotlineai.api",DetailType:"quota.exhausted",Detail:$d}]')"
+     ```
+
+   - The DLQ alarm: send one message to the DLQ and wait for the "ALARM" email (up to 10
+     minutes), then purge the queue and wait for the "OK" email:
+
+     ```bash
+     DLQ=$(aws sqs get-queue-url --region us-east-1 --queue-name analytics-events-dlq \
+       --query QueueUrl --output text)
+     aws sqs send-message --region us-east-1 --queue-url "$DLQ" --message-body smoke-test
+     aws sqs purge-queue --region us-east-1 --queue-url "$DLQ"
+     ```
+
 ## Operations
 
 - **Logs:** `aws logs tail /aws/lambda/plotlineai-web --region us-east-1 --follow` (or
   `plotlineai-api`), or CloudWatch in the console.
+- **Alerts:** every alert email names its alarm, and its description says what crossed the
+  line; the function's logs say why. Each alarm emails again when it clears.
+- **A DLQ alarm:** events the archiver gave up on are in `analytics-events-dlq`. Look at one
+  (`aws sqs receive-message --queue-url <dlq url>`), fix the cause, then send them back with
+  **SQS > analytics-events-dlq > Start DLQ redrive** in the console.
 - **Changing a limit:** the api's limits are environment variables in
   `infra/lib/app-stack.ts`; change them there and merge.
 - **Rotating the CloudFront header secret:** in Secrets Manager, set a new value for the
@@ -303,11 +377,12 @@ The api waits inside web's first request, so the cold total is mostly web's firs
 
 1. `npx cdk destroy PlotlineApp -c alertEmail=<email>` removes the functions, CloudFront,
    the secret, the budget and the logs. The `assets` bucket is kept (it is retained on
-   purpose); empty and delete it in S3.
+   purpose); empty and delete it in S3. Then `npx cdk destroy PlotlinePipeline -c
+   alertEmail=<email>` removes the bus, the queues, the archiver and the alerts.
 2. `PlotlineData` has termination protection, and its tables and bucket are retained. To
    delete the data for good: turn termination protection off in CloudFormation, delete the
    stack, then delete the `plotlineai-app` and `plotlineai-rate-limits` tables in DynamoDB
-   and empty and delete the data bucket in S3.
+   and empty and delete the data and analytics buckets in S3.
 3. `npx cdk destroy PlotlineCi -c alertEmail=<email>` removes the GitHub trust.
 4. Delete the SSM parameter `/plotlineai/openai-api-key`, and, if nothing else uses CDK in
    this account and region, the `CDKToolkit` stack and its bucket.

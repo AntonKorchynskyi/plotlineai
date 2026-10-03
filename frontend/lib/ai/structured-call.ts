@@ -21,7 +21,7 @@ function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsag
     JSON.stringify({
       event: "ai_call",
       call: name,
-      model: typeof settings.model === "string" ? settings.model : settings.model.modelId,
+      model: modelId(settings),
       inputTokens: usage.inputTokens,
       cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
       outputTokens: usage.outputTokens,
@@ -30,11 +30,33 @@ function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsag
   );
 }
 
+/**
+ * What one call used, filled in as the call goes: the model once settings resolve, the token
+ * counts once the model has answered. The route reports it in its `ai.called` event.
+ */
+export type AiCallRecord = {
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  reasoningTokens: number | null;
+};
+
+export const emptyCallRecord = (): AiCallRecord => ({
+  model: null,
+  inputTokens: null,
+  outputTokens: null,
+  reasoningTokens: null,
+});
+
 /** Seams for tests; production uses the real provider and the process-wide budget. */
 export type AiDeps = {
   settings?: () => CallSettings;
   budget?: DailyBudget;
+  record?: AiCallRecord;
 };
+
+const modelId = (settings: CallSettings) =>
+  typeof settings.model === "string" ? settings.model : settings.model.modelId;
 
 /**
  * The one schema-constrained model call both AI features make. No loop, no tools: the
@@ -50,6 +72,7 @@ export async function structuredCall<T>(
 ): Promise<T> {
   // Resolve settings first, so a missing key does not spend the budget.
   const settings = (deps.settings ?? callSettings)();
+  if (deps.record) deps.record.model = modelId(settings);
   await (deps.budget ?? dailyBudget).consume();
 
   try {
@@ -64,6 +87,11 @@ export async function structuredCall<T>(
       }),
     });
     logUsage(options.name, settings, result.usage);
+    if (deps.record) {
+      deps.record.inputTokens = result.usage.inputTokens ?? null;
+      deps.record.outputTokens = result.usage.outputTokens ?? null;
+      deps.record.reasoningTokens = result.usage.outputTokenDetails?.reasoningTokens ?? null;
+    }
     return result.output;
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error)) {

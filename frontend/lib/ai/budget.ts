@@ -1,18 +1,21 @@
 import { z } from "zod";
-import { AiUnavailableError } from "@/lib/ai/errors";
+import { AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
 import { backendFetch } from "@/lib/backend";
 
 /**
  * The cost circuit breaker: a global ceiling on provider calls per UTC day. Unlike the
  * per-IP rate limit, it cannot be dodged by spoofing a client address.
  *
- * The count lives in the api's database, not here. web can restart at any time (on Cloud
- * Run, every cold start), and a counter in memory would start each life with a fresh
+ * The count lives in the api's DynamoDB table, not here. web can restart at any time (on
+ * Lambda, every cold start), and a counter in memory would start each life with a fresh
  * allowance. The limit itself is the api's AI_DAILY_CALL_LIMIT.
  */
 
 export type DailyBudget = {
-  /** Takes one call from today's allowance, or throws AiUnavailableError when it cannot. */
+  /**
+   * Takes one call from today's allowance. Throws AiBudgetRefusedError when it is spent, and
+   * AiUnavailableError when the api cannot say.
+   */
   consume(): Promise<void>;
 };
 
@@ -45,7 +48,7 @@ export function createApiBudget(
 
       const parsed = ConsumeResponseSchema.safeParse(answer);
       if (!parsed.success) throw new AiUnavailableError("unexpected daily AI budget answer");
-      if (!parsed.data.allowed) throw new AiUnavailableError("daily AI call limit reached");
+      if (!parsed.data.allowed) throw new AiBudgetRefusedError("daily AI call limit reached");
     },
   };
 }

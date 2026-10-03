@@ -83,10 +83,15 @@ for storage. Nothing runs while no one visits, so an idle month costs well under
 $5 budget alert, reserved concurrency, the rate limits and the daily AI and upload caps bound
 the rest. OpenAI usage is billed separately and capped by the daily call limit.
 
-`infra/` defines three CDK stacks: `PlotlineData` (tables and the data bucket, retained on
-delete), `PlotlineApp` (the functions, CloudFront, the budget) and `PlotlineCi` (the GitHub
-OIDC role). After the one-time setup, every merge to `main` deploys through
-`.github/workflows/deploy.yml` once the owner approves it.
+Usage events (counts and timings only, never the data) go to an EventBridge bus. An SQS queue
+feeds them to an archiver function that files them by day in S3 for analytics, and SNS emails
+the owner when a daily quota runs out or a CloudWatch alarm fires.
+
+`infra/` defines four CDK stacks: `PlotlineData` (tables and the data and analytics buckets,
+retained on delete), `PlotlinePipeline` (the event bus, queues, archiver, alerts topic and
+alarms), `PlotlineApp` (the functions, CloudFront, the budget) and `PlotlineCi` (the GitHub
+OIDC role). After the one-time setup, every merge to `main` whose CI passes deploys through
+`.github/workflows/deploy.yml`.
 
 The one-time setup, the smoke checklist, rollback and tear-down are in
 [docs/deploy-aws.md](docs/deploy-aws.md).

@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "build:lambda": "esbuild lambda/event-archiver/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=lambda/event-archiver/dist/index.js",
     "synth": "cdk synth",
     "cdk": "cdk"
   },
@@ -15,8 +16,11 @@
     "constructs": "10.8.1"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0",
+    "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.19.0",
     "aws-cdk": "2.1143.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4",
     "typescript": "^5",
     "vitest": "^5.0.1"

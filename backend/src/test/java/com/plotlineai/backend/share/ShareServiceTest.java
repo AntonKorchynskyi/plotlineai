@@ -16,6 +16,7 @@ import com.plotlineai.backend.chart.spec.ChartType;
 import com.plotlineai.backend.chart.spec.Dimension;
 import com.plotlineai.backend.chart.spec.Measure;
 import com.plotlineai.backend.error.ShareTooLargeException;
+import com.plotlineai.backend.events.EventPublisher;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +33,8 @@ class ShareServiceTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
     private final ChartService charts = mock(ChartService.class);
     private final ShareStore store = mock(ShareStore.class);
-    private final ShareService service = new ShareService(store, charts, objectMapper);
+    private final EventPublisher events = mock(EventPublisher.class);
+    private final ShareService service = new ShareService(store, charts, objectMapper, events);
 
     private final UUID datasetId = UUID.randomUUID();
     private final ChartSpec spec = new ChartSpec(ChartType.bar, null, "T", new Dimension("d", null),

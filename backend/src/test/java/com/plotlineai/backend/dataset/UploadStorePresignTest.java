@@ -25,7 +25,7 @@ class UploadStorePresignTest {
         StaticCredentialsProvider.create(AwsBasicCredentials.create("AKIDEXAMPLE", "secret"));
 
     private UploadStore store(String publicEndpoint) {
-        var aws = new AwsProperties("us-east-1", null, null, publicEndpoint, "t", "plotlineai-data");
+        var aws = new AwsProperties("us-east-1", null, null, publicEndpoint, "t", "plotlineai-data", null);
         var presigner = S3Presigner.builder().region(Region.US_EAST_1).credentialsProvider(credentials);
         if (publicEndpoint != null) {
             presigner.endpointOverride(URI.create(publicEndpoint))
