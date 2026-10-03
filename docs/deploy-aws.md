@@ -329,9 +329,12 @@ The api waits inside web's first request, so the cold total is mostly web's firs
      the readable quota email within a minute:
 
      ```bash
-     DETAIL='{"version":1,"occurredAt":"2026-01-01T00:00:00Z","requestId":"smoke","quota":"ai","limit":500,"day":"smoke-test"}'
-     aws events put-events --region us-east-1 --entries "$(jq -cn --arg d "$DETAIL" \
-       '[{EventBusName:"plotlineai",Source:"plotlineai.api",DetailType:"quota.exhausted",Detail:$d}]')"
+     cat > quota-event.json <<'JSON'
+     [{"EventBusName": "plotlineai", "Source": "plotlineai.api", "DetailType": "quota.exhausted",
+       "Detail": "{\"version\":1,\"occurredAt\":\"2026-01-01T00:00:00Z\",\"requestId\":\"smoke\",\"quota\":\"ai\",\"limit\":500,\"day\":\"smoke-test\"}"}]
+     JSON
+     aws events put-events --region us-east-1 --entries file://quota-event.json
+     rm quota-event.json
      ```
 
    - The DLQ alarm: send one message to the DLQ and wait for the "ALARM" email (up to 10
