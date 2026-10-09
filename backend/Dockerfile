@@ -12,11 +12,13 @@ FROM eclipse-temurin:25-jre AS runtime
 WORKDIR /app
 # upgrade applies Ubuntu's security fixes released since the base image was built, so a
 # fixed OS package does not wait for the next eclipse-temurin rebuild.
+# The Ubuntu base copies in Canonical's pebble service manager outside any package, so upgrade
+# never patches its Go runtime. Nothing here runs it (the entrypoint is java), so it goes.
 RUN groupadd -r spring && useradd -r -g spring spring \
  && apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* /usr/bin/pebble /var/lib/pebble
 COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
 USER spring
 EXPOSE 8080
