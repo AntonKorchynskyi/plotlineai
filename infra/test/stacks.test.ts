@@ -409,16 +409,23 @@ describe("AnalyticsStack", () => {
     expect(workgroup.Properties.SubnetIds).toHaveLength(3);
   });
 
-  it("switches Redshift off once a month's 20 RPU-hours are spent", () => {
+  it("switches Redshift off once a month's 5 RPU-hours are spent", () => {
     const limits = Object.values(analytics.findResources("Custom::AWS"));
     expect(limits).toHaveLength(1);
-    // The call is JSON joined around the workgroup ARN, which resolves at deploy time.
-    const parts: unknown[] = limits[0].Properties.Create["Fn::Join"][1];
-    const create = JSON.parse(parts.map((part) => (typeof part === "string" ? part : "<arn>")).join(""));
-    expect(create).toMatchObject({
+    // A call is JSON, joined around the workgroup ARN where it names it, which resolves at deploy time.
+    const call = (property: unknown) => {
+      const parts: unknown[] = typeof property === "string" ? [property] : (property as { "Fn::Join": [string, unknown[]] })["Fn::Join"][1];
+      return JSON.parse(parts.map((part) => (typeof part === "string" ? part : "<arn>")).join(""));
+    };
+    expect(call(limits[0].Properties.Create)).toMatchObject({
       service: "redshift-serverless",
       action: "CreateUsageLimit",
-      parameters: { usageType: "serverless-compute", period: "monthly", amount: 20, breachAction: "deactivate" },
+      parameters: { usageType: "serverless-compute", period: "monthly", amount: 5, breachAction: "deactivate" },
+    });
+    // The deployed limit changes through the update call.
+    expect(call(limits[0].Properties.Update)).toMatchObject({
+      action: "UpdateUsageLimit",
+      parameters: { amount: 5, breachAction: "deactivate" },
     });
     expect(JSON.stringify(limits[0].Properties.Delete)).toContain("DeleteUsageLimit");
   });

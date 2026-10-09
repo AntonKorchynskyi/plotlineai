@@ -77,7 +77,8 @@ What each piece is, in plain words:
   arrives, bills per second while queries run (at least 60 s each time), and pauses when
   idle. Capacity is measured in **RPUs** (Redshift Processing Units); ours uses the minimum,
   4 RPU, at about $0.375 per RPU-hour. A **usage limit** turns it off for the rest of the
-  month after 20 RPU-hours (about $7.50), so it cannot run away. It holds the table
+  month after 5 RPU-hours (about $1.90: the weekly loads use about 0.3, which leaves about an
+  hour of your own querying), so it cannot run away. It holds the table
   `public.events` and the views in `infra/analytics/02-views.sql`, in the database
   `analytics`.
   - It has to live in a **VPC** (a private network). Ours has three subnets and nothing else:
@@ -142,7 +143,7 @@ AWS has no hard spending cap, so the setup stacks limits instead:
 - the rate limits per client and overall (DynamoDB windows of 60 s);
 - the AI daily call limit (`AI_DAILY_CALL_LIMIT=500`) and the upload daily quota
   (`UPLOAD_DAILY_LIMIT=300`);
-- the Redshift usage limit: 20 RPU-hours a month (about $7.50), after which Redshift is
+- the Redshift usage limit: 5 RPU-hours a month (about $1.90), after which Redshift is
   switched off until the next month;
 - the $5 AWS Budgets alert;
 - a monthly limit on the OpenAI project (set it in the OpenAI dashboard, under **Limits**).
