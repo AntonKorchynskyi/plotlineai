@@ -443,7 +443,7 @@ describe("AnalyticsStack", () => {
     expect(JSON.stringify(statements)).toContain("/events/*");
   });
 
-  it("loads the past week every Monday at 06:00 UTC, retried by the schedule rather than by Lambda", () => {
+  it("loads the past week every Monday at 06:00 UTC, and Lambda retries a failed load", () => {
     analytics.hasResourceProperties("AWS::Scheduler::Schedule", {
       ScheduleExpression: "cron(0 6 ? * MON *)",
       Target: Match.objectLike({
@@ -459,7 +459,9 @@ describe("AnalyticsStack", () => {
         Variables: Match.objectLike({ WORKGROUP_NAME: "plotlineai", DATABASE_NAME: "analytics" }),
       },
     });
-    analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 0 });
+    // Scheduler invokes the loader asynchronously, so its retry policy only covers handing the
+    // event to Lambda; a load that fails is retried by Lambda.
+    analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 2 });
   });
 
   it("signs the loader in with IAM on the one workgroup; no admin password or secret exists", () => {

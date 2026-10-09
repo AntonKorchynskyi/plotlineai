@@ -58,6 +58,8 @@ export class AnalyticsStack extends Stack {
       availabilityZones: ["us-east-1a", "us-east-1b", "us-east-1c"],
       natGateways: 0,
       subnetConfiguration: [{ name: "redshift", subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 }],
+      // Nothing uses the VPC's default security group, and emptying it would add a custom-resource
+      // function to the stack.
       restrictDefaultSecurityGroup: false,
     });
     acknowledge(vpc, "VPC7", "Nothing in this VPC sends traffic: it only holds the workgroup's endpoints, which admit nothing.");
@@ -180,8 +182,10 @@ export class AnalyticsStack extends Stack {
       memorySize: 256,
       // A paused workgroup takes a minute or so to resume before the load itself runs.
       timeout: Duration.minutes(5),
-      // The schedule retries a failed invocation itself; Lambda's own retries would double up.
-      retryAttempts: 0,
+      // Scheduler invokes the loader asynchronously, so its retry policy only covers handing the
+      // event over; Lambda retries a failed load, a minute and then two minutes later. A retry is
+      // safe: a load is one transaction that replaces whole days.
+      retryAttempts: 2,
       logGroup: new logs.LogGroup(this, "LoaderLogs", {
         logGroupName: "/aws/lambda/plotlineai-redshift-loader",
         retention: logs.RetentionDays.TWO_WEEKS,
@@ -249,7 +253,8 @@ export class AnalyticsStack extends Stack {
 
     emailingAlarm(this, "LoaderErrors", pipeline.alerts, {
       alarmName: "plotlineai-redshift-loader-errors",
-      alarmDescription: "The weekly Redshift load failed or was throttled.",
+      alarmDescription:
+        "A weekly Redshift load attempt failed or was throttled. Lambda retries it twice; the logs show whether a retry loaded it.",
       metric: new cloudwatch.MathExpression({
         expression: "errors + throttles",
         usingMetrics: {
