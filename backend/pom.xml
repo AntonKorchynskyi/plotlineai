@@ -34,7 +34,7 @@
 		<!-- Ahead of Boot 4.1.1's 3.1.5 for CVE-2026-68497. Drop once a Boot release manages
 		     3.1.6 or later. -->
 		<jackson-bom.version>3.1.7</jackson-bom.version>
-		<awssdk.version>2.55.8</awssdk.version>
+		<awssdk.version>2.55.11</awssdk.version>
 		<s3mock.version>5.2.3</s3mock.version>
 		<serverless-java-container.version>3.0.2</serverless-java-container.version>
 	</properties>
