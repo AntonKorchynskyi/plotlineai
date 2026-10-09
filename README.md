@@ -79,9 +79,10 @@ long before running the suite again on the same stack.
 
 The public deployment runs on AWS: CloudFront in front of two Lambda functions (web on
 Node 24 through the Lambda Web Adapter, api on Java 25 with SnapStart), with DynamoDB and S3
-for storage. Nothing runs while no one visits, so an idle month costs a dollar or two; a
-$5 budget alert, a Redshift usage limit, reserved concurrency, the rate limits and the daily AI and upload caps bound
-the rest. OpenAI usage is billed separately and capped by the daily call limit.
+for storage. Nothing runs while no one visits, so an idle month costs well under a dollar; a
+$5 budget alert, a Redshift usage limit, reserved concurrency, the rate limits and the daily
+AI and upload caps bound the rest. OpenAI usage is billed separately and capped by the daily
+call limit.
 
 Usage events (counts and timings only, never the data) go to an EventBridge bus. An SQS queue
 feeds them to an archiver function that files them by day in S3 for analytics, and SNS emails

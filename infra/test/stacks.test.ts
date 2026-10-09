@@ -409,16 +409,23 @@ describe("AnalyticsStack", () => {
     expect(workgroup.Properties.SubnetIds).toHaveLength(3);
   });
 
-  it("switches Redshift off once a month's 20 RPU-hours are spent", () => {
+  it("switches Redshift off once a month's 5 RPU-hours are spent", () => {
     const limits = Object.values(analytics.findResources("Custom::AWS"));
     expect(limits).toHaveLength(1);
-    // The call is JSON joined around the workgroup ARN, which resolves at deploy time.
-    const parts: unknown[] = limits[0].Properties.Create["Fn::Join"][1];
-    const create = JSON.parse(parts.map((part) => (typeof part === "string" ? part : "<arn>")).join(""));
-    expect(create).toMatchObject({
+    // A call is JSON, joined around the workgroup ARN where it names it, which resolves at deploy time.
+    const call = (property: unknown) => {
+      const parts: unknown[] = typeof property === "string" ? [property] : (property as { "Fn::Join": [string, unknown[]] })["Fn::Join"][1];
+      return JSON.parse(parts.map((part) => (typeof part === "string" ? part : "<arn>")).join(""));
+    };
+    expect(call(limits[0].Properties.Create)).toMatchObject({
       service: "redshift-serverless",
       action: "CreateUsageLimit",
-      parameters: { usageType: "serverless-compute", period: "monthly", amount: 20, breachAction: "deactivate" },
+      parameters: { usageType: "serverless-compute", period: "monthly", amount: 5, breachAction: "deactivate" },
+    });
+    // The deployed limit changes through the update call.
+    expect(call(limits[0].Properties.Update)).toMatchObject({
+      action: "UpdateUsageLimit",
+      parameters: { amount: 5, breachAction: "deactivate" },
     });
     expect(JSON.stringify(limits[0].Properties.Delete)).toContain("DeleteUsageLimit");
   });
@@ -443,7 +450,7 @@ describe("AnalyticsStack", () => {
     expect(JSON.stringify(statements)).toContain("/events/*");
   });
 
-  it("loads the past week every Monday at 06:00 UTC, retried by the schedule rather than by Lambda", () => {
+  it("loads the past week every Monday at 06:00 UTC, and Lambda retries a failed load", () => {
     analytics.hasResourceProperties("AWS::Scheduler::Schedule", {
       ScheduleExpression: "cron(0 6 ? * MON *)",
       Target: Match.objectLike({
@@ -459,7 +466,9 @@ describe("AnalyticsStack", () => {
         Variables: Match.objectLike({ WORKGROUP_NAME: "plotlineai", DATABASE_NAME: "analytics" }),
       },
     });
-    analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 0 });
+    // Scheduler invokes the loader asynchronously, so its retry policy only covers handing the
+    // event to Lambda; a load that fails is retried by Lambda.
+    analytics.hasResourceProperties("AWS::Lambda::EventInvokeConfig", { MaximumRetryAttempts: 2 });
   });
 
   it("signs the loader in with IAM on the one workgroup; no admin password or secret exists", () => {

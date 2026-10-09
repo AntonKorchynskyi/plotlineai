@@ -125,7 +125,10 @@ export async function loadDays(days: string[], deps: LoaderDeps): Promise<LoadRe
       throw new Error(`load of ${loaded.join(", ")} ${state.status}: ${state.error ?? "no error given"}`);
     }
     if (deps.now().getTime() - started + wait > deps.maxWaitMs) {
-      throw new Error(`load of ${loaded.join(", ")} still running after ${deps.maxWaitMs} ms (statement ${id})`);
+      throw new Error(
+        `load of ${loaded.join(", ")} still running after ${deps.maxWaitMs} ms; it may yet finish ` +
+          `(aws redshift-data describe-statement --id ${id})`,
+      );
     }
     await deps.sleep(wait);
     wait = Math.min(wait * 1.5, 10_000);

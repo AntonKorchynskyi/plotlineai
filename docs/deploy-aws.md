@@ -2,9 +2,10 @@
 
 PlotlineAI runs on AWS as two Lambda functions behind CloudFront, with DynamoDB and S3 for
 storage, an event pipeline that archives anonymous usage events and emails alerts, and a
-Redshift Serverless warehouse the archive is loaded into every night. There is no server,
-container cluster or database instance to run, so an idle month costs a dollar or two. Everything is defined in code in `infra/` (AWS CDK) and deployed from GitHub
-Actions whenever CI passes on `main`.
+Redshift Serverless warehouse the archive is loaded into every Monday. There is no server,
+container cluster or database instance to run, so an idle month costs well under a dollar.
+Everything is defined in code in `infra/` (AWS CDK) and deployed from GitHub Actions whenever
+CI passes on `main`.
 
 This page is the one-time setup, then the smoke checklist, then operations. Run the commands
 in **Git Bash** from the repository root.
@@ -76,7 +77,8 @@ What each piece is, in plain words:
   arrives, bills per second while queries run (at least 60 s each time), and pauses when
   idle. Capacity is measured in **RPUs** (Redshift Processing Units); ours uses the minimum,
   4 RPU, at about $0.375 per RPU-hour. A **usage limit** turns it off for the rest of the
-  month after 20 RPU-hours (about $7.50), so it cannot run away. It holds the table
+  month after 5 RPU-hours (about $1.90: the weekly loads use about 0.3, which leaves about an
+  hour of your own querying), so it cannot run away. It holds the table
   `public.events` and the views in `infra/analytics/02-views.sql`, in the database
   `analytics`.
   - It has to live in a **VPC** (a private network). Ours has three subnets and nothing else:
@@ -141,7 +143,7 @@ AWS has no hard spending cap, so the setup stacks limits instead:
 - the rate limits per client and overall (DynamoDB windows of 60 s);
 - the AI daily call limit (`AI_DAILY_CALL_LIMIT=500`) and the upload daily quota
   (`UPLOAD_DAILY_LIMIT=300`);
-- the Redshift usage limit: 20 RPU-hours a month (about $7.50), after which Redshift is
+- the Redshift usage limit: 5 RPU-hours a month (about $1.90), after which Redshift is
   switched off until the next month;
 - the $5 AWS Budgets alert;
 - a monthly limit on the OpenAI project (set it in the OpenAI dashboard, under **Limits**).
@@ -386,8 +388,8 @@ The api waits inside web's first request, so the cold total is mostly web's firs
    ```
 
    **What this does:** runs one load. The first one takes a minute or two while Redshift
-   wakes up. Expected: `{"day":"<today>","rows":<more than 0>}`. Run it again: the same
-   number of rows (a load replaces the day). An error answer prints Redshift's message, and
+   wakes up. Expected: `{"days":["<today>"],"loaded":["<today>"],"rows":<more than 0>}`.
+   Run it again: the same number of rows (a load replaces the day). An error answer prints Redshift's message, and
    `aws logs tail /aws/lambda/plotlineai-redshift-loader --region us-east-1 --since 10m`
    has the details.
 
@@ -415,19 +417,44 @@ The api waits inside web's first request, so the cold total is mostly web's firs
   line; the function's logs say why. Each alarm emails again when it clears.
 - **A DLQ alarm:** events the archiver gave up on are in `analytics-events-dlq`. Look at one
   (`aws sqs receive-message --queue-url <dlq url>`), fix the cause, then send them back with
-  **SQS > analytics-events-dlq > Start DLQ redrive** in the console.
-- **A failed weekly load:** the loader alarm emails you. Its logs say why
+  **SQS > analytics-events-dlq > Start DLQ redrive** in the console. The archiver files them
+  under the day they happened, so if Redshift already loaded that week, load it again
+  (below).
+- **A failed weekly load:** the loader alarm emails you when an attempt fails, and Lambda
+  tries twice more over the next few minutes. The logs say why, and an `analytics_load_done`
+  line after the error means a retry loaded the week
   (`aws logs tail /aws/lambda/plotlineai-redshift-loader --region us-east-1 --since 1d`).
-  Fix the cause, then load each missed day by hand as in smoke step 9. A
-  failed load changes nothing, because each load is one transaction.
-- **Loading past days (backfill):** invoke the loader once per day, oldest first, with
-  `{"day":"YYYY-MM-DD"}`. The archive goes back 400 days.
+  If every attempt failed, fix the cause, then load that week again (below). A failed load
+  changes nothing, because each load is one transaction.
+- **Loading a past week again, or backfilling:** invoke the loader with the time of the
+  Monday run that covers the week; it loads the 7 days before that time in one go, starting
+  Redshift once. Days are independent, so the order does not matter. The archive goes back
+  400 days. For example, to load 2026-09-28 to 2026-10-11:
+
+  ```bash
+  for monday in 2026-10-05 2026-10-12; do
+    aws lambda invoke --region us-east-1 --function-name plotlineai-redshift-loader \
+      --cli-binary-format raw-in-base64-out --payload "{\"scheduledTime\":\"${monday}T06:00:00Z\"}" \
+      --cli-read-timeout 310 load.json && cat load.json && echo
+  done; rm -f load.json
+  ```
+
+  `{"day":"YYYY-MM-DD"}` loads a single day (smoke step 9).
 - **Redshift was switched off by the usage limit:** it comes back on the 1st of the month.
   To bring it back sooner, raise `MONTHLY_RPU_HOURS` in `infra/lib/analytics-stack.ts` and
-  merge, then load the missed days. **Redshift Serverless > Workgroup plotlineai > Limits**
-  shows the usage so far.
-- **Changing the tables or views:** edit `infra/analytics/*.sql` and merge; the next load
-  applies them (the views are dropped and created again on every load).
+  merge, then load the missed weeks (above). **Redshift Serverless > Workgroup plotlineai >
+  Limits** shows the usage so far.
+- **Changing the views:** edit `infra/analytics/02-views.sql` and merge; the next load
+  applies it (the views are dropped and created again on every load). Give your own tables
+  and views in Query Editor v2 other names than these, and create a view of yours that reads
+  these `WITH NO SCHEMA BINDING`, or the next load drops it.
+- **Changing the events table:** `CREATE TABLE IF NOT EXISTS` leaves the existing table as
+  it is, and only the loader's database user may alter it, so a new column takes a new
+  table name. In `infra/analytics/01-schema.sql`, create `public.events_v2` with the new
+  columns, followed by `DROP TABLE IF EXISTS public.events CASCADE;`, then rename
+  `public.events` to `public.events_v2` everywhere else it appears (`git grep -w
+  public.events`: the views, the loader and their tests), merge, and backfill the archive
+  (above).
 - **Changing a limit:** the api's limits are environment variables in
   `infra/lib/app-stack.ts`; change them there and merge.
 - **Rotating the CloudFront header secret:** in Secrets Manager, set a new value for the

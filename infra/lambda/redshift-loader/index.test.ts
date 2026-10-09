@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import schemaSql from "../../analytics/01-schema.sql";
+import viewsSql from "../../analytics/02-views.sql";
 import {
   createHandler,
   loadDays,
@@ -102,6 +104,26 @@ describe("splitStatements", () => {
 
   it("handles Windows line endings", () => {
     expect(splitStatements("SELECT 1;\r\nSELECT 2;\r\n")).toEqual(["SELECT 1", "SELECT 2"]);
+  });
+
+  it("splits the real DDL into the table, each view dropped and created, and one grant naming them all", () => {
+    const statements = [...splitStatements(schemaSql), ...splitStatements(viewsSql)];
+    const code = (sql: string) =>
+      sql
+        .split("\n")
+        .filter((line) => line.trim() && !line.trim().startsWith("--"))
+        .join("\n");
+    const heads = statements.map((sql) => code(sql).split("\n")[0]);
+    const views = ["event_fields", "daily_activity", "chart_type_mix", "ai_cost_daily", "render_latency_p95"];
+    expect(heads).toEqual([
+      "CREATE TABLE IF NOT EXISTS public.events (",
+      ...views.flatMap((view) => [`DROP VIEW IF EXISTS public.${view} CASCADE`, `CREATE VIEW public.${view} AS`]),
+      expect.stringMatching(/^GRANT SELECT ON /),
+    ]);
+    // The grant names exactly what the files create, so it never touches anything else in public.
+    expect(code(statements.at(-1)!).replace(/\s+/g, " ")).toBe(
+      `GRANT SELECT ON ${["events", ...views].map((name) => `public.${name}`).join(", ")} TO PUBLIC`,
+    );
   });
 });
 

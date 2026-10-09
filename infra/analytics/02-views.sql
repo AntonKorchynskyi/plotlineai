@@ -1,6 +1,8 @@
 -- The reporting views over public.events, for Redshift Query Editor v2. Applied before every
 -- load, like 01-schema.sql: each view is dropped and created again inside the load's
--- transaction, so a change to a view's columns needs nothing but an edit here.
+-- transaction, so a change to a view's columns needs nothing but an edit here. The drops
+-- cascade, so a view of the owner's own built on these must be late-binding
+-- (WITH NO SCHEMA BINDING) to survive the next load.
 
 -- Every event field as a typed column (infra/events/schema.md), NULL where the event has none.
 -- The fields are read from the JSON text of `detail` rather than by SUPER navigation, because
@@ -30,7 +32,7 @@ SELECT
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'reasoningTokens') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'reasoningTokens')::BIGINT END AS reasoning_tokens,
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'outcome') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'outcome') END AS outcome,
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'quota') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'quota') END AS quota
-FROM (SELECT *, JSON_SERIALIZE(detail) AS d FROM public.events);
+FROM (SELECT *, JSON_SERIALIZE(detail) AS d FROM public.events) AS e;
 
 -- What happened each day (UTC).
 DROP VIEW IF EXISTS public.daily_activity CASCADE;
@@ -99,5 +101,7 @@ GROUP BY dt;
 
 -- The loader's user owns all of the above. Every database user may read it, which is how the
 -- owner's own sign-in (Query Editor v2, "Federated user") sees it. The data holds no personal
--- information.
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO PUBLIC;
+-- information. The grant names each object, because the owner may create tables of their own
+-- in `public`, which the loader cannot grant on.
+GRANT SELECT ON public.events, public.event_fields, public.daily_activity, public.chart_type_mix,
+  public.ai_cost_daily, public.render_latency_p95 TO PUBLIC;

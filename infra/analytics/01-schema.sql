@@ -8,7 +8,9 @@
 
 -- One row per event, loaded a day at a time from s3://<analytics bucket>/events/dt=<day>/.
 -- The columns are the archive row keys (infra/events/schema.md); `detail` keeps the event's
--- own fields as they were published.
+-- own fields as they were published. IF NOT EXISTS leaves an existing table as it is, so a
+-- change to these columns takes a new table name ("Changing the events table" in
+-- docs/deploy-aws.md).
 CREATE TABLE IF NOT EXISTS public.events (
   dt DATE NOT NULL,
   occurred_at TIMESTAMPTZ NOT NULL,

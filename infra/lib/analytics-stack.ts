@@ -24,14 +24,17 @@ export interface AnalyticsStackProps extends StackProps {
 const NAMESPACE = "plotlineai";
 const WORKGROUP = "plotlineai";
 const DATABASE = "analytics";
-/** The cost ceiling: at 4 RPU and $0.375 per RPU-hour, about $7.50 a month. */
-const MONTHLY_RPU_HOURS = 20;
+/**
+ * The cost ceiling: at $0.375 per RPU-hour, about $1.90 a month. The weekly loads use about
+ * 0.3 RPU-hours, which leaves about an hour of querying at 4 RPU.
+ */
+const MONTHLY_RPU_HOURS = 5;
 
 /**
  * The usage event archive as a queryable warehouse (infra/analytics/*.sql):
  *
  * - Redshift Serverless bills only while a query runs, at the smallest base capacity (4 RPU),
- *   and a monthly usage limit switches it off before it can cost more than about $7.50;
+ *   and a monthly usage limit switches it off before it can cost more than about $1.90;
  * - every Monday the redshift-loader copies the past week's archive objects in, starting
  *   Redshift once (it bills at least 60 seconds each time) or not at all when nothing was
  *   archived, and a failed load emails the owner;
@@ -58,6 +61,8 @@ export class AnalyticsStack extends Stack {
       availabilityZones: ["us-east-1a", "us-east-1b", "us-east-1c"],
       natGateways: 0,
       subnetConfiguration: [{ name: "redshift", subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 }],
+      // Nothing uses the VPC's default security group, and emptying it would add a custom-resource
+      // function to the stack.
       restrictDefaultSecurityGroup: false,
     });
     acknowledge(vpc, "VPC7", "Nothing in this VPC sends traffic: it only holds the workgroup's endpoints, which admit nothing.");
@@ -180,8 +185,10 @@ export class AnalyticsStack extends Stack {
       memorySize: 256,
       // A paused workgroup takes a minute or so to resume before the load itself runs.
       timeout: Duration.minutes(5),
-      // The schedule retries a failed invocation itself; Lambda's own retries would double up.
-      retryAttempts: 0,
+      // Scheduler invokes the loader asynchronously, so its retry policy only covers handing the
+      // event over; Lambda retries a failed load, a minute and then two minutes later. A retry is
+      // safe: a load is one transaction that replaces whole days.
+      retryAttempts: 2,
       logGroup: new logs.LogGroup(this, "LoaderLogs", {
         logGroupName: "/aws/lambda/plotlineai-redshift-loader",
         retention: logs.RetentionDays.TWO_WEEKS,
@@ -249,7 +256,8 @@ export class AnalyticsStack extends Stack {
 
     emailingAlarm(this, "LoaderErrors", pipeline.alerts, {
       alarmName: "plotlineai-redshift-loader-errors",
-      alarmDescription: "The weekly Redshift load failed or was throttled.",
+      alarmDescription:
+        "A weekly Redshift load attempt failed or was throttled. Lambda retries it twice; the logs show whether a retry loaded it.",
       metric: new cloudwatch.MathExpression({
         expression: "errors + throttles",
         usingMetrics: {
