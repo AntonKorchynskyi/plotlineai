@@ -11,7 +11,7 @@
     "cdk": "cdk"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.271.0",
+    "aws-cdk-lib": "2.272.0",
     "cdk-nag": "3.0.2",
     "constructs": "10.8.1"
   },
@@ -19,11 +19,11 @@
     "@aws-sdk/client-redshift-data": "^3.1146.0",
     "@aws-sdk/client-s3": "^3.1146.0",
     "@types/aws-lambda": "^8.10.164",
-    "@types/node": "^24.19.0",
-    "aws-cdk": "2.1143.0",
+    "@types/node": "^24.19.1",
+    "aws-cdk": "2.1144.0",
     "esbuild": "^0.28.2",
     "tsx": "^4",
     "typescript": "^5",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.3"
   }
 }
