@@ -312,6 +312,12 @@ once.
 
 Run after the first deploy and after any infrastructure change. `SITE` is the `SiteUrl`.
 
+Every deploy already runs the read-only part on its own (`.github/workflows/deploy.yml`, step
+"smoke test"): the landing page with its security headers and a static asset, the gallery api
+rendering every example, and a hidden internal route. Run it by hand with
+`node .github/scripts/smoke-test.mjs "$SITE"`. The steps below cover what it cannot do without
+creating data or spending AI budget.
+
 1. **Pages and assets.** The landing page and gallery load. Static files come from
    CloudFront's cache:
 
@@ -452,6 +458,9 @@ The api waits inside web's first request, so the cold total is mostly web's firs
 
 ## Operations
 
+- **A "Deploy failed" issue:** a deploy, or the smoke test after it, failed. The issue links
+  the run; its log says which check failed. If the site is broken, roll back (below), then
+  fix forward. Close the issue once a deploy passes again.
 - **Dependency updates** (setup step 7): each Dependabot PR gets a "Dependency review" comment.
   "auto-merge" means it merges once CI passes, so there is nothing to do. "waiting for the
   owner" means a major, a veto or a failed review: read the comment, then merge or close the

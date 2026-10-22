@@ -29,6 +29,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      # Only for the issue a failed smoke test opens.
+      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,9 +70,28 @@ jobs:
           npm run build:lambda
           npx cdk deploy PlotlineData PlotlinePipeline PlotlineApp PlotlineAnalytics --require-approval never --no-notices \
             -c "alertEmail=$ALERT_EMAIL" --outputs-file outputs.json
-      - name: site URL
+      - id: site
+        name: site URL
         working-directory: infra
         run: |
           url=$(jq -r '.PlotlineApp.SiteUrl' outputs.json)
           echo "Site: $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "### Deployed to $url" >> "$GITHUB_STEP_SUMMARY"
+      # Read-only checks against the live site; see the script for what each one covers.
+      - name: smoke test
+        env:
+          SITE: ${{ steps.site.outputs.url }}
+        run: node .github/scripts/smoke-test.mjs "$SITE"
+      # GitHub only emails a failed run to whoever triggered it, which for an auto-merged
+      # Dependabot update is the merge app. An issue reaches the owner either way.
+      - name: report a failed deploy
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Deploy failed for ${SHA:0:7}" \
+            --body "The deploy of $SHA failed or its smoke test did not pass: $RUN_URL. Production may be broken; see Rollback in docs/deploy-aws.md."
