@@ -26,7 +26,7 @@ export async function suggestCharts(
 ): Promise<Suggestion[]> {
   const prompt = suggestPrompt(dataset);
   const first = await ask(prompt, deps);
-  const firstCheck = await checkSpecs(dataset.datasetId, first, deps);
+  const firstCheck = await checkSpecs(dataset.datasetId, first, deps, { refuseEmpty: true });
   if (firstCheck.refused.length === 0) return first;
 
   let second: Suggestion[];
@@ -39,7 +39,7 @@ export async function suggestCharts(
     }
     throw failure;
   }
-  const secondCheck = await checkSpecs(dataset.datasetId, second, deps);
+  const secondCheck = await checkSpecs(dataset.datasetId, second, deps, { refuseEmpty: true });
   const titles = new Set(firstCheck.passed.map((s) => s.spec.title));
   const kept = [
     ...firstCheck.passed,

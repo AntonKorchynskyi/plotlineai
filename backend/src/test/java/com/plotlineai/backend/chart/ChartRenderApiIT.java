@@ -77,18 +77,20 @@ class ChartRenderApiIT {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.results.length()").value(2))
             .andExpect(jsonPath("$.results[0].error").doesNotExist())
+            .andExpect(jsonPath("$.results[0].empty").value(false))
             .andExpect(jsonPath("$.results[1].error").value("This aggregation requires a numeric column"));
     }
 
     @Test
-    void validateRefusesASpecThatWouldDrawNothing() throws Exception {
+    void validateFlagsASpecThatWouldDrawNothing() throws Exception {
         validate("{\"datasetId\":\"" + datasetId + "\",\"specs\":["
             + """
             {"chartType":"bar","title":"Nowhere","dimension":{"column":"region"},
              "measures":[{"column":"revenue","aggregation":"sum"}],
              "filters":[{"column":"region","op":"eq","value":"atlantis"}]}]}""")
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.results[0].error").value(ChartService.NO_DATA));
+            .andExpect(jsonPath("$.results[0].error").doesNotExist())
+            .andExpect(jsonPath("$.results[0].empty").value(true));
     }
 
     @Test

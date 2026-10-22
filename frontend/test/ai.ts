@@ -44,7 +44,16 @@ export function sequenceModel(outputs: unknown[]) {
 export const validatorRefusing =
   (...titles: string[]) =>
   async (_datasetId: string, specs: { title: string }[]) =>
-    specs.map((s) => (titles.includes(s.title) ? "This aggregation requires a numeric column" : null));
+    specs.map((s) => ({
+      error: titles.includes(s.title) ? "This aggregation requires a numeric column" : null,
+      empty: false,
+    }));
+
+/** A validator under which the specs whose title is listed render, but draw nothing. */
+export const validatorFindingEmpty =
+  (...titles: string[]) =>
+  async (_datasetId: string, specs: { title: string }[]) =>
+    specs.map((s) => ({ error: null, empty: titles.includes(s.title) }));
 
 /** A model whose provider call fails, as a network error or an API outage would. */
 export function failingModel(error = new Error("provider exploded")) {

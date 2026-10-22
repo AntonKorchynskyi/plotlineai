@@ -95,6 +95,30 @@ test("describe a chart in your own words", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible();
 });
 
+test("an Excel-style export reads as numbers and dates, and charts", async ({ page }) => {
+  // What Excel on Windows saves: windows-1252 text, semicolons, a trailing semicolon on every
+  // line, an unnamed index column, day-first dates, currency with grouping and a decimal comma.
+  const rows = [
+    ";city;sales;share;day;",
+    "1;Zürich;€1.234,50;12,5;15/01/2024;",
+    "2;Genève;€2.000,00;7,5;16/01/2024;",
+    "3;Basel;€950,25;n/a;17/01/2024;",
+  ];
+  // Latin-1 encodes every character here as windows-1252 does, except the euro sign (0x80).
+  const buffer = Buffer.from(rows.join("\r\n").replace(/€/g, "\u0080") + "\r\n", "latin1");
+
+  await page.goto("/analyze");
+  await page.getByLabel("CSV file").setInputFiles({ name: "excel.csv", mimeType: "text/csv", buffer });
+  await expect(page.getByText("city · string · 3 distinct values")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("column_1 · integer · 3 distinct values")).toBeVisible();
+  await expect(page.getByText("sales · decimal · 3 distinct values")).toBeVisible();
+  await expect(page.getByText("share · decimal · 2 distinct values")).toBeVisible();
+  await expect(page.getByText("day · date · 3 distinct values")).toBeVisible();
+  await expect(page.getByText("5 columns", { exact: true })).toBeVisible();
+  const cards = page.getByRole("button").filter({ hasText: /^Suggestion \d/ });
+  await expect(cards.first().locator("canvas")).toBeVisible();
+});
+
 test("a chart whose filters match nothing offers to drop them", async ({ page }) => {
   await uploadRevenue(page);
 

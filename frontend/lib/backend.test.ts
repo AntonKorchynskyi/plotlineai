@@ -190,14 +190,15 @@ describe("validateSpecs", () => {
     measures: [{ column: "revenue", aggregation: "sum" as const }],
   };
 
-  it("posts the specs and returns each one's error, in order", async () => {
+  it("posts the specs and returns each one's result, in order", async () => {
     vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
-    respond({ results: [{ error: null }, { error: "This aggregation requires a numeric column" }] });
+    const results = [
+      { error: null, empty: true },
+      { error: "This aggregation requires a numeric column", empty: false },
+    ];
+    respond({ results });
 
-    await expect(validateSpecs(ID, [spec, spec])).resolves.toEqual([
-      null,
-      "This aggregation requires a numeric column",
-    ]);
+    await expect(validateSpecs(ID, [spec, spec])).resolves.toEqual(results);
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe("http://api:8080/charts/validate");
     expect(init?.method).toBe("POST");
@@ -205,7 +206,7 @@ describe("validateSpecs", () => {
   });
 
   it("refuses an answer that does not cover every spec", async () => {
-    respond({ results: [{ error: null }] });
+    respond({ results: [{ error: null, empty: false }] });
     await expect(validateSpecs(ID, [spec, spec])).rejects.toBeInstanceOf(BackendError);
   });
 

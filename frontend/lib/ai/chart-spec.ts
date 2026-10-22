@@ -5,10 +5,13 @@ import { structuredCall, type AiDeps } from "@/lib/ai/structured-call";
 import type { DatasetDetail } from "@/lib/backend";
 import { ChartSpecModelSchema, toChartSpec, type ChartSpec } from "@/lib/chart-spec";
 
+/** An empty result is the user's to see: the chart screen offers to drop the filters. */
+const KEEP_EMPTY = { refuseEmpty: false };
+
 /**
  * One chart for a free-text request. With `currentSpec` it refines the chart the user is
- * looking at; without, it designs one from scratch. A spec the dataset's schema refuses is
- * asked for once more with the reason; refused twice, it is a bad answer.
+ * looking at; without, it designs one from scratch. A spec the renderer would refuse is asked
+ * for once more with the reason; refused twice, it is a bad answer.
  */
 export async function describeChart(
   dataset: DatasetDetail,
@@ -18,11 +21,11 @@ export async function describeChart(
 ): Promise<ChartSpec> {
   const prompt = describePrompt(dataset, instruction, currentSpec);
   const first = await ask(prompt, deps);
-  const firstCheck = await checkSpecs(dataset.datasetId, [{ spec: first }], deps);
+  const firstCheck = await checkSpecs(dataset.datasetId, [{ spec: first }], deps, KEEP_EMPTY);
   if (firstCheck.refused.length === 0) return first;
 
   const second = await ask(retryPrompt(prompt, firstCheck.refused), deps);
-  const secondCheck = await checkSpecs(dataset.datasetId, [{ spec: second }], deps);
+  const secondCheck = await checkSpecs(dataset.datasetId, [{ spec: second }], deps, KEEP_EMPTY);
   if (secondCheck.refused.length > 0) {
     throw new AiBadOutputError("the spec does not fit the dataset");
   }

@@ -26,12 +26,9 @@ public class ChartService {
         return engine.render(spec, dataset.schema(), dataset.rows());
     }
 
-    static final String NO_DATA = "The chart has no data to show: its filters match no rows or its columns hold no values";
-
     /**
-     * Renders each spec without returning it, so a spec passes only if it would really draw
-     * something: some limits (too many groups) and an empty result show only against the rows.
-     * The dataset is loaded once for all the specs.
+     * Renders each spec without returning it: some limits (too many groups) and an empty result
+     * show only against the rows. The dataset is loaded once for all the specs.
      */
     public ValidateResponse validate(UUID datasetId, List<ChartSpec> specs) {
         LoadedDataset dataset = loader.load(datasetId);
@@ -40,9 +37,9 @@ public class ChartService {
                 validator.validate(spec, dataset.schema());
                 RenderResponse rendered = engine.render(spec, dataset.schema(), dataset.rows());
                 boolean empty = rendered.datasets().stream().allMatch(s -> s.data().isEmpty());
-                return new ValidateResponse.Result(empty ? NO_DATA : null);
+                return new ValidateResponse.Result(null, empty);
             } catch (InvalidChartSpecException e) {
-                return new ValidateResponse.Result(e.getMessage());
+                return new ValidateResponse.Result(e.getMessage(), false);
             }
         }).toList());
     }

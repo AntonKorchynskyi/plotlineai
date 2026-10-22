@@ -11,13 +11,16 @@ import {
   sentText,
   sequenceModel,
   settingsFor,
+  validatorFindingEmpty,
   validatorRefusing,
 } from "@/test/ai";
 
 // No network in unit tests: every spec passes the schema check unless a test says otherwise.
 vi.mock("@/lib/backend", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/backend")>()),
-  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) => specs.map(() => null)),
+  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) =>
+    specs.map(() => ({ error: null, empty: false })),
+  ),
 }));
 
 const current: ChartSpec = {
@@ -37,6 +40,17 @@ describe("describeChart", () => {
     });
     expect(spec.title).toBe("Good");
     expect(model.doGenerateCalls).toHaveLength(2);
+  });
+
+  it("keeps a described chart that draws nothing: the empty screen is the user's to see", async () => {
+    const model = mockModel(modelSpec({ title: "Nothing matches" }));
+    const spec = await describeChart(dataset, "revenue where region is atlantis", undefined, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: validatorFindingEmpty("Nothing matches"),
+    });
+    expect(spec.title).toBe("Nothing matches");
+    expect(model.doGenerateCalls).toHaveLength(1);
   });
 
   it("is bad output when the second spec does not fit either", async () => {

@@ -12,13 +12,16 @@ import {
   sentText,
   sequenceModel,
   settingsFor,
+  validatorFindingEmpty,
   validatorRefusing,
 } from "@/test/ai";
 
 // No network in unit tests: every spec passes the schema check unless a test says otherwise.
 vi.mock("@/lib/backend", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/backend")>()),
-  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) => specs.map(() => null)),
+  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) =>
+    specs.map(() => ({ error: null, empty: false })),
+  ),
 }));
 
 const three = {
@@ -65,6 +68,17 @@ describe("suggestCharts", () => {
     expect(sentText(model, 1)).toContain("This aggregation requires a numeric column");
     expect(result.map((s) => s.spec.title)).toEqual(["Revenue by rep", "Share of revenue", "Rows per region"]);
     expect(record).toMatchObject({ attempts: 2, invalidSpecs: 1, inputTokens: 20, outputTokens: 40 });
+  });
+
+  it("refuses a suggestion that would draw nothing", async () => {
+    const model = mockModel(three);
+    const result = await suggestCharts(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: validatorFindingEmpty("Share of revenue"),
+    });
+    expect(sentText(model, 1)).toContain("The chart has no data to show");
+    expect(result.map((s) => s.spec.title)).toEqual(["Revenue by region", "Revenue by rep"]);
   });
 
   it("keeps what passed when the retry's answer is unusable", async () => {

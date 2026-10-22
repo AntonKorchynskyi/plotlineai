@@ -92,19 +92,21 @@ export async function fetchShare(shareId: string): Promise<Share | null> {
   return parsed.data;
 }
 
-const ValidateResponseSchema = z.object({
-  results: z.array(z.object({ error: z.string().nullable() })),
-});
+const SpecCheckResultSchema = z.object({ error: z.string().nullable(), empty: z.boolean() });
+const ValidateResponseSchema = z.object({ results: z.array(SpecCheckResultSchema) });
+
+/** Per spec: the api's reason it would not render (or null), and whether it would draw nothing. */
+export type SpecCheckResult = z.infer<typeof SpecCheckResultSchema>;
 
 /**
- * Checks AI-made specs against the dataset's schema before anyone sees them: per spec, in
- * order, null when it renders or the api's reason when it does not. The api's validate route
- * is not on the browser allowlist; only this server-side call reaches it.
+ * Dry-runs AI-made specs against the dataset before anyone sees them, one result per spec in
+ * order. The api's validate route is not on the browser allowlist; only this server-side call
+ * reaches it.
  */
 export async function validateSpecs(
   datasetId: string,
   specs: ChartSpec[],
-): Promise<(string | null)[]> {
+): Promise<SpecCheckResult[]> {
   let response: Response;
   try {
     response = await backendFetch("/charts/validate", {
@@ -122,7 +124,7 @@ export async function validateSpecs(
   if (!parsed.success || parsed.data.results.length !== specs.length) {
     throw new BackendError("unexpected validation answer");
   }
-  return parsed.data.results.map((r) => r.error);
+  return parsed.data.results;
 }
 
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {

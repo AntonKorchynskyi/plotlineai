@@ -10,6 +10,7 @@ import { dailyBudget, type DailyBudget } from "@/lib/ai/budget";
 import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
 import { callSettings, type CallSettings } from "@/lib/ai/provider";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import type { SpecCheckResult } from "@/lib/backend";
 import type { ChartSpec } from "@/lib/chart-spec";
 
 /**
@@ -57,8 +58,8 @@ export const emptyCallRecord = (): AiCallRecord => ({
 const add = (total: number | null, more: number | undefined) =>
   more === undefined ? total : (total ?? 0) + more;
 
-/** Checks specs against a dataset: per spec, null when it renders or why it does not. */
-export type SpecValidator = (datasetId: string, specs: ChartSpec[]) => Promise<(string | null)[]>;
+/** Dry-runs specs against a dataset, one result per spec (see validateSpecs). */
+export type SpecValidator = (datasetId: string, specs: ChartSpec[]) => Promise<SpecCheckResult[]>;
 
 /** Seams for tests; production uses the real provider, budget and api. */
 export type AiDeps = {
