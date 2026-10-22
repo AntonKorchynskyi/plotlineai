@@ -25,7 +25,11 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    environment: production
+    # The url becomes the "View deployment" link on the repository's Deployments page and on
+    # every pull request this deploy ships.
+    environment:
+      name: production
+      url: ${{ steps.site.outputs.url }}
     permissions:
       id-token: write
       contents: read
