@@ -80,7 +80,8 @@ Rules:
 
 - Uploads: `.csv` + `text/csv` only; own generated IDs, never the client filename;
   presigned PUTs signed for the exact size and type; nothing written to local disk;
-  byte/row/column/cell caps enforced during a streaming parse; strict UTF-8; malformed
+  byte/row/column/cell caps enforced during a streaming parse; UTF-8 (or a UTF-16 BOM, else
+  windows-1252) with binary refused before any fallback decode; malformed
   CSV -> structured `422`, never a stack trace.
 - Rate limit the AI routes and `/api/backend` writes and renders per client and globally
   (DynamoDB fixed windows). Global daily OpenAI call ceiling as a cost circuit breaker.

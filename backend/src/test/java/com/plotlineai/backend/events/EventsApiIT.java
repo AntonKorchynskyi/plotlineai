@@ -82,7 +82,27 @@ class EventsApiIT {
         assertEquals(2, fields.get("columnCount"));
         assertEquals((long) CSV.getBytes(StandardCharsets.UTF_8).length, fields.get("bytes"));
         assertTrue((Long) fields.get("parseMs") >= 0);
-        assertEquals(4, fields.size());
+        assertEquals(0L, fields.get("integerColumns"));
+        assertEquals(1L, fields.get("decimalColumns"));
+        assertEquals(0L, fields.get("dateColumns"));
+        assertEquals(0L, fields.get("booleanColumns"));
+        assertEquals(1L, fields.get("textColumns"));
+        assertEquals(0L, fields.get("formattedNumberColumns"));
+        assertEquals(0L, fields.get("missingCells"));
+        assertEquals("comma", fields.get("delimiter"));
+        assertEquals("UTF-8", fields.get("encoding"));
+        assertEquals(13, fields.size());
+    }
+
+    @Test
+    void aRefusedUploadPublishesItsReasonCodeOnly() throws Exception {
+        clearInvocations(events);
+        new TestUploads(mvc, s3, objectMapper)
+            .upload("page.csv", "<!doctype html><html>secret</html>".getBytes(StandardCharsets.UTF_8))
+            .andExpect(status().isUnprocessableEntity());
+        Map<String, Object> fields = fieldsOf("dataset.rejected");
+        assertEquals("web_page", fields.get("reason"));
+        assertEquals(2, fields.size());
     }
 
     @Test

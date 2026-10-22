@@ -77,7 +77,8 @@ class DatasetApiIT {
         uploads.upload("placeholders.csv", fixture("placeholders.csv"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.schema[0].type").value("STRING"))
-            .andExpect(jsonPath("$.schema[1].type").value("STRING"))
+            .andExpect(jsonPath("$.schema[1].type").value("INTEGER"))
+            .andExpect(jsonPath("$.schema[1].format").value("number:unit:in"))
             .andExpect(jsonPath("$.schema[2].type").value("INTEGER"))
             .andExpect(jsonPath("$.schema[2].nullCount").value(1))
             .andExpect(jsonPath("$.schema[3].type").value("INTEGER"));

@@ -1,6 +1,7 @@
 import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import type { RenderedData } from "@/lib/chart-config";
+import type { ChartSpec } from "@/lib/chart-spec";
 
 /** Where the api listens. A Lambda function URL ends in "/", which is dropped. */
 export const backendUrl = () =>
@@ -89,6 +90,41 @@ export async function fetchShare(shareId: string): Promise<Share | null> {
   const parsed = ShareSchema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) throw new BackendError("unexpected share");
   return parsed.data;
+}
+
+const SpecCheckResultSchema = z.object({ error: z.string().nullable(), empty: z.boolean() });
+const ValidateResponseSchema = z.object({ results: z.array(SpecCheckResultSchema) });
+
+/** Per spec: the api's reason it would not render (or null), and whether it would draw nothing. */
+export type SpecCheckResult = z.infer<typeof SpecCheckResultSchema>;
+
+/**
+ * Dry-runs AI-made specs against the dataset before anyone sees them, one result per spec in
+ * order. The api's validate route is not on the browser allowlist; only this server-side call
+ * reaches it.
+ */
+export async function validateSpecs(
+  datasetId: string,
+  specs: ChartSpec[],
+): Promise<SpecCheckResult[]> {
+  let response: Response;
+  try {
+    response = await backendFetch("/charts/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ datasetId, specs }),
+    });
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) throw new DatasetNotFoundError();
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
+
+  const parsed = ValidateResponseSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success || parsed.data.results.length !== specs.length) {
+    throw new BackendError("unexpected validation answer");
+  }
+  return parsed.data.results;
 }
 
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {

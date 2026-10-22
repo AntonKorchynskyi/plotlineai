@@ -31,10 +31,11 @@ Every `detail` starts with:
 
 | `detail-type` | Source | Fields after the envelope |
 |---|---|---|
-| `dataset.uploaded` | api | `rowCount`, `columnCount`, `bytes`, `parseMs` |
+| `dataset.uploaded` | api | `rowCount`, `columnCount`, `bytes`, `parseMs`, `integerColumns`, `decimalColumns`, `dateColumns`, `booleanColumns`, `textColumns`, `formattedNumberColumns`, `missingCells`, `delimiter` (`comma`, `semicolon`, `tab` or `pipe`), `encoding` (`UTF-8`, `UTF-16LE`, `UTF-16BE` or `windows-1252`) |
+| `dataset.rejected` | api | `reason`, `bytes` |
 | `chart.rendered` | api | `chartType`, `groups` (labels on the x axis), `seriesCount`, `ms` |
 | `share.created` | api | `chartType`, `snapshotBytes` (gzipped) |
-| `ai.called` | web | `route` (`suggest` or `chart-spec`), `model`, `inputTokens`, `outputTokens`, `reasoningTokens`, `ms`, `outcome` |
+| `ai.called` | web | `route` (`suggest` or `chart-spec`), `model`, `inputTokens`, `outputTokens`, `reasoningTokens`, `ms`, `outcome`, `attempts`, `invalidSpecs` |
 | `quota.exhausted` | api | `quota` (`ai` or `upload`), `limit`, `day` (`YYYY-MM-DD`, UTC) |
 
 Notes:
@@ -44,6 +45,12 @@ Notes:
   answered with something unusable), `unavailable` (no key, the provider or the budget
   service failed) or `budget_refused` (the daily AI limit was spent). `model` and the token
   counts are `null` when there was no answer to count.
+- `dataset.rejected` is sent when an upload cannot be read. `reason` is a fixed code, never the
+  message: `empty`, `no_header`, `no_rows`, `extra_cells`, `unparseable`, `encoding`, `not_text`,
+  `pdf`, `spreadsheet`, `web_page`, `too_many_rows`, `too_many_columns` or `cell_too_long`.
+- In `ai.called`, `attempts` is how many model calls the request made (2 when the first answer
+  held specs the schema check refused) and `invalidSpecs` how many specs it refused in all. The
+  token counts add up every attempt.
 - `quota.exhausted` is sent once per quota and UTC day across all api instances: the first
   refusal claims a one-per-day slot in DynamoDB.
 

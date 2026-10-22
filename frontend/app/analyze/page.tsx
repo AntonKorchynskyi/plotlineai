@@ -83,7 +83,7 @@ export default function AnalyzePage() {
         <>
           {hasSuggestions ? (
             <>
-              <h2 className="mb-2 text-page">Three charts worth a look</h2>
+              <h2 className="mb-2 text-page">{suggestionsHeading(state.suggestions.length)}</h2>
               <p className="mb-6 text-body text-ink-muted">
                 Pick one to render it over every row, or describe the chart you had in mind.
               </p>
@@ -145,4 +145,11 @@ export default function AnalyzePage() {
       )}
     </PageShell>
   );
+}
+
+/** A schema check can leave fewer than three suggestions; the heading counts what is shown. */
+function suggestionsHeading(count: number): string {
+  if (count === 1) return "One chart worth a look";
+  if (count === 2) return "Two charts worth a look";
+  return "Three charts worth a look";
 }

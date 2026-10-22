@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AiBadOutputError, AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
+import {
+  AiBadOutputError,
+  AiBudgetRefusedError,
+  AiNoChartError,
+  AiUnavailableError,
+} from "@/lib/ai/errors";
 import { BackendError, DatasetNotFoundError } from "@/lib/backend";
 import { dataset } from "@/test/ai";
 
@@ -137,6 +142,13 @@ describe("POST /api/suggest", () => {
     expect(await response.json()).toMatchObject({ error: "AI_BAD_OUTPUT" });
   });
 
+  it("answers 422 NO_CHART_FOUND when no suggestion fits the dataset", async () => {
+    mocks.suggestCharts.mockRejectedValue(new AiNoChartError("none"));
+    const response = await post({ datasetId: ID });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: "NO_CHART_FOUND" });
+  });
+
   it("answers a generic 500 for anything unexpected", async () => {
     mocks.suggestCharts.mockRejectedValue(new TypeError("undefined is not a function"));
     const response = await post({ datasetId: ID });
@@ -163,6 +175,8 @@ describe("the ai.called event", () => {
         inputTokens: 1500,
         outputTokens: 950,
         reasoningTokens: 680,
+        attempts: 2,
+        invalidSpecs: 1,
       });
       return suggestions;
     });
@@ -177,6 +191,8 @@ describe("the ai.called event", () => {
       inputTokens: 1500,
       outputTokens: 950,
       reasoningTokens: 680,
+      attempts: 2,
+      invalidSpecs: 1,
       ms: expect.any(Number),
       outcome: "ok",
     });
@@ -185,6 +201,7 @@ describe("the ai.called event", () => {
 
   it.each([
     ["bad_output", new AiBadOutputError("bad")],
+    ["bad_output", new AiNoChartError("none fit")],
     ["budget_refused", new AiBudgetRefusedError("spent")],
     ["unavailable", new AiUnavailableError("down")],
   ])("reports the %s outcome", async (outcome, failure) => {

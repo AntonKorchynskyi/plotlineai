@@ -2,6 +2,8 @@ package com.plotlineai.backend.chart;
 
 import com.plotlineai.backend.chart.dto.RenderRequest;
 import com.plotlineai.backend.chart.dto.RenderResponse;
+import com.plotlineai.backend.chart.dto.ValidateRequest;
+import com.plotlineai.backend.chart.dto.ValidateResponse;
 import com.plotlineai.backend.events.EventPublisher;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -31,5 +33,14 @@ public class ChartController {
             "groups", rendered.labels().size(), "seriesCount", rendered.datasets().size(),
             "ms", (System.nanoTime() - start) / 1_000_000));
         return rendered;
+    }
+
+    /**
+     * Whether each spec would render against the dataset's schema. web calls it on AI output
+     * before showing it; it is not on the browser's allowlist (backend-paths.ts).
+     */
+    @PostMapping("/validate")
+    public ValidateResponse validate(@Valid @RequestBody ValidateRequest request) {
+        return service.validate(request.datasetId(), request.specs());
     }
 }

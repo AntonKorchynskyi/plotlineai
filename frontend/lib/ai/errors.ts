@@ -26,3 +26,15 @@ export class AiBadOutputError extends Error {
     this.name = "AiBadOutputError";
   }
 }
+
+/**
+ * Even after a second try, no suggested chart passed the check against the dataset: usually a
+ * file with nothing numeric to plot. Routes answer it apart from a malformed answer, because
+ * the user can still describe a chart.
+ */
+export class AiNoChartError extends AiBadOutputError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "AiNoChartError";
+  }
+}

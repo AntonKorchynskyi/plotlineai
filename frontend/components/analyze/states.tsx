@@ -131,7 +131,7 @@ export function RejectedFile({ failure, onRetry }: { failure: Failure; onRetry: 
           <div className="flex flex-col gap-2 text-small text-ink-faint">
             <span>· .csv extension and text/csv content type</span>
             <span>· 5 MB, 100,000 rows, 256 columns</span>
-            <span>· UTF-8 text with one header row</span>
+            <span>· Text with one header row, not an Excel, PDF or web page</span>
           </div>
         )}
         <div className="mt-1 flex flex-wrap gap-2">

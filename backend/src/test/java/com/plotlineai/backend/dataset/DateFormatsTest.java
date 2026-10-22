@@ -28,10 +28,27 @@ class DateFormatsTest {
     }
 
     @Test
-    void smartResolverClampsFebThirtyOnPatternFormats() {
-        // ofPattern formatters resolve SMART: Feb 30 clamps to the last day of Feb.
-        // Documented boundary behavior (phase-2 followup).
-        assertEquals(LocalDate.of(2024, 2, 29), DateFormats.parseDate("2024/02/30", "yyyy/MM/dd"));
+    void patternFormatsRejectImpossibleDates() {
+        assertThrows(DateTimeParseException.class,
+            () -> DateFormats.parseDate("2024/02/30", "yyyy/MM/dd"));
+        assertThrows(DateTimeParseException.class,
+            () -> DateFormats.parseDate("31/04/2024", "d/M/yyyy"));
+    }
+
+    @Test
+    void reducesEveryShapeToItsDate() {
+        assertEquals(LocalDate.of(2023, 9, 21),
+            DateFormats.parseDate("09/21/2023 12:01:00 PM", "M/d/yyyy h:mm:ss a"));
+        assertEquals(LocalDate.of(2024, 1, 15),
+            DateFormats.parseDate("2024-01-15T23:30:00-05:00", "yyyy-MM-dd'T'HH:mm:ssXXX"));
+        assertEquals(LocalDate.of(2019, 7, 1), DateFormats.parseDate("Jul-19", "MMM-yy"));
+        assertEquals(LocalDate.of(2024, 3, 1), DateFormats.parseDate("2024-03", "yyyy-MM"));
+    }
+
+    @Test
+    void everyLabelIsUnique() {
+        assertEquals(DateFormats.ALL.size(),
+            DateFormats.ALL.stream().map(DateFormats.DateFormat::label).distinct().count());
     }
 
     @Test

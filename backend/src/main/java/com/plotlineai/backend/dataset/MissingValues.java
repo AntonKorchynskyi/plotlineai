@@ -19,9 +19,4 @@ public final class MissingValues {
     public static boolean isPlaceholder(String value) {
         return PLACEHOLDERS.contains(value.toLowerCase(Locale.ROOT));
     }
-
-    /** Whether a trimmed cell of a column of {@code type} holds no value. */
-    public static boolean isMissing(String value, ColumnType type) {
-        return value.isEmpty() || (type != ColumnType.STRING && isPlaceholder(value));
-    }
 }

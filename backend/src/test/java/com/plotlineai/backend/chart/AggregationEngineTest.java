@@ -97,6 +97,49 @@ class AggregationEngineTest {
     }
 
     @Test
+    void formattedNumbersAggregateFilterAndPlotByTheirColumnsFormat() {
+        List<ColumnSchema> schema = List.of(
+            new ColumnSchema("region", ColumnType.STRING, 2, 0, null),
+            new ColumnSchema("price", ColumnType.DECIMAL, 3, 0, "number:grouped"),
+            new ColumnSchema("share", ColumnType.DECIMAL, 3, 0, "number:eu"));
+        List<List<String>> rows = List.of(
+            List.of("north", "$1,000.50", "12,5"),
+            List.of("north", "$2,000.00", "7,5"),
+            List.of("south", "$500", "n/a"));
+        RenderResponse sums = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"price","aggregation":"sum"},
+                         {"column":"share","aggregation":"count"}],
+             "filters":[{"column":"price","op":"gt","value":"600"}]}"""), schema, rows);
+        assertEquals(List.of("north"), sums.labels());
+        assertEquals(List.of(3000.5), sums.datasets().get(0).data());
+        assertEquals(List.of(2.0), sums.datasets().get(1).data());
+
+        RenderResponse points = engine.render(spec("""
+            {"chartType":"scatter","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"price","aggregation":"none"},
+                         {"column":"share","aggregation":"none"}]}"""), schema, rows);
+        assertEquals(List.of(new AggregationEngine.Point(1000.5, 12.5), new AggregationEngine.Point(2000.0, 7.5)),
+            points.datasets().get(0).data());
+    }
+
+    @Test
+    void unitNumbersAggregateAndNameTheirUnit() {
+        List<ColumnSchema> schema = List.of(
+            new ColumnSchema("period", ColumnType.STRING, 2, 0, null),
+            new ColumnSchema("rise", ColumnType.INTEGER, 3, 0, "number:unit:in"));
+        List<List<String>> rows = List.of(
+            List.of("2050s", "12 in"), List.of("2050s", "14 in"), List.of("2080s", "21 in"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"period"},
+             "measures":[{"column":"rise","aggregation":"avg"},
+                         {"column":"rise","aggregation":"count"}]}"""), schema, rows);
+        assertEquals(List.of(13.0, 21.0), r.datasets().get(0).data());
+        assertEquals("avg(rise) (in)", r.datasets().get(0).label());
+        assertEquals("count(rise)", r.datasets().get(1).label());
+    }
+
+    @Test
     void placeholdersInATextColumnAreCounted() {
         List<List<String>> rows = List.of(
             List.of("NA", "2024-01-15", "1.0", "1"),

@@ -36,6 +36,14 @@ test("actuator and unlisted api paths are unreachable from outside", async ({ re
   }
 });
 
+test("the AI output check is web's own: a browser cannot call it", async ({ request, baseURL }) => {
+  const response = await request.post("/api/backend/charts/validate", {
+    headers: { origin: new URL(baseURL!).origin, "content-type": "application/json" },
+    data: { datasetId: "0b0c6f7e-3f1e-4d2b-9c1a-111111111111", specs: [] },
+  });
+  expect(response.status()).toBe(404);
+});
+
 test("another site cannot post through a visitor's browser", async ({ request }) => {
   for (const path of [
     "/api/backend/shares",
