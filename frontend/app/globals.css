@@ -313,7 +313,6 @@
   .tag-accent { background: var(--accent-100); color: var(--accent-800); }
   .tag-accent-2 { background: var(--accent-2-100); color: var(--accent-2-800); }
   .tag-neutral { background: var(--neutral-100); color: var(--neutral-800); }
-  .tag-outline { border: 1px solid var(--accent); color: var(--accent); }
 
   /* - navigation - */
   .nav {
@@ -321,7 +320,8 @@
     padding: var(--spacing-3) var(--spacing-4);
     border-bottom: none;
   }
-  .nav-brand {
+  /* Under .nav so it outranks `.nav a` when the brand is the home link. */
+  .nav .nav-brand {
     font-family: var(--font-heading); font-weight: 400;
     font-size: 18px; margin-right: auto;
   }

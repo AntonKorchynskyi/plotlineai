@@ -29,19 +29,31 @@ public class SchemaInferrer {
             .filter(v -> !v.isEmpty())
             .toList();
 
-        long nullCount = values.size() - nonNullValues.size();
+        // A placeholder such as "n/a" is missing only if the rest of the column is typed
+        List<String> nonPlaceholderValues = nonNullValues.stream()
+            .filter(v -> !MissingValues.isPlaceholder(v))
+            .toList();
+        if (!nonPlaceholderValues.isEmpty()) {
+            ColumnType type = inferType(nonPlaceholderValues);
+            if (type != ColumnType.STRING) {
+                return schema(columnName, type, values.size(), nonPlaceholderValues);
+            }
+        }
 
         // If all values are null, type is STRING
         if (nonNullValues.isEmpty()) {
-            return new ColumnSchema(columnName, ColumnType.STRING, 0, nullCount, null);
+            return new ColumnSchema(columnName, ColumnType.STRING, 0, values.size(), null);
         }
 
+        return schema(columnName, inferType(nonNullValues), values.size(), nonNullValues);
+    }
+
+    private ColumnSchema schema(String columnName, ColumnType type, int rowCount,
+            List<String> nonNullValues) {
         // Calculate cardinality from non-null trimmed values
         Set<String> distinctValues = new HashSet<>(nonNullValues);
         long cardinality = distinctValues.size();
-
-        // Determine type
-        ColumnType type = inferType(nonNullValues);
+        long nullCount = rowCount - nonNullValues.size();
         String format = type == ColumnType.DATE ? matchDateFormat(nonNullValues) : null;
 
         return new ColumnSchema(columnName, type, cardinality, nullCount, format);

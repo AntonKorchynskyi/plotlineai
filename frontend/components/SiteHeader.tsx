@@ -5,12 +5,12 @@ import { BarChartIcon } from "@/components/icons";
 export default function SiteHeader() {
   return (
     <header className="nav w-full px-6 pt-5 pb-1 lg:px-12">
-      <span className="nav-brand flex items-center gap-2">
+      <Link href="/" className="nav-brand flex items-center gap-2">
         <span className="inline-flex size-6 items-center justify-center rounded-pill bg-accent text-background">
           <BarChartIcon />
         </span>
         PlotlineAI
-      </span>
+      </Link>
       <Link href="/">Home</Link>
       <Link href="/analyze">Analyze</Link>
     </header>

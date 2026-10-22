@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import gallery from "@/test/fixtures/gallery.json";
 import {
   chartTypeLabel,
-  csvHref,
   getGallery,
   type GalleryExample,
 } from "@/lib/gallery";
@@ -100,20 +99,6 @@ describe("getGallery", () => {
   it("returns null when the body is not JSON", async () => {
     mockFetch(async () => new Response("<html>502</html>", { status: 200 }));
     await expect(getGallery()).resolves.toBeNull();
-  });
-});
-
-describe("csvHref", () => {
-  it("prefixes the api-relative path with the browser proxy", () => {
-    expect(csvHref("/gallery/revenue-by-region/csv")).toBe(
-      "/api/backend/gallery/revenue-by-region/csv",
-    );
-  });
-
-  it("prefixes every path the fixture carries", () => {
-    for (const example of examples) {
-      expect(csvHref(example.csvPath)).toBe(`/api/backend${example.csvPath}`);
-    }
   });
 });
 

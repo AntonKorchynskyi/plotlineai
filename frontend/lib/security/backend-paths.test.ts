@@ -5,7 +5,6 @@ describe("backendDecision", () => {
   it.each([
     ["GET", "/api/backend/gallery", null],
     ["HEAD", "/api/backend/gallery", null],
-    ["GET", "/api/backend/gallery/monthly-signups/csv", null],
     ["POST", "/api/backend/datasets/uploads", "write"],
     ["POST", "/api/backend/datasets", "write"],
     ["POST", "/api/backend/shares", "write"],
@@ -26,6 +25,7 @@ describe("backendDecision", () => {
     ["DELETE", "/api/backend/datasets"],
     ["GET", "/api/backend/datasets"],
     ["POST", "/api/backend/gallery"],
+    ["GET", "/api/backend/gallery/monthly-signups/csv"],
     ["GET", "/api/backend"],
     ["GET", "/api/backend/"],
     ["POST", "/api/backend/datasets/"],

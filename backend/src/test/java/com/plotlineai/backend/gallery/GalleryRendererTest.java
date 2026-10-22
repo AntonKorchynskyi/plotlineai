@@ -29,16 +29,8 @@ class GalleryRendererTest {
         assertEquals(List.of("revenue-by-region", "monthly-signups", "traffic-sources",
                 "sales-by-category", "price-vs-rating", "city-size-vs-density"),
             examples.stream().map(GalleryExampleResponse::slug).toList());
-        assertEquals("/gallery/revenue-by-region/csv", examples.get(0).csvPath());
         assertEquals("bar", examples.get(0).chartType());
         assertFalse(examples.get(0).renderedData().get("labels").isEmpty(), "rendered from the real CSV");
-    }
-
-    @Test
-    void findsAnEntryBySlug() {
-        GalleryRenderer renderer = new GalleryRenderer(caps, JsonMapper.builder().build());
-        assertEquals("monthly-signups.csv", renderer.find("monthly-signups").orElseThrow().csvFilename());
-        assertTrue(renderer.find("nope").isEmpty());
     }
 
     @Test

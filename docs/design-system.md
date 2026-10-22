@@ -133,14 +133,13 @@ Use the Organic classes, which ship in the `@layer components` block of
 |---|---|
 | `.btn` + `.btn-primary` | Upload a CSV, Draw it, Send, Share, Pick another file |
 | `.btn-secondary` | Download PNG, refine chips, screen-level secondary actions |
-| `.btn-ghost` | Download CSV, Replace file |
+| `.btn-ghost` | Back to suggestions, Copy link, Replace file |
 | `.tag-accent` | Chart-type badge on a suggestion, the "Read only" share badge |
 | `.tag-accent-2` | Inferred column chips (`region · string · 5 distinct`) |
 | `.tag-neutral` | Row/column counts, gallery chart type |
-| `.tag-outline` | Endpoint labels, e.g. `GET /api/backend/gallery` |
 | `.card` + `.card-kicker` / `.card-title` / `.card-body`, `.elev-*` | Gallery cards, suggestion cards, the chart surface, the spec panel |
 | `.input` | Free-text chart request, refine prompt (min-height 44px) |
-| `.nav` + `.nav-brand` | Header: brand mark, Home, Analyze |
+| `.nav` + `.nav-brand` | Header: brand mark (links home), Home, Analyze |
 | `.table` | Reserved for a future data preview; not used in v1 screens |
 | `.dialog` | Reserved for destructive confirmations; not used in v1 screens |
 
@@ -197,7 +196,7 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 
 | Screen | Notes |
 |---|---|
-| `/` landing | Hero (asymmetric two columns, flush-left heading with no kicker tag above it, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description, Download CSV. No "Try your own" action: the hero's Upload a CSV is the one way into the analyze flow. |
+| `/` landing | Hero (asymmetric two columns, flush-left heading with no kicker tag above it, washed circles behind a `--shadow-md` card holding the live signups line) over the six-card gallery grid. Each card: chart well, title, chart-type tag, description. No "Try your own" action: the hero's Upload a CSV is the one way into the analyze flow. |
 | `/analyze` upload | Centred card wrapping a dashed, 30px-radius accent-100 dropzone with a circular upload badge; caps stated in the sub-label; a three-step Parse / Suggest / Render explainer below. |
 | `/analyze` parsing | Accent spinner, file name, three shimmering pill skeletons. |
 | `/analyze` thinking | Inline spinner beside the heading and three skeleton suggestion cards. |

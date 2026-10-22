@@ -7,6 +7,5 @@ public record GalleryExampleResponse(
         String title,
         String description,
         String chartType,
-        JsonNode renderedData,
-        String csvPath) {
+        JsonNode renderedData) {
 }

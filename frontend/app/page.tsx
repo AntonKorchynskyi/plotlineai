@@ -1,8 +1,8 @@
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import ChartRenderer from "@/components/ChartRenderer";
-import { AlertTriangleIcon, ArrowRightIcon, DownloadIcon } from "@/components/icons";
-import { chartTypeLabel, csvHref, getGallery, type GalleryExample } from "@/lib/gallery";
+import { AlertTriangleIcon, ArrowRightIcon } from "@/components/icons";
+import { chartTypeLabel, getGallery, type GalleryExample } from "@/lib/gallery";
 
 // The gallery is read per request. Rendering it at build time would bake in whatever the
 // api returned during `docker build`, when it is not yet running.
@@ -71,15 +71,11 @@ export default async function LandingPage() {
       </section>
 
       <section id="gallery" className="mt-24 scroll-mt-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h2 className="mb-2 text-page">Six charts, six CSVs</h2>
-            <p className="m-0 text-body text-ink-muted">
-              Every example below was rendered by the same pipeline your upload goes through.
-              Take the CSV and try it yourself.
-            </p>
-          </div>
-          <span className="tag tag-outline">GET /api/backend/gallery</span>
+        <div className="mb-6">
+          <h2 className="mb-2 text-page">Six charts, six CSVs</h2>
+          <p className="m-0 text-body text-ink-muted">
+            Every example below was rendered by the same pipeline your upload goes through.
+          </p>
         </div>
 
         {gallery && gallery.length > 0 ? (
@@ -107,12 +103,6 @@ function GalleryCard({ example }: { example: GalleryExample }) {
         <span className="tag tag-neutral">{chartTypeLabel(example)}</span>
       </div>
       <p className="card-body text-small">{example.description}</p>
-      <div className="mt-px flex items-center">
-        <a className="btn btn-ghost text-small" href={csvHref(example.csvPath)} download>
-          <DownloadIcon />
-          Download CSV
-        </a>
-      </div>
     </article>
   );
 }

@@ -11,11 +11,8 @@ export type BackendBucket = "write" | "render";
 
 type Route = { method: string; pattern: RegExp; bucket: BackendBucket | null };
 
-const SEGMENT = "[A-Za-z0-9-]{1,100}";
-
 const ROUTES: Route[] = [
   { method: "GET", pattern: /^\/gallery$/, bucket: null },
-  { method: "GET", pattern: new RegExp(`^/gallery/${SEGMENT}/csv$`), bucket: null },
   // An upload is up to 5 MB kept for a day (presign, then finalize), and a share is permanent:
   // the tight bucket.
   { method: "POST", pattern: /^\/datasets\/uploads$/, bucket: "write" },
