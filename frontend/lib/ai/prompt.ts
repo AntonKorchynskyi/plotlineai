@@ -41,6 +41,8 @@ Spell every optional field you are not using as null.
 - A breakdown needs exactly one measure, a column different from the dimension, and at most 20 distinct values.
 - The dimension may have at most 1000 distinct values, and limit does not help with that. Bucket a DATE dimension instead, or choose a column with fewer distinct values.
 - Filter ops are eq, neq, gt, gte, lt, lte and in. gt, gte, lt and lte need an INTEGER, DECIMAL or DATE column. "in" takes an array of 1 to 50 strings; other ops take one string or number. Every filter value is at most 256 characters.
+- A column's format says how its cells are written: a date pattern for a DATE column, or for a numeric column number:grouped (1,234.5), number:eu (1.234,5) or number:decorated (a currency sign, percent or parentheses around the number). Compare against cells as numbers regardless: write a gt, gte, lt or lte value on a numeric column as a plain number such as 1234.5, and on a DATE column as YYYY-MM-DD.
+- A STRING column holds text only. Never sum, average, min or max it, even when its values look numeric.
 
 # Choosing a chart
 - A DATE column over time: line, or area for cumulative or stacked totals, with a bucket that suits the date range.
@@ -92,6 +94,24 @@ export function suggestPrompt(dataset: DatasetDetail): string {
     "Suggest the three charts most worth looking at for this dataset. Make them three different",
     "views, not variations of one chart. For each, give a one-sentence rationale of at most",
     "160 characters saying what the chart shows about this data.",
+  ].join("\n");
+}
+
+/**
+ * The same request again, with the charts the renderer refused and why, so the second answer
+ * avoids the same mistakes. The reasons are the api's fixed messages, and the specs pass
+ * through the same escaping as everything else in the user message.
+ */
+export function retryPrompt(prompt: string, refused: { spec: ChartSpec; error: string }[]): string {
+  return [
+    prompt,
+    "",
+    "Your previous answer included charts the renderer refused, each with the reason:",
+    "<refused>",
+    ...refused.map((r) => safeJson({ spec: r.spec, reason: r.error })),
+    "</refused>",
+    "Answer again, replacing those charts with ones that follow every rule above and use the",
+    "column types in the schema. If no column can be summed or averaged, count rows instead.",
   ].join("\n");
 }
 

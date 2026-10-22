@@ -6,6 +6,7 @@ import {
   backendUrl,
   fetchDataset,
   fetchShare,
+  validateSpecs,
   type DatasetDetail,
 } from "@/lib/backend";
 
@@ -178,5 +179,40 @@ describe("fetchDataset", () => {
     respond(detail);
     await fetchDataset("../gallery").catch(() => undefined);
     expect(vi.mocked(fetch).mock.calls[0][0]).toContain("/datasets/..%2Fgallery");
+  });
+});
+
+describe("validateSpecs", () => {
+  const spec = {
+    chartType: "bar" as const,
+    title: "Revenue by region",
+    dimension: { column: "region" },
+    measures: [{ column: "revenue", aggregation: "sum" as const }],
+  };
+
+  it("posts the specs and returns each one's error, in order", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
+    respond({ results: [{ error: null }, { error: "This aggregation requires a numeric column" }] });
+
+    await expect(validateSpecs(ID, [spec, spec])).resolves.toEqual([
+      null,
+      "This aggregation requires a numeric column",
+    ]);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe("http://api:8080/charts/validate");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({ datasetId: ID, specs: [spec, spec] });
+  });
+
+  it("refuses an answer that does not cover every spec", async () => {
+    respond({ results: [{ error: null }] });
+    await expect(validateSpecs(ID, [spec, spec])).rejects.toBeInstanceOf(BackendError);
+  });
+
+  it("reports an expired dataset distinctly and any other failure as unavailable", async () => {
+    respond({ error: "NOT_FOUND" }, 404);
+    await expect(validateSpecs(ID, [spec])).rejects.toBeInstanceOf(DatasetNotFoundError);
+    respond({ error: "INTERNAL" }, 500);
+    await expect(validateSpecs(ID, [spec])).rejects.toBeInstanceOf(BackendError);
   });
 });

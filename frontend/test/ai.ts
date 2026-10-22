@@ -25,6 +25,27 @@ export function mockModel(output: unknown) {
   });
 }
 
+/** A model that answers its calls with `outputs` in turn, repeating the last. */
+export function sequenceModel(outputs: unknown[]) {
+  let call = 0;
+  return new MockLanguageModelV4({
+    doGenerate: async () => ({
+      content: [
+        { type: "text", text: JSON.stringify(outputs[Math.min(call++, outputs.length - 1)]) },
+      ],
+      finishReason: { unified: "stop", raw: undefined },
+      usage,
+      warnings: [],
+    }),
+  });
+}
+
+/** A validator that passes every spec, or refuses those whose title is listed. */
+export const validatorRefusing =
+  (...titles: string[]) =>
+  async (_datasetId: string, specs: { title: string }[]) =>
+    specs.map((s) => (titles.includes(s.title) ? "This aggregation requires a numeric column" : null));
+
 /** A model whose provider call fails, as a network error or an API outage would. */
 export function failingModel(error = new Error("provider exploded")) {
   return new MockLanguageModelV4({
@@ -54,10 +75,14 @@ export function freshBudget(limit = 100): DailyBudget & { remaining(): number } 
   };
 }
 
-/** Every text part the model was sent across all calls, joined, for asserting on prompts. */
-export function sentText(model: MockLanguageModelV4): string {
-  return model.doGenerateCalls
-    .flatMap((call) => call.prompt)
+/**
+ * Every text part the model was sent, joined, for asserting on prompts: across all calls, or
+ * only call number `call` (from 0).
+ */
+export function sentText(model: MockLanguageModelV4, call?: number): string {
+  const calls = call === undefined ? model.doGenerateCalls : [model.doGenerateCalls[call]];
+  return calls
+    .flatMap((c) => c.prompt)
     .flatMap((message) =>
       typeof message.content === "string"
         ? [message.content]

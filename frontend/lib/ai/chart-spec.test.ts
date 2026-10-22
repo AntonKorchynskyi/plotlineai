@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { describeChart } from "@/lib/ai/chart-spec";
 import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
 import type { ChartSpec } from "@/lib/chart-spec";
@@ -9,8 +9,16 @@ import {
   mockModel,
   modelSpec,
   sentText,
+  sequenceModel,
   settingsFor,
+  validatorRefusing,
 } from "@/test/ai";
+
+// No network in unit tests: every spec passes the schema check unless a test says otherwise.
+vi.mock("@/lib/backend", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/backend")>()),
+  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) => specs.map(() => null)),
+}));
 
 const current: ChartSpec = {
   chartType: "bar",
@@ -20,6 +28,28 @@ const current: ChartSpec = {
 };
 
 describe("describeChart", () => {
+  it("asks once more when the spec does not fit the schema", async () => {
+    const model = sequenceModel([modelSpec({ title: "Bad" }), modelSpec({ title: "Good" })]);
+    const spec = await describeChart(dataset, "revenue by region", undefined, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: validatorRefusing("Bad"),
+    });
+    expect(spec.title).toBe("Good");
+    expect(model.doGenerateCalls).toHaveLength(2);
+  });
+
+  it("is bad output when the second spec does not fit either", async () => {
+    const model = mockModel(modelSpec({ title: "Bad" }));
+    await expect(
+      describeChart(dataset, "revenue by region", undefined, {
+        settings: settingsFor(model),
+        budget: freshBudget(),
+        validate: validatorRefusing("Bad"),
+      }),
+    ).rejects.toBeInstanceOf(AiBadOutputError);
+  });
+
   it("returns one contract ChartSpec for the request", async () => {
     const model = mockModel(modelSpec({ chartType: "doughnut", sort: null }));
     const spec = await describeChart(dataset, "share of revenue by region", undefined, {

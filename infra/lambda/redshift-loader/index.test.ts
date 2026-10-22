@@ -110,11 +110,11 @@ describe("splitStatements", () => {
     const statements = [...splitStatements(schemaSql), ...splitStatements(viewsSql)];
     const code = (sql: string) =>
       sql
-        .split("\n")
+        .split(/\r?\n/)
         .filter((line) => line.trim() && !line.trim().startsWith("--"))
         .join("\n");
     const heads = statements.map((sql) => code(sql).split("\n")[0]);
-    const views = ["event_fields", "daily_activity", "chart_type_mix", "ai_cost_daily", "render_latency_p95"];
+    const views = ["event_fields", "daily_activity", "chart_type_mix", "ai_cost_daily", "render_latency_p95", "csv_shapes_weekly"];
     expect(heads).toEqual([
       "CREATE TABLE IF NOT EXISTS public.events (",
       ...views.flatMap((view) => [`DROP VIEW IF EXISTS public.${view} CASCADE`, `CREATE VIEW public.${view} AS`]),

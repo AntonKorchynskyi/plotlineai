@@ -1,6 +1,7 @@
 import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import type { RenderedData } from "@/lib/chart-config";
+import type { ChartSpec } from "@/lib/chart-spec";
 
 /** Where the api listens. A Lambda function URL ends in "/", which is dropped. */
 export const backendUrl = () =>
@@ -89,6 +90,39 @@ export async function fetchShare(shareId: string): Promise<Share | null> {
   const parsed = ShareSchema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) throw new BackendError("unexpected share");
   return parsed.data;
+}
+
+const ValidateResponseSchema = z.object({
+  results: z.array(z.object({ error: z.string().nullable() })),
+});
+
+/**
+ * Checks AI-made specs against the dataset's schema before anyone sees them: per spec, in
+ * order, null when it renders or the api's reason when it does not. The api's validate route
+ * is not on the browser allowlist; only this server-side call reaches it.
+ */
+export async function validateSpecs(
+  datasetId: string,
+  specs: ChartSpec[],
+): Promise<(string | null)[]> {
+  let response: Response;
+  try {
+    response = await backendFetch("/charts/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ datasetId, specs }),
+    });
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) throw new DatasetNotFoundError();
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
+
+  const parsed = ValidateResponseSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success || parsed.data.results.length !== specs.length) {
+    throw new BackendError("unexpected validation answer");
+  }
+  return parsed.data.results.map((r) => r.error);
 }
 
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {

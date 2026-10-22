@@ -24,7 +24,7 @@ const REJECTIONS: Record<string, Rejection> = {
   MALFORMED_CSV: {
     heading: "That file could not be read",
     detail:
-      "The contents did not parse as CSV. Check it has one header row and is saved as UTF-8 text.",
+      "The contents did not parse as CSV. Check it is a CSV export, not an Excel, PDF or web page, with one header row.",
     fileFault: true,
   },
   CAP_EXCEEDED: {
@@ -87,6 +87,8 @@ export function noticeCopy(failure: Failure): string {
         : "Too many requests. Try again shortly.";
     case "AI_UNAVAILABLE":
       return "Chart suggestions are unavailable right now. You can still describe a chart later, or try again in a moment.";
+    case "NO_CHART_FOUND":
+      return "No chart could be suggested for this file: it may have no numbers or dates we can read. Describe the chart you want, or check the column types above.";
     case "AI_BAD_OUTPUT":
       return "That came back in a shape we could not use. Try rewording your request.";
     case "NOT_FOUND":

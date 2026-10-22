@@ -5,6 +5,8 @@ import com.plotlineai.backend.dataset.dto.CreateUploadRequest;
 import com.plotlineai.backend.dataset.dto.CreateUploadResponse;
 import com.plotlineai.backend.dataset.dto.DatasetDetailResponse;
 import com.plotlineai.backend.dataset.dto.UploadResponse;
+import com.plotlineai.backend.error.CapExceededException;
+import com.plotlineai.backend.error.CsvParseException;
 import com.plotlineai.backend.error.DatasetNotFoundException;
 import com.plotlineai.backend.error.FileTooLargeException;
 import com.plotlineai.backend.error.InvalidFileTypeException;
@@ -81,7 +83,7 @@ public class DatasetService {
         byte[] bytes = uploads.read(uploadId, caps.maxFileBytes());
 
         long parseStart = System.nanoTime();
-        ParsedCsv parsed = csvParser.parse(bytes);
+        ParsedCsv parsed = parse(bytes);
         List<ColumnSchema> schema = schemaInferrer.infer(parsed);
         long parseMs = (System.nanoTime() - parseStart) / 1_000_000;
 
@@ -92,9 +94,55 @@ public class DatasetService {
         // Only once the dataset is safely stored: a failed save leaves the upload for a retry.
         uploads.delete(uploadId);
 
-        events.publish("dataset.uploaded", Map.of("rowCount", record.rowCount(),
-            "columnCount", record.columnCount(), "bytes", record.bytes(), "parseMs", parseMs));
+        events.publish("dataset.uploaded", uploadedEvent(record, parsed, schema, parseMs));
         return new UploadResponse(record.id(), schema, record.rowCount());
+    }
+
+    /** Parses the upload, reporting a refusal by its fixed reason code before it propagates. */
+    private ParsedCsv parse(byte[] bytes) {
+        try {
+            return csvParser.parse(bytes);
+        } catch (CsvParseException e) {
+            events.publish("dataset.rejected", Map.of("reason", e.reason(), "bytes", bytes.length));
+            throw e;
+        } catch (CapExceededException e) {
+            events.publish("dataset.rejected", Map.of("reason", e.reason(), "bytes", bytes.length));
+            throw e;
+        }
+    }
+
+    /**
+     * What shape the file had: column counts by type, the delimiter and encoding, how many
+     * columns needed a number format. Never a column name or a cell value: either can be
+     * personal data.
+     */
+    private static Map<String, Object> uploadedEvent(DatasetRecord record, ParsedCsv parsed,
+            List<ColumnSchema> schema, long parseMs) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("rowCount", record.rowCount());
+        fields.put("columnCount", record.columnCount());
+        fields.put("bytes", record.bytes());
+        fields.put("parseMs", parseMs);
+        fields.put("integerColumns", count(schema, ColumnType.INTEGER));
+        fields.put("decimalColumns", count(schema, ColumnType.DECIMAL));
+        fields.put("dateColumns", count(schema, ColumnType.DATE));
+        fields.put("booleanColumns", count(schema, ColumnType.BOOLEAN));
+        fields.put("textColumns", count(schema, ColumnType.STRING));
+        fields.put("formattedNumberColumns",
+            schema.stream().filter(c -> NumberFormats.isLabel(c.format())).count());
+        fields.put("missingCells", schema.stream().mapToLong(ColumnSchema::nullCount).sum());
+        fields.put("delimiter", switch (parsed.delimiter()) {
+            case ';' -> "semicolon";
+            case '\t' -> "tab";
+            case '|' -> "pipe";
+            default -> "comma";
+        });
+        fields.put("encoding", parsed.encoding());
+        return fields;
+    }
+
+    private static long count(List<ColumnSchema> schema, ColumnType type) {
+        return schema.stream().filter(c -> c.type() == type).count();
     }
 
     public DatasetDetailResponse get(UUID id) {

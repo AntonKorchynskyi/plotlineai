@@ -60,6 +60,57 @@ class ChartRenderApiIT {
         return renderRaw("{\"datasetId\":\"" + datasetId + "\",\"spec\":" + specJson + "}");
     }
 
+    private org.springframework.test.web.servlet.ResultActions validate(String body) throws Exception {
+        return mockMvc.perform(post("/charts/validate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body));
+    }
+
+    @Test
+    void validatesEachSpecAgainstTheSchemaInOrder() throws Exception {
+        validate("{\"datasetId\":\"" + datasetId + "\",\"specs\":["
+            + """
+            {"chartType":"bar","title":"Ok","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}]},
+            {"chartType":"bar","title":"Sum of text","dimension":{"column":"joined"},
+             "measures":[{"column":"region","aggregation":"sum"}]}]}""")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.results.length()").value(2))
+            .andExpect(jsonPath("$.results[0].error").doesNotExist())
+            .andExpect(jsonPath("$.results[1].error").value("This aggregation requires a numeric column"));
+    }
+
+    @Test
+    void validateRefusesASpecThatWouldDrawNothing() throws Exception {
+        validate("{\"datasetId\":\"" + datasetId + "\",\"specs\":["
+            + """
+            {"chartType":"bar","title":"Nowhere","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}],
+             "filters":[{"column":"region","op":"eq","value":"atlantis"}]}]}""")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.results[0].error").value(ChartService.NO_DATA));
+    }
+
+    @Test
+    void validateTakesAtMostThreeSpecs() throws Exception {
+        String spec = """
+            {"chartType":"bar","title":"Ok","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"sum"}]}""";
+        validate("{\"datasetId\":\"" + datasetId + "\",\"specs\":[" + String.join(",", spec, spec, spec, spec) + "]}")
+            .andExpect(status().isBadRequest());
+        validate("{\"datasetId\":\"" + datasetId + "\",\"specs\":[]}")
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void validateOnAnUnknownDatasetIs404() throws Exception {
+        validate("""
+            {"datasetId":"0b0c6f7e-3f1e-4d2b-9c1a-111111111111","specs":[
+             {"chartType":"bar","title":"Ok","dimension":{"column":"region"},
+              "measures":[{"column":"revenue","aggregation":"sum"}]}]}""")
+            .andExpect(status().isNotFound());
+    }
+
     @Test
     void rendersBarSumByRegion() throws Exception {
         render("""

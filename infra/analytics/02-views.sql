@@ -31,7 +31,19 @@ SELECT
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'outputTokens') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'outputTokens')::BIGINT END AS output_tokens,
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'reasoningTokens') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'reasoningTokens')::BIGINT END AS reasoning_tokens,
   CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'outcome') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'outcome') END AS outcome,
-  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'quota') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'quota') END AS quota
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'quota') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'quota') END AS quota,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'reason') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'reason') END AS reason,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'integerColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'integerColumns')::BIGINT END AS integer_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'decimalColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'decimalColumns')::BIGINT END AS decimal_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'dateColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'dateColumns')::BIGINT END AS date_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'booleanColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'booleanColumns')::BIGINT END AS boolean_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'textColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'textColumns')::BIGINT END AS text_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'formattedNumberColumns') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'formattedNumberColumns')::BIGINT END AS formatted_number_columns,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'missingCells') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'missingCells')::BIGINT END AS missing_cells,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'delimiter') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'delimiter') END AS delimiter,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'encoding') NOT IN ('', 'null') THEN JSON_EXTRACT_PATH_TEXT(d, 'encoding') END AS encoding,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'attempts') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'attempts')::BIGINT END AS attempts,
+  CASE WHEN JSON_EXTRACT_PATH_TEXT(d, 'invalidSpecs') ~ '^-?[0-9]+$' THEN JSON_EXTRACT_PATH_TEXT(d, 'invalidSpecs')::BIGINT END AS invalid_specs
 FROM (SELECT *, JSON_SERIALIZE(detail) AS d FROM public.events) AS e;
 
 -- What happened each day (UTC).
@@ -99,9 +111,30 @@ FROM public.event_fields
 WHERE detail_type = 'chart.rendered' AND ms IS NOT NULL
 GROUP BY dt;
 
+-- Which CSV shapes people bring each week (Monday-start, UTC), and where they go wrong: files
+-- refused and why, files read with no numeric column, number formats and encodings needed, and
+-- AI chart specs the schema check turned away. What to make the parser handle next starts here.
+DROP VIEW IF EXISTS public.csv_shapes_weekly CASCADE;
+CREATE VIEW public.csv_shapes_weekly AS
+SELECT
+  DATE_TRUNC('week', dt)::DATE AS week,
+  COUNT(CASE WHEN detail_type = 'dataset.uploaded' THEN 1 END) AS uploads,
+  COUNT(CASE WHEN detail_type = 'dataset.rejected' THEN 1 END) AS rejected,
+  COUNT(CASE WHEN detail_type = 'dataset.rejected' AND reason IN ('not_text', 'pdf', 'spreadsheet', 'web_page', 'encoding') THEN 1 END) AS rejected_not_csv,
+  COUNT(CASE WHEN detail_type = 'dataset.rejected' AND reason IN ('too_many_rows', 'too_many_columns', 'cell_too_long') THEN 1 END) AS rejected_too_big,
+  COUNT(CASE WHEN detail_type = 'dataset.uploaded' AND integer_columns + decimal_columns = 0 THEN 1 END) AS uploads_without_numbers,
+  COUNT(CASE WHEN detail_type = 'dataset.uploaded' AND formatted_number_columns > 0 THEN 1 END) AS uploads_with_formatted_numbers,
+  COUNT(CASE WHEN detail_type = 'dataset.uploaded' AND encoding <> 'UTF-8' THEN 1 END) AS uploads_not_utf8,
+  COUNT(CASE WHEN detail_type = 'dataset.uploaded' AND delimiter <> 'comma' THEN 1 END) AS uploads_not_comma,
+  SUM(CASE WHEN detail_type = 'ai.called' THEN invalid_specs END) AS ai_invalid_specs,
+  COUNT(CASE WHEN detail_type = 'ai.called' AND attempts > 1 THEN 1 END) AS ai_retries
+FROM public.event_fields
+WHERE detail_type IN ('dataset.uploaded', 'dataset.rejected', 'ai.called')
+GROUP BY 1;
+
 -- The loader's user owns all of the above. Every database user may read it, which is how the
 -- owner's own sign-in (Query Editor v2, "Federated user") sees it. The data holds no personal
 -- information. The grant names each object, because the owner may create tables of their own
 -- in `public`, which the loader cannot grant on.
 GRANT SELECT ON public.events, public.event_fields, public.daily_activity, public.chart_type_mix,
-  public.ai_cost_daily, public.render_latency_p95 TO PUBLIC;
+  public.ai_cost_daily, public.render_latency_p95, public.csv_shapes_weekly TO PUBLIC;

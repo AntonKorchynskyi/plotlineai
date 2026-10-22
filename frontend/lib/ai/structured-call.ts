@@ -10,6 +10,7 @@ import { dailyBudget, type DailyBudget } from "@/lib/ai/budget";
 import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
 import { callSettings, type CallSettings } from "@/lib/ai/provider";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import type { ChartSpec } from "@/lib/chart-spec";
 
 /**
  * What each call cost, in tokens. Reasoning tokens bill at the output rate and dominate the
@@ -31,14 +32,17 @@ function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsag
 }
 
 /**
- * What one call used, filled in as the call goes: the model once settings resolve, the token
- * counts once the model has answered. The route reports it in its `ai.called` event.
+ * What one request used, filled in as it goes: the model once settings resolve, the token
+ * counts as each model call answers (summed when a refused answer is retried), and how many
+ * calls were made and specs refused. The route reports it in its `ai.called` event.
  */
 export type AiCallRecord = {
   model: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   reasoningTokens: number | null;
+  attempts: number;
+  invalidSpecs: number;
 };
 
 export const emptyCallRecord = (): AiCallRecord => ({
@@ -46,13 +50,22 @@ export const emptyCallRecord = (): AiCallRecord => ({
   inputTokens: null,
   outputTokens: null,
   reasoningTokens: null,
+  attempts: 0,
+  invalidSpecs: 0,
 });
 
-/** Seams for tests; production uses the real provider and the process-wide budget. */
+const add = (total: number | null, more: number | undefined) =>
+  more === undefined ? total : (total ?? 0) + more;
+
+/** Checks specs against a dataset: per spec, null when it renders or why it does not. */
+export type SpecValidator = (datasetId: string, specs: ChartSpec[]) => Promise<(string | null)[]>;
+
+/** Seams for tests; production uses the real provider, budget and api. */
 export type AiDeps = {
   settings?: () => CallSettings;
   budget?: DailyBudget;
   record?: AiCallRecord;
+  validate?: SpecValidator;
 };
 
 const modelId = (settings: CallSettings) =>
@@ -74,6 +87,7 @@ export async function structuredCall<T>(
   const settings = (deps.settings ?? callSettings)();
   if (deps.record) deps.record.model = modelId(settings);
   await (deps.budget ?? dailyBudget).consume();
+  if (deps.record) deps.record.attempts++;
 
   try {
     const result = await generateText({
@@ -88,9 +102,12 @@ export async function structuredCall<T>(
     });
     logUsage(options.name, settings, result.usage);
     if (deps.record) {
-      deps.record.inputTokens = result.usage.inputTokens ?? null;
-      deps.record.outputTokens = result.usage.outputTokens ?? null;
-      deps.record.reasoningTokens = result.usage.outputTokenDetails?.reasoningTokens ?? null;
+      deps.record.inputTokens = add(deps.record.inputTokens, result.usage.inputTokens);
+      deps.record.outputTokens = add(deps.record.outputTokens, result.usage.outputTokens);
+      deps.record.reasoningTokens = add(
+        deps.record.reasoningTokens,
+        result.usage.outputTokenDetails?.reasoningTokens,
+      );
     }
     return result.output;
   } catch (error) {

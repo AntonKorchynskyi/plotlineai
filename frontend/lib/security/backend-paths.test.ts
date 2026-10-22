@@ -26,6 +26,8 @@ describe("backendDecision", () => {
     ["GET", "/api/backend/datasets"],
     ["POST", "/api/backend/gallery"],
     ["GET", "/api/backend/gallery/monthly-signups/csv"],
+    // Checking AI output is web's own job; a browser has no use for it.
+    ["POST", "/api/backend/charts/validate"],
     ["GET", "/api/backend"],
     ["GET", "/api/backend/"],
     ["POST", "/api/backend/datasets/"],

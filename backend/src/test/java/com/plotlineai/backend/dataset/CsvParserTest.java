@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.plotlineai.backend.error.CapExceededException;
 import com.plotlineai.backend.error.CsvParseException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class CsvParserTest {
@@ -98,24 +100,122 @@ class CsvParserTest {
     }
 
     @Test
-    void rejectsDuplicateHeaders() {
-        byte[] bytes = "a,b,a\n1,2,3\n".getBytes(StandardCharsets.UTF_8);
+    void suffixesRepeatedHeaders() {
+        ParsedCsv csv = parse("a,b,a,a\n1,2,3,4\n");
+        assertEquals(List.of("a", "b", "a_2", "a_3"), csv.headers());
+    }
+
+    @Test
+    void namesBlankHeadersByPosition() {
+        ParsedCsv csv = parse(",a,,c\n0,1,2,3\n");
+        assertEquals(List.of("column_1", "a", "column_3", "c"), csv.headers());
+    }
+
+    @Test
+    void generatedNamesNeverTakeARealOne() {
+        ParsedCsv csv = parse("column_2,,a,a,a_2\n1,2,3,4,5\n");
+        assertEquals(List.of("column_2", "column_2_2", "a", "a_3", "a_2"), csv.headers());
+    }
+
+    @Test
+    void dropsTheEmptyColumnATrailingCommaLeaves() {
+        ParsedCsv csv = parse("a,b,\n1,2,\n3,4,\n");
+        assertEquals(List.of("a", "b"), csv.headers());
+        assertEquals(List.of("3", "4"), csv.rows().get(1));
+    }
+
+    @Test
+    void keepsAnUnnamedTrailingColumnThatHoldsData() {
+        ParsedCsv csv = parse("a,b,\n1,2,x\n");
+        assertEquals(List.of("a", "b", "column_3"), csv.headers());
+    }
+
+    @Test
+    void acceptsTrailingEmptyCellsBeyondTheHeader() {
+        ParsedCsv csv = parse("a,b\n1,2,,\n");
+        assertEquals(List.of("1", "2"), csv.rows().get(0));
+    }
+
+    @Test
+    void anUnterminatedQuoteIsAParseErrorNotACrash() {
+        assertThrows(CsvParseException.class, () -> parse("a,b\n1,\"open\n2,3\n"));
+    }
+
+    @Test
+    void sniffsPipeDelimiter() {
+        ParsedCsv csv = parse("name|amount\nAlice|5\nBob|6\n");
+        assertEquals(List.of("name", "amount"), csv.headers());
+        assertEquals('|', csv.delimiter());
+    }
+
+    @Test
+    void sniffsTheDelimiterThatIsConsistentAcrossLines() {
+        // Decimal commas in the data, semicolons between cells: a typical European export
+        ParsedCsv csv = parse("name;amount;rate\nAlice;1,5;2\nBob;2,5;3,25\n");
+        assertEquals(List.of("name", "amount", "rate"), csv.headers());
+        assertEquals(';', csv.delimiter());
+        // A stray semicolon in one header cell does not outvote the consistent comma
+        ParsedCsv commas = parse("id,\"note; misc\",n\n1,x,2\n2,y,3\n");
+        assertEquals(',', commas.delimiter());
+    }
+
+    @Test
+    void honoursExcelsSepLine() {
+        ParsedCsv csv = parse("sep=;\na;b\n1,5;2\n");
+        assertEquals(List.of("a", "b"), csv.headers());
+        assertEquals(List.of("1,5", "2"), csv.rows().get(0));
+    }
+
+    @Test
+    void readsWindows1252() {
+        byte[] bytes = "city,price\nZürich,€5\n".getBytes(Charset.forName("windows-1252"));
+        ParsedCsv csv = parser.parse(bytes);
+        assertEquals(List.of("Zürich", "€5"), csv.rows().get(0));
+        assertEquals("windows-1252", csv.encoding());
+    }
+
+    @Test
+    void readsUtf16WithAByteOrderMark() {
+        byte[] body = "a,b\né,2\n".getBytes(StandardCharsets.UTF_16LE);
+        byte[] bytes = new byte[body.length + 2];
+        bytes[0] = (byte) 0xFF;
+        bytes[1] = (byte) 0xFE;
+        System.arraycopy(body, 0, bytes, 2, body.length);
+        ParsedCsv csv = parser.parse(bytes);
+        assertEquals(List.of("é", "2"), csv.rows().get(0));
+        assertEquals("UTF-16LE", csv.encoding());
+    }
+
+    @Test
+    void refusesFilesThatAreNotCsvText() {
+        for (String head : List.of("%PDF-1.5\n", "PK\u0003\u0004rest", "<!DOCTYPE html>\n<html>",
+                "  <html lang=en>")) {
+            assertThrows(CsvParseException.class,
+                () -> parser.parse(head.getBytes(StandardCharsets.ISO_8859_1)), head);
+        }
+        byte[] ole = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, 'a', '\n', 'b'};
+        assertThrows(CsvParseException.class, () -> parser.parse(ole));
+    }
+
+    @Test
+    void refusesBinaryThatWindows1252WouldDecode() {
+        byte[] bytes = new byte[2000];
+        new Random(7).nextBytes(bytes);
+        bytes[0] = 'a';
         assertThrows(CsvParseException.class, () -> parser.parse(bytes));
     }
 
     @Test
-    void abbreviatesALongDuplicateNameInTheMessage() {
-        String longName = "x".repeat(5000);
-        byte[] bytes = (longName + "," + longName + "\n1,2\n").getBytes(StandardCharsets.UTF_8);
-        var ex = assertThrows(CsvParseException.class, () -> parser.parse(bytes));
-        assertTrue(ex.getMessage().length() < 100, ex.getMessage());
-        assertTrue(ex.getMessage().endsWith("..."));
+    void sniffingAHugeFirstRecordStaysFast() {
+        String header = "a" + ",x".repeat(200);
+        String huge = "q".repeat(3_000_000);
+        long start = System.nanoTime();
+        assertThrows(CapExceededException.class, () -> parse(header + "\n" + huge + "\n"));
+        assertTrue(System.nanoTime() - start < 5_000_000_000L, "parsing took too long");
     }
 
-    @Test
-    void rejectsBlankHeader() {
-        byte[] bytes = "a,,c\n1,2,3\n".getBytes(StandardCharsets.UTF_8);
-        assertThrows(CsvParseException.class, () -> parser.parse(bytes));
+    private ParsedCsv parse(String text) {
+        return parser.parse(text.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test

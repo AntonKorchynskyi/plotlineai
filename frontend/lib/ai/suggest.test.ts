@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
+import { AiBadOutputError, AiNoChartError, AiUnavailableError } from "@/lib/ai/errors";
+import { emptyCallRecord } from "@/lib/ai/structured-call";
 import { MAX_RATIONALE_LENGTH, suggestCharts } from "@/lib/ai/suggest";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import {
@@ -9,8 +10,16 @@ import {
   mockModel,
   modelSpec,
   sentText,
+  sequenceModel,
   settingsFor,
+  validatorRefusing,
 } from "@/test/ai";
+
+// No network in unit tests: every spec passes the schema check unless a test says otherwise.
+vi.mock("@/lib/backend", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/backend")>()),
+  validateSpecs: vi.fn(async (_id: string, specs: unknown[]) => specs.map(() => null)),
+}));
 
 const three = {
   suggestions: [
@@ -34,6 +43,89 @@ const three = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("suggestCharts", () => {
+  it("asks once more when a suggestion does not fit the schema, keeping what passed", async () => {
+    const replacement = {
+      rationale: "Counting rows needs no numeric column.",
+      spec: modelSpec({
+        title: "Rows per region",
+        measures: [{ column: null, aggregation: "count", label: null }],
+      }),
+    };
+    const model = sequenceModel([three, { suggestions: [replacement, ...three.suggestions.slice(1)] }]);
+    const record = emptyCallRecord();
+    const result = await suggestCharts(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      record,
+      validate: validatorRefusing("Revenue by region"),
+    });
+
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(sentText(model, 1)).toContain("<refused>");
+    expect(sentText(model, 1)).toContain("This aggregation requires a numeric column");
+    expect(result.map((s) => s.spec.title)).toEqual(["Revenue by rep", "Share of revenue", "Rows per region"]);
+    expect(record).toMatchObject({ attempts: 2, invalidSpecs: 1, inputTokens: 20, outputTokens: 40 });
+  });
+
+  it("keeps what passed when the retry's answer is unusable", async () => {
+    const model = sequenceModel([three, { suggestions: three.suggestions.slice(0, 1) }]);
+    const result = await suggestCharts(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: validatorRefusing("Revenue by region"),
+    });
+    expect(result.map((s) => s.spec.title)).toEqual(["Revenue by rep", "Share of revenue"]);
+  });
+
+  it("shows fewer than three rather than a chart that cannot render", async () => {
+    const model = mockModel(three);
+    const result = await suggestCharts(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: validatorRefusing("Revenue by region"),
+    });
+    expect(result.map((s) => s.spec.title)).toEqual(["Revenue by rep", "Share of revenue"]);
+  });
+
+  it("fails with AiNoChartError when nothing fits after the second try", async () => {
+    const model = mockModel(three);
+    await expect(
+      suggestCharts(dataset, {
+        settings: settingsFor(model),
+        budget: freshBudget(),
+        validate: validatorRefusing("Revenue by region", "Revenue by rep", "Share of revenue"),
+      }),
+    ).rejects.toBeInstanceOf(AiNoChartError);
+    expect(model.doGenerateCalls).toHaveLength(2);
+  });
+
+  it("spends the daily budget on the retry too", async () => {
+    const budget = freshBudget();
+    const consume = vi.spyOn(budget, "consume");
+    await suggestCharts(dataset, {
+      settings: settingsFor(mockModel(three)),
+      budget,
+      validate: validatorRefusing("Revenue by region"),
+    }).catch(() => {});
+    expect(consume).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the suggestions unchecked when the check cannot run", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const model = mockModel(three);
+    const result = await suggestCharts(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      validate: async () => {
+        throw new Error("api down");
+      },
+    });
+    expect(result).toHaveLength(3);
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(JSON.parse(error.mock.calls[0][0] as string)).toEqual({ event: "spec_check_skipped", error: "Error" });
+    error.mockRestore();
+  });
+
   it("returns three suggestions, each a contract ChartSpec with its rationale", async () => {
     const model = mockModel(three);
     const result = await suggestCharts(dataset, {

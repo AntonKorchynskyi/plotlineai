@@ -11,16 +11,14 @@ import com.plotlineai.backend.chart.spec.Measure;
 import com.plotlineai.backend.chart.spec.SortBy;
 import com.plotlineai.backend.chart.spec.SortDirection;
 import com.plotlineai.backend.chart.spec.TimeBucket;
+import com.plotlineai.backend.dataset.Cells;
 import com.plotlineai.backend.dataset.ColumnType;
-import com.plotlineai.backend.dataset.DateFormats;
-import com.plotlineai.backend.dataset.MissingValues;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.error.InvalidChartSpecException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -64,7 +62,7 @@ public class AggregationEngine {
         List<List<String>> filtered = applyFilters(spec.filters(), rows, index, cols);
 
         if (spec.chartType() == ChartType.scatter || spec.chartType() == ChartType.bubble) {
-            return renderPoints(spec, filtered, index);
+            return renderPoints(spec, filtered, index, cols);
         }
         return renderAggregated(spec, filtered, index, cols);
     }
@@ -127,23 +125,16 @@ public class AggregationEngine {
     }
 
     private boolean orderedMatch(Filter filter, String raw, ColumnSchema col, Comparable<?> bound) {
-        if (raw.isEmpty()) {
-            return false;
-        }
         int cmp;
         if (col.type() == ColumnType.DATE) {
-            LocalDate cellDate;
-            try {
-                cellDate = DateFormats.parseDate(raw, col.format());
-            } catch (DateTimeParseException e) {
+            LocalDate cellDate = Cells.date(raw, col);
+            if (cellDate == null) {
                 return false;
             }
             cmp = cellDate.compareTo((LocalDate) bound);
         } else {
-            BigDecimal cellNumber;
-            try {
-                cellNumber = new BigDecimal(raw);
-            } catch (NumberFormatException e) {
+            BigDecimal cellNumber = Cells.number(raw, col);
+            if (cellNumber == null) {
                 return false;
             }
             cmp = cellNumber.compareTo((BigDecimal) bound);
@@ -318,10 +309,8 @@ public class AggregationEngine {
             return null;
         }
         if (col.type() == ColumnType.DATE) {
-            LocalDate date;
-            try {
-                date = DateFormats.parseDate(raw, col.format());
-            } catch (DateTimeParseException e) {
+            LocalDate date = Cells.date(raw, col);
+            if (date == null) {
                 return null;
             }
             if (bucket == null) {
@@ -331,11 +320,8 @@ public class AggregationEngine {
             return new GroupKey(start, bucketLabel(start, bucket));
         }
         if (col.type() == ColumnType.INTEGER || col.type() == ColumnType.DECIMAL) {
-            try {
-                return new GroupKey(new BigDecimal(raw), raw);
-            } catch (NumberFormatException e) {
-                return null;
-            }
+            BigDecimal number = Cells.number(raw, col);
+            return number == null ? null : new GroupKey(number, raw);
         }
         return new GroupKey(raw, raw);
     }
@@ -367,23 +353,20 @@ public class AggregationEngine {
                 return (double) groupRows.size();
             }
             int col = index.get(measure.column());
-            ColumnType type = cols.get(measure.column()).type();
+            ColumnSchema schema = cols.get(measure.column());
             long count = groupRows.stream()
-                .filter(row -> !MissingValues.isMissing(cell(row, col).trim(), type))
+                .filter(row -> Cells.isPresent(cell(row, col).trim(), schema))
                 .count();
             return (double) count;
         }
         int col = index.get(measure.column());
+        ColumnSchema schema = cols.get(measure.column());
         List<BigDecimal> values = new ArrayList<>();
         for (List<String> row : groupRows) {
-            String raw = cell(row, col).trim();
-            if (raw.isEmpty()) {
-                continue;
-            }
-            try {
-                values.add(new BigDecimal(raw));
-            } catch (NumberFormatException e) {
-                // defensive: inference guarantees numeric, skip strays
+            // Missing cells and the strays inference tolerated hold no number: skip them
+            BigDecimal value = Cells.number(cell(row, col).trim(), schema);
+            if (value != null) {
+                values.add(value);
             }
         }
         if (values.isEmpty()) {
@@ -430,12 +413,26 @@ public class AggregationEngine {
         return index < row.size() ? row.get(index) : "";
     }
 
+    /** A numeric column read cell by cell: where it sits in the row and how its numbers look. */
+    private record NumericColumn(int index, ColumnSchema schema) {
+
+        static NumericColumn of(Measure measure, Map<String, Integer> index,
+                Map<String, ColumnSchema> cols) {
+            return new NumericColumn(index.get(measure.column()), cols.get(measure.column()));
+        }
+
+        Double read(List<String> row) {
+            BigDecimal value = Cells.number(cell(row, index).trim(), schema);
+            return value == null ? null : finiteOrNull(value.doubleValue());
+        }
+    }
+
     private RenderResponse renderPoints(ChartSpec spec, List<List<String>> rows,
-            Map<String, Integer> index) {
-        int xIndex = index.get(spec.measures().get(0).column());
-        int yIndex = index.get(spec.measures().get(1).column());
-        Integer rIndex = spec.chartType() == ChartType.bubble
-            ? index.get(spec.measures().get(2).column()) : null;
+            Map<String, Integer> index, Map<String, ColumnSchema> cols) {
+        NumericColumn x = NumericColumn.of(spec.measures().get(0), index, cols);
+        NumericColumn y = NumericColumn.of(spec.measures().get(1), index, cols);
+        NumericColumn r = spec.chartType() == ChartType.bubble
+            ? NumericColumn.of(spec.measures().get(2), index, cols) : null;
         int dimIndex = index.get(spec.dimension().column());
         int cap = spec.limit() != null ? spec.limit() : MAX_POINTS;
 
@@ -443,7 +440,7 @@ public class AggregationEngine {
             List<String> labels = new ArrayList<>();
             List<Object> data = new ArrayList<>();
             for (List<String> row : rows) {
-                Object point = point(row, xIndex, yIndex, rIndex);
+                Object point = point(row, x, y, r);
                 if (point == null) {
                     continue;
                 }
@@ -460,7 +457,7 @@ public class AggregationEngine {
         int breakdownIndex = index.get(spec.breakdown().column());
         SortedMap<String, List<Object>> bySeries = new TreeMap<>();
         for (List<String> row : rows) {
-            Object point = point(row, xIndex, yIndex, rIndex);
+            Object point = point(row, x, y, r);
             if (point == null) {
                 continue;
             }
@@ -480,30 +477,19 @@ public class AggregationEngine {
         return response(spec, List.of(), datasets);
     }
 
-    private Object point(List<String> row, int xIndex, int yIndex, Integer rIndex) {
-        Double x = parseDouble(cell(row, xIndex).trim());
-        Double y = parseDouble(cell(row, yIndex).trim());
+    private Object point(List<String> row, NumericColumn xCol, NumericColumn yCol, NumericColumn rCol) {
+        Double x = xCol.read(row);
+        Double y = yCol.read(row);
         if (x == null || y == null) {
             return null;
         }
-        if (rIndex == null) {
+        if (rCol == null) {
             return new Point(x, y);
         }
-        Double r = parseDouble(cell(row, rIndex).trim());
+        Double r = rCol.read(row);
         if (r == null) {
             return null;
         }
         return new BubblePoint(x, y, r);
-    }
-
-    private static Double parseDouble(String raw) {
-        if (raw.isEmpty()) {
-            return null;
-        }
-        try {
-            return finiteOrNull(new BigDecimal(raw).doubleValue());
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

@@ -1,5 +1,10 @@
 import type { z } from "zod";
-import { AiBadOutputError, AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
+import {
+  AiBadOutputError,
+  AiBudgetRefusedError,
+  AiNoChartError,
+  AiUnavailableError,
+} from "@/lib/ai/errors";
 import { emptyCallRecord, type AiCallRecord, type AiDeps } from "@/lib/ai/structured-call";
 import { BackendError, DatasetNotFoundError, fetchDataset, type DatasetDetail } from "@/lib/backend";
 import { lambdaRequestId, publishEvent } from "@/lib/events";
@@ -104,6 +109,9 @@ export async function handleAiRoute<B extends { datasetId: string }>(
     }
     if (failure instanceof AiUnavailableError) {
       return error(503, "AI_UNAVAILABLE", "Chart suggestions are unavailable right now.");
+    }
+    if (failure instanceof AiNoChartError) {
+      return error(422, "NO_CHART_FOUND", "No suggested chart fits this dataset.");
     }
     if (failure instanceof AiBadOutputError) {
       return error(502, "AI_BAD_OUTPUT", "The suggestion service returned an unusable chart.");
