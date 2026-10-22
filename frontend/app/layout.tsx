@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Caprasimo, Figtree } from "next/font/google";
+import localFont from "next/font/local";
 import { connection } from "next/server";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
 
+// The fonts live in the repo (Google Fonts' files, Latin and Latin Extended, under the OFL next
+// to them), so a build never downloads anything and cannot fail on a network hiccup.
 // next/font generates its own family names, so each face declares a namespaced variable
 // and globals.css points --font-heading / --font-sans at them.
-const caprasimo = Caprasimo({
+const caprasimo = localFont({
+  src: "./fonts/Caprasimo.woff2",
   weight: "400",
-  subsets: ["latin"],
   variable: "--font-caprasimo",
   display: "swap",
 });
 
-const figtree = Figtree({
-  weight: ["400", "600", "700"],
-  subsets: ["latin"],
+// A variable font: one file serves every weight the pages use (400, 600, 700).
+const figtree = localFont({
+  src: "./fonts/Figtree.woff2",
+  weight: "300 900",
   variable: "--font-figtree",
   display: "swap",
 });
