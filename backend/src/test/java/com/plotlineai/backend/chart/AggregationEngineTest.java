@@ -83,6 +83,31 @@ class AggregationEngineTest {
     }
 
     @Test
+    void placeholdersInANumericColumnAreMissing() {
+        List<List<String>> rows = List.of(
+            List.of("north", "2024-01-15", "n/a", "1"),
+            List.of("north", "2024-01-16", "5.0", "2"),
+            List.of("north", "2024-01-17", "N/A", "3"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"region"},
+             "measures":[{"column":"revenue","aggregation":"count"},
+                         {"column":"revenue","aggregation":"avg"}]}"""), SCHEMA, rows);
+        assertEquals(List.of(1.0), r.datasets().get(0).data());
+        assertEquals(List.of(5.0), r.datasets().get(1).data());
+    }
+
+    @Test
+    void placeholdersInATextColumnAreCounted() {
+        List<List<String>> rows = List.of(
+            List.of("NA", "2024-01-15", "1.0", "1"),
+            List.of("EU", "2024-01-16", "5.0", "2"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"units"},
+             "measures":[{"column":"region","aggregation":"count"}]}"""), SCHEMA, rows);
+        assertEquals(List.of(1.0, 1.0), r.datasets().get(0).data());
+    }
+
+    @Test
     void monthBucketGroupsChronologically() {
         RenderResponse r = render("""
             {"chartType":"line","title":"T","dimension":{"column":"joined","bucket":"month"},

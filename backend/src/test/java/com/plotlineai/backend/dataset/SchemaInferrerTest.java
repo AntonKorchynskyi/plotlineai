@@ -64,6 +64,40 @@ class SchemaInferrerTest {
         assertEquals(2, col.cardinality());
     }
 
+    @ParameterizedTest
+    @CsvSource({"n/a", "N/A", "NA", "#N/A", "null", "None", "NaN", "-", "--", "' n/a '"})
+    void placeholderTextIsMissingInANumericColumn(String placeholder) {
+        ColumnSchema col = inferrer.infer(csvOf("c", "1", placeholder, "", "3")).get(0);
+        assertEquals(ColumnType.INTEGER, col.type());
+        assertEquals(2, col.nullCount());
+        assertEquals(2, col.cardinality());
+    }
+
+    @Test
+    void placeholderTextIsMissingInDateAndBooleanColumns() {
+        assertEquals(ColumnType.DATE,
+            inferrer.infer(csvOf("c", "2024-01-15", "n/a")).get(0).type());
+        assertEquals(ColumnType.BOOLEAN,
+            inferrer.infer(csvOf("c", "true", "N/A", "false")).get(0).type());
+    }
+
+    @Test
+    void placeholderTextStaysAValueInATextColumn() {
+        // "NA" is North America here, not a missing value.
+        ColumnSchema col = inferrer.infer(csvOf("region", "NA", "EU", "n/a", "")).get(0);
+        assertEquals(ColumnType.STRING, col.type());
+        assertEquals(1, col.nullCount());
+        assertEquals(3, col.cardinality());
+    }
+
+    @Test
+    void columnOfOnlyPlaceholdersIsString() {
+        ColumnSchema col = inferrer.infer(csvOf("c", "n/a", "n/a")).get(0);
+        assertEquals(ColumnType.STRING, col.type());
+        assertEquals(0, col.nullCount());
+        assertEquals(1, col.cardinality());
+    }
+
     @Test
     void allNullColumnIsString() {
         ColumnSchema col = inferrer.infer(csvOf("c", "", "")).get(0);

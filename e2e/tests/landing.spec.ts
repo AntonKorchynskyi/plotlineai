@@ -10,20 +10,18 @@ test("the landing page draws all six gallery charts", async ({ page }) => {
   }
 });
 
-test("a gallery CSV downloads as an attachment", async ({ page, request }) => {
+test("the gallery offers no CSV downloads", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator("#gallery article")).toHaveCount(6);
+  await expect(page.getByRole("link", { name: /download csv/i })).toHaveCount(0);
+  await expect(page.getByText("/api/")).toHaveCount(0);
+});
 
-  const href = await page
-    .locator("#gallery article")
-    .first()
-    .getByRole("link", { name: /download csv/i })
-    .getAttribute("href");
-  expect(href).toBeTruthy();
-
-  const response = await request.get(href!);
-  expect(response.status()).toBe(200);
-  expect(response.headers()["content-type"]).toContain("text/csv");
-  expect(response.headers()["content-disposition"]).toMatch(/^attachment/);
+test("the logo leads home from any page", async ({ page }) => {
+  await page.goto("/analyze");
+  await page.getByRole("banner").getByRole("link", { name: "PlotlineAI" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
 test("the hero sends people to the analyze flow", async ({ page }) => {

@@ -10,7 +10,6 @@ import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.gallery.dto.GalleryExampleResponse;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -24,7 +23,6 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class GalleryRenderer {
 
-    private final List<GalleryCatalog.Entry> entries;
     private final List<GalleryExampleResponse> examples;
 
     @Autowired
@@ -38,7 +36,6 @@ public class GalleryRenderer {
         ChartSpecValidator validator = new ChartSpecValidator();
         AggregationEngine engine = new AggregationEngine();
 
-        this.entries = List.copyOf(entries);
         this.examples = entries.stream()
             .sorted(Comparator.comparingInt(GalleryCatalog.Entry::displayOrder)
                 .thenComparing(GalleryCatalog.Entry::slug))
@@ -48,17 +45,12 @@ public class GalleryRenderer {
                 validator.validate(entry.spec(), schema);
                 return new GalleryExampleResponse(entry.slug(), entry.title(), entry.description(),
                     entry.spec().chartType().name(),
-                    objectMapper.valueToTree(engine.render(entry.spec(), schema, parsed.rows())),
-                    "/gallery/" + entry.slug() + "/csv");
+                    objectMapper.valueToTree(engine.render(entry.spec(), schema, parsed.rows())));
             })
             .toList();
     }
 
     public List<GalleryExampleResponse> examples() {
         return examples;
-    }
-
-    public Optional<GalleryCatalog.Entry> find(String slug) {
-        return entries.stream().filter(entry -> entry.slug().equals(slug)).findFirst();
     }
 }

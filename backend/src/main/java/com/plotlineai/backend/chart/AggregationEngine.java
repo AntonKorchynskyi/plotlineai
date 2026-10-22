@@ -13,6 +13,7 @@ import com.plotlineai.backend.chart.spec.SortDirection;
 import com.plotlineai.backend.chart.spec.TimeBucket;
 import com.plotlineai.backend.dataset.ColumnType;
 import com.plotlineai.backend.dataset.DateFormats;
+import com.plotlineai.backend.dataset.MissingValues;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.error.InvalidChartSpecException;
 import java.math.BigDecimal;
@@ -192,13 +193,13 @@ public class AggregationEngine {
         Map<GroupKey, Double> sortValues;
 
         if (spec.breakdown() == null) {
-            sortValues = measureValues(spec.measures().get(0), groups, index);
+            sortValues = measureValues(spec.measures().get(0), groups, index, cols);
             ordered.sort(orderComparator(spec, sortValues));
             List<String> labels = ordered.stream().map(GroupKey::label).toList();
             List<Series> datasets = new ArrayList<>();
             for (Measure measure : spec.measures()) {
                 Map<GroupKey, Double> values = measure == spec.measures().get(0)
-                    ? sortValues : measureValues(measure, groups, index);
+                    ? sortValues : measureValues(measure, groups, index, cols);
                 List<Object> data = new ArrayList<>(ordered.size());
                 for (GroupKey key : ordered) {
                     data.add(values.get(key));
@@ -228,7 +229,7 @@ public class AggregationEngine {
         for (Map.Entry<String, Map<GroupKey, List<List<String>>>> entry : bySeries.entrySet()) {
             Map<GroupKey, Double> values = new HashMap<>();
             for (Map.Entry<GroupKey, List<List<String>>> group : entry.getValue().entrySet()) {
-                values.put(group.getKey(), aggregate(measure, group.getValue(), index));
+                values.put(group.getKey(), aggregate(measure, group.getValue(), index, cols));
             }
             seriesValues.put(entry.getKey(), values);
         }
@@ -261,10 +262,11 @@ public class AggregationEngine {
     }
 
     private Map<GroupKey, Double> measureValues(Measure measure,
-            Map<GroupKey, List<List<String>>> groups, Map<String, Integer> index) {
+            Map<GroupKey, List<List<String>>> groups, Map<String, Integer> index,
+            Map<String, ColumnSchema> cols) {
         Map<GroupKey, Double> values = new HashMap<>();
         for (Map.Entry<GroupKey, List<List<String>>> group : groups.entrySet()) {
-            values.put(group.getKey(), aggregate(measure, group.getValue(), index));
+            values.put(group.getKey(), aggregate(measure, group.getValue(), index, cols));
         }
         return values;
     }
@@ -359,14 +361,15 @@ public class AggregationEngine {
     }
 
     private Double aggregate(Measure measure, List<List<String>> groupRows,
-            Map<String, Integer> index) {
+            Map<String, Integer> index, Map<String, ColumnSchema> cols) {
         if (measure.aggregation() == Aggregation.count) {
             if (measure.column() == null) {
                 return (double) groupRows.size();
             }
             int col = index.get(measure.column());
+            ColumnType type = cols.get(measure.column()).type();
             long count = groupRows.stream()
-                .filter(row -> !cell(row, col).trim().isEmpty())
+                .filter(row -> !MissingValues.isMissing(cell(row, col).trim(), type))
                 .count();
             return (double) count;
         }

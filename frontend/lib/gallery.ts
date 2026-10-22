@@ -8,8 +8,6 @@ export type GalleryExample = {
   description: string;
   chartType: string;
   renderedData: RenderedData;
-  /** Api-relative, e.g. "/gallery/revenue-by-region/csv". Not a browser URL. */
-  csvPath: string;
 };
 
 
@@ -36,9 +34,6 @@ export async function getGallery(): Promise<GalleryExample[] | null> {
 
 const logFailure = (error: string) =>
   console.error(JSON.stringify({ event: "gallery_unavailable", error }));
-
-/** Turns the api-relative `csvPath` into a URL the browser can follow. */
-export const csvHref = (csvPath: string) => `/api/backend${csvPath}`;
 
 /**
  * The badge text for a card. The api reports a stacked bar as `bar` with

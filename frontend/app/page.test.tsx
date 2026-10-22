@@ -82,17 +82,6 @@ describe("landing page", () => {
       expect(within(card).getByText("stacked bar")).toBeInTheDocument();
     });
 
-    it("links Download CSV through the browser proxy, as a plain download", async () => {
-      await renderPage();
-
-      const links = screen.getAllByRole("link", { name: /download csv/i });
-      expect(links).toHaveLength(examples.length);
-      expect(links.map((a) => a.getAttribute("href"))).toEqual(
-        examples.map((e) => `/api/backend${e.csvPath}`),
-      );
-      for (const link of links) expect(link).toHaveAttribute("download");
-    });
-
     it("shows each example's description", async () => {
       await renderPage();
       for (const example of examples) {
@@ -110,9 +99,10 @@ describe("landing page", () => {
       expect(screen.queryByText(/csv in, chart out/i)).not.toBeInTheDocument();
     });
 
-    it("names the endpoint the gallery came from", async () => {
+    it("shows no api routes and offers no CSV downloads", async () => {
       await renderPage();
-      expect(screen.getByText("GET /api/backend/gallery")).toBeInTheDocument();
+      expect(screen.queryByText(/\/api\//)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /download/i })).not.toBeInTheDocument();
     });
   });
 
