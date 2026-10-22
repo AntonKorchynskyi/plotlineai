@@ -237,6 +237,10 @@ In the repository, **Settings > Environments > New environment**, name it `produ
 - **Environment variables:** `AWS_DEPLOY_ROLE_ARN` (the role ARN from step 3) and
   `ALERT_EMAIL` (where the budget alert goes).
 
+Each deploy is recorded against this environment with the site's address, so the
+repository's **Deployments** (right sidebar) and every pull request it shipped show a
+**View deployment** link to the live site.
+
 ### 6. The first deploy
 
 `.github/workflows/deploy.yml` only runs once it is on `main`, so the first deploy runs from
