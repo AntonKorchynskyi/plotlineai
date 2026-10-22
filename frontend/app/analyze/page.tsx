@@ -85,7 +85,8 @@ export default function AnalyzePage() {
             <>
               <h2 className="mb-2 text-page">{suggestionsHeading(state.suggestions.length)}</h2>
               <p className="mb-6 text-body text-ink-muted">
-                Pick one to render it over every row, or describe the chart you had in mind.
+                Pick one to render it over every row, or describe the chart you had in mind. The
+                previews are shortened; open a card to see its full chart.
               </p>
               <SuggestionCards
                 suggestions={state.suggestions}

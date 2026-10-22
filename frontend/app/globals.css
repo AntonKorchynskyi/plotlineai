@@ -225,7 +225,7 @@
   .btn-secondary { border-color: var(--divider); }
   .btn-secondary:hover { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
   .btn-secondary:active { background: color-mix(in srgb, var(--foreground) 14%, transparent); }
-  .btn-ghost { color: var(--accent); padding-inline: var(--spacing-1); }
+  .btn-ghost { color: var(--accent); }
   .btn-ghost:hover {
     background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--accent);

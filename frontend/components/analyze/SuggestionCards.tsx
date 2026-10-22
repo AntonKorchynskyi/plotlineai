@@ -1,10 +1,14 @@
 "use client";
 
 import ChartRenderer from "@/components/ChartRenderer";
+import { ArrowRightIcon } from "@/components/icons";
 import type { RenderedSuggestion } from "@/lib/analyze/use-analyze";
 import { chartTypeName } from "@/lib/analyze/labels";
 
-/** The three suggestion cards. Each is one click away from the full chart. */
+/**
+ * The three suggestion cards with shortened previews, side by side so they compare at a
+ * glance. Each card is one click away from the full chart, and says so.
+ */
 export default function SuggestionCards({
   suggestions,
   onChoose,
@@ -32,13 +36,17 @@ export default function SuggestionCards({
           <p className="card-body text-small">{suggestion.rationale}</p>
           {suggestion.rendered ? (
             <span className="mt-1 block rounded-[18px] bg-background p-2">
-              <ChartRenderer data={suggestion.rendered} height={104} compact />
+              <ChartRenderer data={suggestion.rendered} height={210} />
             </span>
           ) : (
-            <span className="mt-1 block rounded-[18px] bg-background p-2 text-center text-meta text-ink-faint leading-[104px]">
+            <span className="mt-1 block rounded-[18px] bg-background p-2 text-center text-meta text-ink-faint leading-[210px]">
               Preview unavailable
             </span>
           )}
+          <span className="mt-auto flex items-center gap-1.5 pt-1 text-small text-accent">
+            Open full chart
+            <ArrowRightIcon size={14} />
+          </span>
         </button>
       ))}
     </div>

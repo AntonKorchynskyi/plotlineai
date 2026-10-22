@@ -109,7 +109,7 @@ export function EmptyResult({
             Drop the filters
           </button>
         )}
-        <button type="button" className="btn btn-ghost px-4 py-3" onClick={onSuggestions}>
+        <button type="button" className="btn btn-ghost px-5 py-3" onClick={onSuggestions}>
           Back to suggestions
         </button>
       </div>

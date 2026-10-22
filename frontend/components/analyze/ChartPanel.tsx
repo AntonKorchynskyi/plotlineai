@@ -56,7 +56,7 @@ export default function ChartPanel({
         <h2 className="m-0 text-page">{rendered.title}</h2>
         <div className="flex flex-wrap items-center gap-2">
           {/* Last on a phone, so Download and Share keep a row together; first once they fit. */}
-          <button type="button" className="btn btn-ghost order-last px-0 md:order-first md:mr-2" onClick={onBack}>
+          <button type="button" className="btn btn-ghost order-last md:order-first" onClick={onBack}>
             Back to suggestions
           </button>
           <button
@@ -81,7 +81,6 @@ export default function ChartPanel({
 
       {shareUrl && (
         <div className="card elev-sm mt-5 flex-row flex-wrap items-center gap-3 px-5 py-4">
-          <span className="tag tag-accent">Read only</span>
           <a className="font-mono text-small" href={shareUrl}>
             {shareUrl}
           </a>
