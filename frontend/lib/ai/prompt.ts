@@ -41,7 +41,7 @@ Spell every optional field you are not using as null.
 - A breakdown needs exactly one measure, a column different from the dimension, and at most 20 distinct values.
 - The dimension may have at most 1000 distinct values, and limit does not help with that. Bucket a DATE dimension instead, or choose a column with fewer distinct values.
 - Filter ops are eq, neq, gt, gte, lt, lte and in. gt, gte, lt and lte need an INTEGER, DECIMAL or DATE column. "in" takes an array of 1 to 50 strings; other ops take one string or number. Every filter value is at most 256 characters.
-- A column's format says how its cells are written: a date pattern for a DATE column, or for a numeric column number:grouped (1,234.5), number:eu (1.234,5) or number:decorated (a currency sign, percent or parentheses around the number). Compare against cells as numbers regardless: write a gt, gte, lt or lte value on a numeric column as a plain number such as 1234.5, and on a DATE column as YYYY-MM-DD.
+- A column's format says how its cells are written: a date pattern for a DATE column, or for a numeric column number:grouped (1,234.5), number:eu (1.234,5) or number:decorated (a currency sign, percent or parentheses around the number) or number:unit:<unit> (a number then a unit, such as "6 in"; mention the unit in the title or label). Compare against cells as numbers regardless: write a gt, gte, lt or lte value on a numeric column as a plain number such as 1234.5, and on a DATE column as YYYY-MM-DD.
 - A STRING column holds text only. Never sum, average, min or max it, even when its values look numeric.
 
 # Choosing a chart

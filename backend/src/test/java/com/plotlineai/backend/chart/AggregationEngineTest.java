@@ -124,6 +124,22 @@ class AggregationEngineTest {
     }
 
     @Test
+    void unitNumbersAggregateAndNameTheirUnit() {
+        List<ColumnSchema> schema = List.of(
+            new ColumnSchema("period", ColumnType.STRING, 2, 0, null),
+            new ColumnSchema("rise", ColumnType.INTEGER, 3, 0, "number:unit:in"));
+        List<List<String>> rows = List.of(
+            List.of("2050s", "12 in"), List.of("2050s", "14 in"), List.of("2080s", "21 in"));
+        RenderResponse r = engine.render(spec("""
+            {"chartType":"bar","title":"T","dimension":{"column":"period"},
+             "measures":[{"column":"rise","aggregation":"avg"},
+                         {"column":"rise","aggregation":"count"}]}"""), schema, rows);
+        assertEquals(List.of(13.0, 21.0), r.datasets().get(0).data());
+        assertEquals("avg(rise) (in)", r.datasets().get(0).label());
+        assertEquals("count(rise)", r.datasets().get(1).label());
+    }
+
+    @Test
     void placeholdersInATextColumnAreCounted() {
         List<List<String>> rows = List.of(
             List.of("NA", "2024-01-15", "1.0", "1"),

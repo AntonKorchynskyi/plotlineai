@@ -62,8 +62,53 @@ class NumberFormatsTest {
 
     @Test
     void noBreakSpacesGroupLikeSpaces() {
-        assertEquals(new BigDecimal("1234.5"), NumberFormats.parse("1 234,5", NumberFormats.EU));
-        assertEquals(new BigDecimal("1234.5"), NumberFormats.parse("1 234,5", NumberFormats.EU));
+        assertEquals(new BigDecimal("1234.5"), NumberFormats.parse("1\u00A0234,5", NumberFormats.EU));
+        assertEquals(new BigDecimal("1234.5"), NumberFormats.parse("1\u202F234,5", NumberFormats.EU));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "6 in | number:unit:in | 6",
+        "177 in | number:unit:in | 177",
+        "3.5 km | number:unit:km | 3.5",
+        "1,234 kg | number:unit:kg | 1234",
+        "-4 °C | number:unit:°C | -4",
+        "20 m/s | number:unit:m/s | 20",
+        "12 m² | number:unit:m² | 12",
+    })
+    void readsANumberFollowedByAUnit(String value, String label, String expected) {
+        assertEquals(label, NumberFormats.unitLabel(value));
+        assertEquals(new BigDecimal(expected), NumberFormats.parse(value, label));
+        assertTrue(NumberFormats.isLabel(label));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "10B", "6in", "6 ", "in", "12 Jan", "3 September", "5 bedroomsss", "4 a1", "7 in in", "2024 Q1",
+    })
+    void doesNotTakeCodesDatesOrLongWordsForAUnit(String value) {
+        assertNull(NumberFormats.unitLabel(value), value);
+    }
+
+    @Test
+    void aUnitColumnReadsOnlyItsOwnUnit() {
+        String label = NumberFormats.unitLabel("6 in");
+        assertNull(NumberFormats.parse("6 cm", label));
+        assertNull(NumberFormats.parse("6", label));
+        assertNull(NumberFormats.parse("six in", label));
+        assertEquals(new BigDecimal("6"), NumberFormats.parse("6  in", label));
+    }
+
+    @Test
+    void unitLabelsAreAClosedShape() {
+        assertTrue(NumberFormats.isLabel("number:unit:in"));
+        assertTrue(!NumberFormats.isLabel("number:unit:"));
+        assertTrue(!NumberFormats.isLabel("number:unit:way too long"));
+        assertTrue(!NumberFormats.isLabel("number:unit:<b>"));
+        assertThrows(IllegalArgumentException.class, () -> NumberFormats.parse("6 x", "number:unit:<b>"));
+        assertEquals("in", NumberFormats.unitOf("number:unit:in"));
+        assertNull(NumberFormats.unitOf(NumberFormats.GROUPED));
+        assertNull(NumberFormats.unitOf(null));
     }
 
     @Test

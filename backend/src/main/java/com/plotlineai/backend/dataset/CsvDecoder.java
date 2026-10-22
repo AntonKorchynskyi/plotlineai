@@ -78,7 +78,7 @@ final class CsvDecoder {
         int control = 0;
         for (int i = 0; i < end; i++) {
             char ch = text.charAt(i);
-            boolean binaryLike = ch == 0 || ch == '﻿' || (replacementsAreBinary && ch == '�')
+            boolean binaryLike = ch == 0 || ch == '\uFEFF' || (replacementsAreBinary && ch == '\uFFFD')
                 || (Character.isISOControl(ch) && ch != '\t' && ch != '\r' && ch != '\n');
             if (binaryLike) {
                 control++;

@@ -13,6 +13,7 @@ import com.plotlineai.backend.chart.spec.SortDirection;
 import com.plotlineai.backend.chart.spec.TimeBucket;
 import com.plotlineai.backend.dataset.Cells;
 import com.plotlineai.backend.dataset.ColumnType;
+import com.plotlineai.backend.dataset.NumberFormats;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.error.InvalidChartSpecException;
 import java.math.BigDecimal;
@@ -195,7 +196,7 @@ public class AggregationEngine {
                 for (GroupKey key : ordered) {
                     data.add(values.get(key));
                 }
-                datasets.add(new Series(seriesLabel(measure), data));
+                datasets.add(new Series(seriesLabel(measure, cols), data));
             }
             return response(spec, applyLimit(spec, labels), limitSeries(spec, datasets));
         }
@@ -396,17 +397,23 @@ public class AggregationEngine {
         return values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    static String seriesLabel(Measure measure) {
+    /**
+     * The series name: the measure's own label, else what it computes, with the column's unit
+     * when its numbers carry one ("sum(Sea Level Rise) (in)"). A count has no unit.
+     */
+    static String seriesLabel(Measure measure, Map<String, ColumnSchema> cols) {
         if (measure.label() != null && !measure.label().isBlank()) {
             return measure.label();
         }
         if (measure.column() == null) {
             return "count";
         }
+        String unit = NumberFormats.unitOf(cols.get(measure.column()).format());
+        String suffix = unit != null && measure.aggregation() != Aggregation.count ? " (" + unit + ")" : "";
         if (measure.aggregation() == Aggregation.none) {
-            return measure.column();
+            return measure.column() + suffix;
         }
-        return measure.aggregation() + "(" + measure.column() + ")";
+        return measure.aggregation() + "(" + measure.column() + ")" + suffix;
     }
 
     static String cell(List<String> row, int index) {
@@ -450,7 +457,7 @@ public class AggregationEngine {
                     break;
                 }
             }
-            Series series = new Series(seriesLabel(spec.measures().get(1)), data);
+            Series series = new Series(seriesLabel(spec.measures().get(1), cols), data);
             return response(spec, labels, List.of(series));
         }
 

@@ -212,6 +212,24 @@ class SchemaInferrerTest {
     }
 
     @Test
+    void numbersWithOneSharedUnitAreNumeric() {
+        // The climate file's sea level column, with its n/a baseline
+        ColumnSchema col = inferrer.infer(csvOf("Sea Level Rise", "n/a", "6 in", "11 in", "177 in")).get(0);
+        assertEquals(ColumnType.INTEGER, col.type());
+        assertEquals("number:unit:in", col.format());
+        assertEquals(1, col.nullCount());
+        assertEquals(ColumnType.DECIMAL, inferrer.infer(csvOf("d", "3.5 km", "12 km")).get(0).type());
+    }
+
+    @Test
+    void mixedUnitsCodesAndDayMonthsStayText() {
+        assertEquals(ColumnType.STRING, inferrer.infer(csvOf("h", "5 in", "12 cm")).get(0).type());
+        assertEquals(ColumnType.STRING, inferrer.infer(csvOf("c", "10B", "04A")).get(0).type());
+        assertEquals(ColumnType.STRING, inferrer.infer(csvOf("d", "12 Jan", "3 Feb")).get(0).type());
+        assertEquals(ColumnType.STRING, inferrer.infer(csvOf("z", "02 in", "03 in")).get(0).type());
+    }
+
+    @Test
     void plainNumbersKeepNoFormat() {
         assertNull(inferrer.infer(csvOf("n", "1.5", "2")).get(0).format());
     }

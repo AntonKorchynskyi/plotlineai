@@ -76,8 +76,17 @@ public class SchemaInferrer {
                 return new Typing(ColumnType.DATE, df.label());
             }
         }
+        // Last, since a unit is the loosest reading: "6 in", one unit for the whole column
+        String unitLabel = values.stream().limit(UNIT_PROBE).map(NumberFormats::unitLabel)
+            .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+        if (unitLabel != null && !looksLikeIdentifiers(values)) {
+            return numberTyping(values, unitLabel);
+        }
         return null;
     }
+
+    /** How many leading values may be strays before one shows the column's unit. */
+    private static final int UNIT_PROBE = 20;
 
     private Typing numberTyping(List<String> values, String format) {
         boolean[] integral = {true};
