@@ -267,6 +267,47 @@ SNS then emails the alert address "AWS Notification - Subscription Confirmation"
 After that, every merge to `main` deploys through GitHub: CI passes and `Deploy` runs on its
 own. A manual deploy of `main` is **Actions > Deploy > Run workflow**.
 
+### 7. Dependabot auto-merge
+
+Dependabot's minor and patch updates merge themselves, and the merge deploys like any other.
+`.github/workflows/dependabot-review.yml` has an OpenAI model read each update's release notes
+and diff, then posts its verdict as a comment. If it approves, the workflow turns on GitHub
+auto-merge, and GitHub merges once every required check passes. Majors, anything the model
+blocks, and any update where the review fails stay open for you. A new release only reaches a
+Dependabot PR after 7 days (`cooldown` in `.github/dependabot.yml`); security updates come at
+once.
+
+1. **The GitHub App** that merges. A merge made with the workflow's own token would not start
+   CI on `main`, so nothing would deploy. **Settings (your account) > Developer settings >
+   GitHub Apps > New GitHub App**:
+   - Name: anything free, for example `plotlineai-automerge`. Homepage: the repository URL.
+   - Webhook: untick **Active**.
+   - Repository permissions: **Contents** read and write, **Pull requests** read and write.
+     Leave the rest at no access.
+   - Where can it be installed: **Only on this account**.
+
+   Create it, note the **Client ID**, **Generate a private key** (a `.pem` downloads), then
+   **Install App** on this repository only.
+2. **A separate OpenAI key** for reviews: in the OpenAI dashboard, create a project (for
+   example `plotlineai-ci`) with a monthly budget (about $2 is plenty; a review costs well
+   under a cent), and a key in it. Keeping it apart from the app's key keeps its spend and
+   any leak separate.
+3. **Dependabot secrets:** **Settings > Secrets and variables > Dependabot > New repository
+   secret**, three times: `AUTOMERGE_APP_CLIENT_ID` (the Client ID), `AUTOMERGE_APP_KEY` (the
+   whole `.pem` file's contents) and `OPENAI_REVIEW_KEY`. Workflows that Dependabot starts can
+   only read Dependabot secrets, not Actions secrets. Delete the downloaded `.pem` afterwards.
+4. **Settings > General > Pull Requests:** tick **Allow auto-merge** and **Automatically
+   delete head branches**.
+5. **Settings > Rules > Rulesets > New branch ruleset:** name `main`, enforcement
+   **Active**, target **Include default branch**. Add yourself under **Bypass list**
+   (Repository admin, "Always allow"), so your own merges work as they do now. Tick
+   **Require status checks to pass** and add `backend`, `frontend`, `scripts`, `e2e`,
+   `infra`, `scan (api)`, `scan (web)`, `scan-artifacts (api)` and `scan-artifacts (web)`.
+   Leave everything else unticked. The workflow refuses to turn on auto-merge while no
+   ruleset requires checks, because GitHub would otherwise merge at once.
+6. **Settings > Advanced Security:** enable **Dependabot alerts** and **Dependabot security
+   updates**.
+
 ## Smoke checklist
 
 Run after the first deploy and after any infrastructure change. `SITE` is the `SiteUrl`.
@@ -411,6 +452,13 @@ The api waits inside web's first request, so the cold total is mostly web's firs
 
 ## Operations
 
+- **Dependency updates** (setup step 7): each Dependabot PR gets a "Dependency review" comment.
+  "auto-merge" means it merges once CI passes, so there is nothing to do. "waiting for the
+  owner" means a major, a veto or a failed review: read the comment, then merge or close the
+  PR yourself. `@dependabot recreate` in a comment reruns the review on a fresh branch. To
+  stop auto-merging, disable the workflow (**Actions > Dependabot review > ... > Disable
+  workflow**); PRs that already have auto-merge on keep it until you click **Disable
+  auto-merge** on them.
 - **Logs:** `aws logs tail /aws/lambda/plotlineai-web --region us-east-1 --follow` (or
   `plotlineai-api`), or CloudWatch in the console.
 - **Alerts:** every alert email names its alarm, and its description says what crossed the

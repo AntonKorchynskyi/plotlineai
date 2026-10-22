@@ -1,0 +1,114 @@
+name: Dependabot review
+
+# Lets Dependabot's minor and patch updates merge themselves. An AI model reads the release notes
+# and the diff and may veto; GitHub then merges only once every check the main ruleset requires
+# has passed. Majors, vetoes and failed reviews wait for the owner. Pull requests from anyone but
+# Dependabot never run this job.
+#
+# The merge must come from the GitHub App's token: a merge made with GITHUB_TOKEN does not start
+# CI on main, so it would never deploy. Workflows that Dependabot triggers only see Dependabot
+# secrets, so AUTOMERGE_APP_CLIENT_ID, AUTOMERGE_APP_KEY and OPENAI_REVIEW_KEY live there.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      # The script comes from main, never from the pull request under review.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      # Also fails the job if any commit on the branch is not a signed Dependabot commit, so a
+      # push by anyone else can never ride along on an auto-merge.
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: diff
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh pr diff "$PR_URL" > "$RUNNER_TEMP/pr.diff"
+
+      - id: review
+        name: AI review
+        env:
+          OPENAI_REVIEW_KEY: ${{ secrets.OPENAI_REVIEW_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          DEPENDENCY_NAMES: ${{ steps.meta.outputs.dependency-names }}
+          MAINTAINER_CHANGES: ${{ steps.meta.outputs.maintainer-changes }}
+          DIFF_FILE: ${{ runner.temp }}/pr.diff
+          COMMENT_FILE: ${{ runner.temp }}/comment.md
+        run: node .github/scripts/review-dependency-pr.mjs
+
+      # One comment per pull request, updated on every new push.
+      - name: comment
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          COMMENT_FILE: ${{ runner.temp }}/comment.md
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.type == "Bot" and (.body | startswith("<!-- dependabot-review -->"))) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$COMMENT_FILE" > /dev/null
+          else
+            gh pr comment "$PR_URL" --body-file "$COMMENT_FILE"
+          fi
+
+      - name: merge
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          AUTO_MERGE: ${{ steps.review.outputs.auto-merge }}
+        run: |
+          if [ "$AUTO_MERGE" != "true" ]; then
+            gh pr merge --disable-auto "$PR_URL" 2>/dev/null || true
+            exit 0
+          fi
+          # Without a required check, GitHub would merge at once instead of waiting for CI.
+          checks=$(gh api "repos/$GITHUB_REPOSITORY/rules/branches/main" \
+            --jq '[.[] | select(.type == "required_status_checks")] | length')
+          if [ "$checks" = "0" ]; then
+            echo "::error::main has no ruleset requiring status checks; refusing to enable auto-merge."
+            exit 1
+          fi
+          gh pr merge --auto --squash "$PR_URL"
+
+      - name: stop auto-merge after a failure
+        if: failure() && steps.token.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh pr merge --disable-auto "$PR_URL" 2>/dev/null || true

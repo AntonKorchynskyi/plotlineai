@@ -1,9 +1,15 @@
 version: 2
+
+# A new release waits 7 days before Dependabot proposes it, which gives the ecosystem time to spot
+# and pull a compromised version: minor and patch updates merge and deploy without a human (see
+# workflows/dependabot-review.yml). Security updates ignore the cooldown.
 updates:
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -22,6 +28,8 @@ updates:
     directory: /e2e
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -34,6 +42,8 @@ updates:
     directory: /infra
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -46,6 +56,8 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -54,6 +66,8 @@ updates:
     directories: [/frontend, /backend, /e2e/ai-stub]
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     ignore:
       # Odd Node majors are never LTS and reach end of life within months.
       - dependency-name: node
@@ -63,3 +77,5 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
