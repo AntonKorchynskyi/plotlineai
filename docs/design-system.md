@@ -77,20 +77,21 @@ palette cycles if a chart carries more than six series.
 - Kickers and table headers: 10-11px, uppercase, `letter-spacing: 0.08-0.1em`.
 - Monospace appears only for the `ChartSpec` panel and share URLs (`ui-monospace`).
 
-Loading the faces is a `frontend/app/layout.tsx` change, replacing the scaffold's Geist
-pair. `next/font` generates its own family names, so the variables it declares are
-namespaced per face and the theme tokens point at them - never at the literal family name,
-which would not resolve:
+The faces load in `frontend/app/layout.tsx` from `frontend/app/fonts/`, which holds Google
+Fonts' files (Latin and Latin Extended, as woff2) with their OFL licenses, so builds never
+download fonts. Figtree is the variable font: one file covers 400, 600 and 700.
+`next/font` generates its own family names, so the variables it declares are namespaced
+per face and the theme tokens point at them - never at the literal family name, which
+would not resolve:
 
 ```ts
-import { Caprasimo, Figtree } from "next/font/google";
+import localFont from "next/font/local";
 
-const heading = Caprasimo({
-  weight: "400", subsets: ["latin"], variable: "--font-caprasimo", display: "swap",
+const caprasimo = localFont({
+  src: "./fonts/Caprasimo.woff2", weight: "400", variable: "--font-caprasimo", display: "swap",
 });
-const body = Figtree({
-  weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-figtree",
-  display: "swap",
+const figtree = localFont({
+  src: "./fonts/Figtree.woff2", weight: "300 900", variable: "--font-figtree", display: "swap",
 });
 ```
 
