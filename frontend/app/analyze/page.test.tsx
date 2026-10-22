@@ -132,14 +132,16 @@ describe("the suggestions screen", () => {
     expect(screen.getByText(/region · string · 5 distinct values/)).toBeInTheDocument();
   });
 
-  it("shows three cards, each with its rationale, type and thumbnail", () => {
+  it("shows three cards, each with its rationale, type and a preview that says it opens", () => {
     show(state);
 
+    expect(screen.getByText(/previews are shortened; open a card to see its full chart/)).toBeInTheDocument();
     const cards = screen.getAllByRole("button", { name: /suggestion \d/i });
     expect(cards).toHaveLength(3);
     expect(within(cards[0]).getByText("Ranked bar reads fastest.")).toBeInTheDocument();
     expect(within(cards[0]).getByText("bar")).toBeInTheDocument();
-    expect(within(cards[0]).getByTestId("chart")).toHaveAttribute("data-height", "104");
+    expect(within(cards[0]).getByTestId("chart")).toHaveAttribute("data-height", "210");
+    expect(cards[0]).toHaveAccessibleName(/open full chart/i);
   });
 
   it("renders the chosen suggestion", async () => {
