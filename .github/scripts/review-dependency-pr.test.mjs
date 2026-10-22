@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildInput, cap, decide, MARKER, parseResponse, reduceDiff, renderComment, review } from "./review-dependency-pr.mjs";
+import { fileURLToPath } from "node:url";
+import {
+  awsModulesUsed,
+  buildInput,
+  cap,
+  decide,
+  instructions,
+  MARKER,
+  parseResponse,
+  reduceDiff,
+  renderComment,
+  review,
+} from "./review-dependency-pr.mjs";
 
 const LOCK_DIFF = `diff --git a/frontend/package.json b/frontend/package.json
 --- a/frontend/package.json
@@ -43,6 +55,26 @@ describe("reduceDiff", () => {
     assert.match(reduced, /added left-pad@1\.3\.0/);
     assert.match(reduced, /removed old-thing@2\.0\.0/);
     assert.doesNotMatch(reduced, /integrity|resolved|engines/);
+  });
+});
+
+describe("awsModulesUsed", () => {
+  it("reads the aws-cdk-lib modules the real infra code imports", () => {
+    const infra = (dir) => fileURLToPath(new URL(`../../infra/${dir}`, import.meta.url));
+    const modules = awsModulesUsed(infra("lib"), infra("bin"));
+    for (const used of ["aws-lambda", "aws-dynamodb", "aws-redshiftserverless", "aws-cloudfront"]) {
+      assert.ok(modules.includes(used), `${used} missing from ${modules}`);
+    }
+    assert.ok(!modules.includes("aws-appsync"));
+    assert.deepEqual(modules, [...new Set(modules)].sort());
+  });
+});
+
+describe("instructions", () => {
+  it("tells the model which CDK modules count, and only when there are some", () => {
+    assert.match(instructions(["aws-lambda", "aws-s3"]), /imports: aws-lambda, aws-s3\./);
+    assert.doesNotMatch(instructions([]), /BREAKING CHANGES/);
+    assert.match(instructions([]), /untrusted data/);
   });
 });
 
@@ -94,8 +126,9 @@ describe("review", () => {
       sent = JSON.parse(init.body);
       return Response.json(completed(JSON.stringify(approve)));
     };
-    assert.deepEqual(await review({ apiKey: "k", model: "m", input: "x", fetchImpl }), approve);
+    assert.deepEqual(await review({ apiKey: "k", model: "m", system: "rules", input: "x", fetchImpl }), approve);
     assert.equal(sent.text.format.strict, true);
+    assert.equal(sent.instructions, "rules");
   });
 });
 

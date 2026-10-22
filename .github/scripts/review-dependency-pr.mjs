@@ -3,8 +3,9 @@
 // every required CI check, and only minor and patch updates are ever eligible. Anything that goes
 // wrong (no key, API error, timeout, refusal, malformed answer) counts as a block.
 
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const MARKER = "<!-- dependabot-review -->";
 const BODY_LIMIT = 40_000;
@@ -26,16 +27,42 @@ export const VERDICT_SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `You review dependency update pull requests opened by Dependabot for PlotlineAI:
+/**
+ * The aws-cdk-lib modules the CDK app imports (`aws-lambda`, `aws-s3`, ...), read from the infra
+ * source on every run so the list never drifts from the code.
+ */
+export function awsModulesUsed(...dirs) {
+  const modules = new Set();
+  for (const dir of dirs) {
+    for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile() || !/\.ts$/.test(entry.name) || /\.test\.ts$/.test(entry.name)) continue;
+      const source = readFileSync(join(entry.parentPath, entry.name), "utf8");
+      for (const match of source.matchAll(/aws-cdk-lib\/(aws-[a-z0-9-]+)/g)) modules.add(match[1]);
+    }
+  }
+  return [...modules].sort();
+}
+
+export function instructions(awsModules) {
+  const cdk = awsModules.length
+    ? `aws-cdk-lib releases list "BREAKING CHANGES" to generated L1 resources of many AWS services in
+almost every release. They only matter here if the service is one of the modules this CDK app
+imports: ${awsModules.join(", ")}. A breaking change to any other service (or to an -alpha package
+not in that list) does not affect this project and is no reason to block.`
+    : "";
+  return `${INSTRUCTIONS_HEAD}\n\n${cdk}\n\n${INSTRUCTIONS_RULES}`;
+}
+
+const INSTRUCTIONS_HEAD = `You review dependency update pull requests opened by Dependabot for PlotlineAI:
 a Next.js 16 / React 19 frontend (TypeScript, Tailwind 4, Chart.js, Vercel AI SDK), a Spring Boot 4.1
 Java 25 API, AWS CDK infrastructure (Lambda, DynamoDB, EventBridge, SQS, SNS, Redshift Serverless),
 Playwright end-to-end tests, Docker images and GitHub Actions workflows.
 
 CI runs separately (build, unit tests, end-to-end tests, npm audit, Trivy scans) and must pass
 before anything merges, so do not guess about test results. Your job is what CI cannot see: read the
-release notes, changelogs and the manifest diff, and decide whether merging without a human is safe.
+release notes, changelogs and the manifest diff, and decide whether merging without a human is safe.`;
 
-Block when there is a concrete reason, for example:
+const INSTRUCTIONS_RULES = `Block when there is a concrete reason, for example:
 - the notes announce breaking changes, removed or renamed APIs, changed defaults, required
   migrations, or dropped runtime support (Node 24, Java 25) that plausibly affect this stack;
 - a package is replaced by a differently named one, a new unexpected dependency appears, or a
@@ -128,14 +155,14 @@ export function parseResponse(json) {
   return { verdict: result.verdict, summary: result.summary, risks: result.risks.map(String) };
 }
 
-export async function review({ apiKey, model, input, fetchImpl = fetch }) {
+export async function review({ apiKey, model, system, input, fetchImpl = fetch }) {
   if (!apiKey) throw new Error("OPENAI_REVIEW_KEY is not set");
   const res = await fetchImpl("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      instructions: INSTRUCTIONS,
+      instructions: system,
       input,
       reasoning: { effort: "medium" },
       text: { format: { type: "json_schema", name: "dependency_review", strict: true, schema: VERDICT_SCHEMA } },
@@ -186,7 +213,9 @@ async function main() {
       maintainerChanges: env.MAINTAINER_CHANGES,
       diff: readFileSync(env.DIFF_FILE, "utf8"),
     });
-    result = await review({ apiKey: env.OPENAI_REVIEW_KEY, model, input });
+    const infra = (dir) => fileURLToPath(new URL(`../../infra/${dir}`, import.meta.url));
+    const system = instructions(awsModulesUsed(infra("lib"), infra("bin")));
+    result = await review({ apiKey: env.OPENAI_REVIEW_KEY, model, system, input });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -196,4 +225,4 @@ async function main() {
   console.log(decision.reason);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
