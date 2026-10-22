@@ -54,6 +54,17 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  # The scripts the workflows run, such as the Dependabot review.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: tests
+        run: node --test ".github/scripts/*.test.mjs"
+
   # The whole stack under compose, with e2e/ai-stub standing in for OpenAI. Building the
   # images here is also what proves both Dockerfiles still build.
   e2e:
