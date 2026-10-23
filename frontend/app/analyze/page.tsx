@@ -29,7 +29,8 @@ export default function AnalyzePage() {
       <PageShell className="pt-16 pb-30">
         <h2 className="mb-2 text-page">Start with a CSV</h2>
         <p className="mb-8 text-[16px] text-ink-muted">
-          One file, comma separated, with a header row. Nothing is stored beyond seven days.
+          One file with a header row, separated by commas, semicolons, tabs or pipes. Files are
+          deleted within 2 days.
         </p>
         <Dropzone onFile={flow.upload} />
         <div className="mt-10 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))]">

@@ -36,7 +36,7 @@ export default function SuggestionCards({
           <p className="card-body text-small">{suggestion.rationale}</p>
           {suggestion.rendered ? (
             <span className="mt-1 block rounded-[18px] bg-background p-2">
-              <ChartRenderer data={suggestion.rendered} height={210} />
+              <ChartRenderer data={suggestion.rendered} height={210} compact />
             </span>
           ) : (
             <span className="mt-1 block rounded-[18px] bg-background p-2 text-center text-meta text-ink-faint leading-[210px]">

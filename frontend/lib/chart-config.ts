@@ -91,7 +91,10 @@ function normalizeBubbleRadii(datasets: Series[]): Series[] {
   }));
 }
 
-export function toChartConfig(data: RenderedData): ChartConfiguration {
+export function toChartConfig(
+  data: RenderedData,
+  { compact = false }: { compact?: boolean } = {},
+): ChartConfiguration {
   const { chartType, labels } = data;
   const horizontal = chartType === "horizontalBar";
   const partToWhole = PART_TO_WHOLE.has(chartType);
@@ -140,7 +143,12 @@ export function toChartConfig(data: RenderedData): ChartConfiguration {
 
   // Hidden for a single series, because the title already names it. Part-to-whole charts
   // always need one: their categories live in the labels, not in series names.
-  const showLegend = partToWhole || series.length > 1;
+  // A compact preview also drops a legend longer than the palette: its colours repeat, so it
+  // cannot tell entries apart, and its rows would squeeze the chart out of the small well.
+  const legendEntries = partToWhole ? labels.length : series.length;
+  const showLegend =
+    (partToWhole || series.length > 1) &&
+    !(compact && legendEntries > CHART_PALETTE.length);
 
   const scales = partToWhole
     ? undefined
