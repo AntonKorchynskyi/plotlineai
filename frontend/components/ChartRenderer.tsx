@@ -43,8 +43,8 @@ ChartJS.register(
 ChartJS.defaults.font.family = "Figtree, system-ui, sans-serif";
 ChartJS.defaults.color = CHART_TICK;
 
-/** What a caller can do with the drawn chart; `toBase64Image` is the PNG export. */
-export type DrawnChart = Pick<ChartJS, "toBase64Image">;
+/** What a caller gets of the drawn chart: its canvas and pixel ratio, for the PNG export. */
+export type DrawnChart = Pick<ChartJS, "canvas" | "currentDevicePixelRatio">;
 
 type Props = {
   data: RenderedData;

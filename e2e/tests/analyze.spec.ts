@@ -54,13 +54,38 @@ test("upload, pick a suggestion, refine, export and share", async ({ page, brows
   await expect(specPanel(page)).toContainText('"chartType": "doughnut"');
   const title = (await page.getByRole("heading", { level: 2 }).textContent())!;
 
-  // PNG export: a real PNG, named after the chart.
+  // PNG export: a real PNG, named after the chart, opaque on the card's surface colour so a
+  // dark image viewer cannot swallow the ticks and legend, and padded round the chart with
+  // room for the title above it.
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: /download png/i }).click();
   const download = await downloading;
   expect(download.suggestedFilename()).toMatch(/^total-revenue-by-region.*\.png$/);
   const png = await readFile((await download.path())!);
   expect(png.subarray(1, 4).toString()).toBe("PNG");
+  const exported = await page.locator("canvas").evaluate(async (chart: HTMLCanvasElement, url) => {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, image.width, image.height);
+    let translucent = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) translucent += 1;
+    return {
+      corner: Array.from(data.subarray(0, 4)),
+      translucent,
+      size: [image.width, image.height],
+      chart: [chart.width, chart.height],
+    };
+  }, `data:image/png;base64,${png.toString("base64")}`);
+  expect(exported.corner).toEqual([0xeb, 0xdd, 0xc5, 255]);
+  expect(exported.translucent).toBe(0);
+  expect(exported.size[0]).toBeGreaterThan(exported.chart[0]);
+  expect(exported.size[1]).toBeGreaterThan(exported.chart[1] + 48);
 
   // Share, then open the link as a stranger: same chart, read only.
   await page.getByRole("button", { name: /^share$/i }).click();

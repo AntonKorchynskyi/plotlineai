@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ChartRenderer, { type DrawnChart } from "@/components/ChartRenderer";
 import { DownloadIcon, ShareIcon } from "@/components/icons";
 import InstructionForm from "@/components/analyze/InstructionForm";
+import { exportChartPng } from "@/lib/analyze/export-png";
 import { formatSpec, pngFileName } from "@/lib/analyze/labels";
 import type { RenderedData } from "@/lib/chart-config";
 import type { ChartSpec } from "@/lib/chart-spec";
@@ -35,11 +36,15 @@ export default function ChartPanel({
 }) {
   const [chart, setChart] = useState<DrawnChart | null>(null);
   const [copied, setCopied] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
 
-  const downloadPng = () => {
+  const downloadPng = async () => {
     if (!chart) return;
+    const titleFont = heading.current
+      ? getComputedStyle(heading.current).fontFamily
+      : "system-ui, sans-serif";
     const link = document.createElement("a");
-    link.href = chart.toBase64Image();
+    link.href = await exportChartPng(chart, { title: rendered.title, titleFont });
     link.download = pngFileName(spec.title);
     link.click();
   };
@@ -53,7 +58,7 @@ export default function ChartPanel({
   return (
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-5">
-        <h2 className="m-0 text-page">{rendered.title}</h2>
+        <h2 ref={heading} className="m-0 text-page">{rendered.title}</h2>
         <div className="flex flex-wrap items-center gap-2">
           {/* Last on a phone, so Download and Share keep a row together; first once they fit. */}
           <button type="button" className="btn btn-ghost order-last md:order-first" onClick={onBack}>

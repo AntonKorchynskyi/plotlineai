@@ -1,4 +1,8 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "./fixtures";
+
+const APP_FILE = (name: string) => path.resolve(import.meta.dirname, "../../frontend/app", name);
 
 test("the landing page draws all six gallery charts", async ({ page }) => {
   await page.goto("/");
@@ -15,6 +19,25 @@ test("the gallery offers no CSV downloads", async ({ page }) => {
   await expect(page.locator("#gallery article")).toHaveCount(6);
   await expect(page.getByRole("link", { name: /download csv/i })).toHaveCount(0);
   await expect(page.getByText("/api/")).toHaveCount(0);
+});
+
+test("the browser tab shows the brand mark", async ({ page, request }) => {
+  await page.goto("/");
+
+  const svgHref = await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute("href");
+  expect(svgHref).toMatch(/^\/icon\.svg/);
+  const svg = await request.get(svgHref!);
+  expect(svg.headers()["content-type"]).toContain("image/svg+xml");
+  expect(await svg.text()).toContain('fill="#c67139"');
+
+  const appleHref = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
+  const apple = await request.get(appleHref!);
+  expect(apple.headers()["content-type"]).toBe("image/png");
+
+  // Requested by clients that never read the page's links; the brand mark, not Vercel's.
+  const ico = await request.get("/favicon.ico");
+  expect(ico.ok()).toBe(true);
+  expect(await ico.body()).toEqual(await readFile(APP_FILE("favicon.ico")));
 });
 
 test("the logo leads home from any page", async ({ page }) => {

@@ -20,6 +20,11 @@ const flow = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/analyze/use-analyze", () => ({ useAnalyze: () => flow }));
+
+/** The drawn chart the mock renderer hands back; the export itself is covered in its own test. */
+const drawn = vi.hoisted(() => ({ canvas: {} as HTMLCanvasElement, currentDevicePixelRatio: 1 }));
+const exportChartPng = vi.hoisted(() => vi.fn(async () => "data:image/png;base64,AAA"));
+vi.mock("@/lib/analyze/export-png", () => ({ exportChartPng }));
 vi.mock("@/components/ChartRenderer", () => ({
   default: function MockChartRenderer({
     data,
@@ -28,12 +33,12 @@ vi.mock("@/components/ChartRenderer", () => ({
   }: {
     data: { title: string };
     height: number;
-    onReady?: (chart: { toBase64Image: () => string }) => void;
+    onReady?: (chart: { canvas: HTMLCanvasElement; currentDevicePixelRatio: number }) => void;
   }) {
     // The real component hands the Chart.js instance back after drawing, which is what PNG
     // export needs. In an effect, not during render: onReady sets state in the parent.
     useEffect(() => {
-      onReady?.({ toBase64Image: () => "data:image/png;base64,AAA" });
+      onReady?.(drawn);
     }, [onReady]);
     return <div data-testid="chart" data-title={data.title} data-height={height} />;
   },
@@ -240,7 +245,7 @@ describe("the chart screen", () => {
     expect(screen.getByRole("button", { name: /copy link/i })).toBeInTheDocument();
   });
 
-  it("downloads a PNG named after the chart", async () => {
+  it("downloads a PNG of the drawn chart, titled and named after it", async () => {
     show(state);
 
     const click = vi.fn();
@@ -252,6 +257,10 @@ describe("the chart screen", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /download png/i }));
 
+    expect(exportChartPng).toHaveBeenCalledWith(drawn, {
+      title: "Revenue by region",
+      titleFont: expect.any(String),
+    });
     expect(anchor.download).toBe("revenue-by-region.png");
     expect(anchor.href).toMatch(/^data:image\/png/);
     expect(click).toHaveBeenCalled();
