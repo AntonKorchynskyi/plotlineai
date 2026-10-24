@@ -45,6 +45,15 @@ describe("proxy", () => {
     expect(first.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
   });
 
+  it("serves build output and the app icons without a CSP", async () => {
+    const paths = ["/_next/static/chunks/app.js", "/favicon.ico", "/icon.svg", "/apple-icon.png"];
+    for (const path of paths) {
+      const response = await send(path);
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(response.headers.get("content-security-policy")).toBeNull();
+    }
+  });
+
   it("puts no CSP on api responses", async () => {
     expect((await send("/api/backend/gallery")).headers.get("content-security-policy")).toBeNull();
   });

@@ -22,6 +22,10 @@ export const CHART_GRID = "rgba(32,30,29,0.08)";
 export const CHART_TICK = "rgba(32,30,29,0.62)";
 /** --color-background, used as the slice border on part-to-whole charts. */
 export const CHART_GROUND = "#f5ead8";
+/** --color-surface, the card a chart sits on; the exported PNG's background. */
+export const CHART_SURFACE = "#ebddc5";
+/** --color-foreground, the exported PNG's title. */
+export const CHART_INK = "#201e1d";
 /** The accent at 14%, the documented fill under a line. */
 export const LINE_FILL = "rgba(198,113,57,0.14)";
 

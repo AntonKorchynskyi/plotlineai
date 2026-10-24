@@ -70,11 +70,14 @@ function sameSecret(sent: string | null, expected: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** The app icons (app/favicon.ico, icon.svg, apple-icon.png), served as static files. */
+const APP_ICONS = new Set(["/favicon.ico", "/icon.svg", "/apple-icon.png"]);
+
 /** Build output carries no user content and gets no nonce. */
 const isBuildOutput = (pathname: string) =>
   pathname.startsWith("/_next/static/") ||
   pathname.startsWith("/_next/image") ||
-  pathname === "/favicon.ico";
+  APP_ICONS.has(pathname);
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let secret: string | undefined;

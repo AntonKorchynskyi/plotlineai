@@ -61,7 +61,7 @@ describe("<ChartRenderer>", () => {
     render(<ChartRenderer data={fixture("revenue-by-region")} height={400} onReady={onReady} />);
 
     expect(captured.props?.ref).toBeDefined();
-    const chart = { toBase64Image: () => "data:image/png;base64,AAA" };
+    const chart = { canvas: document.createElement("canvas"), currentDevicePixelRatio: 2 };
     (captured.props?.ref as (c: unknown) => void)(chart);
     expect(onReady).toHaveBeenCalledWith(chart);
   });
