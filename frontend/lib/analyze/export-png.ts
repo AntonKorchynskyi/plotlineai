@@ -83,8 +83,10 @@ export async function exportChartPng(
   const ratio = chart.currentDevicePixelRatio;
   const font = `${Math.round(EXPORT_TITLE_SIZE * ratio)}px ${titleFont}`;
   // The heading on screen has already loaded it; this only guards a canvas that would
-  // otherwise fall back silently.
-  await document.fonts.load(font, title);
+  // otherwise fall back silently. The list's next/font fallback face is `local(Arial)`,
+  // which rejects the whole load on a machine without Arial (most Linux). The page skips
+  // a face that fails, and so does the canvas, so a rejection is no reason to stop.
+  await document.fonts.load(font, title).catch(() => []);
 
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");

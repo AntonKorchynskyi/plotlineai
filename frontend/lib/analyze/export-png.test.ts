@@ -68,7 +68,8 @@ describe("exportLayout", () => {
 describe("exportChartPng", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("paints the surface, then the title, then the chart, and returns a PNG", async () => {
+  /** A recording 2D context, and a document.fonts whose load resolves or rejects. */
+  function stubCanvas(fontLoad: () => Promise<unknown>) {
     const calls: string[] = [];
     const context = {
       font: "",
@@ -86,25 +87,45 @@ describe("exportChartPng", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,AAA");
     Object.defineProperty(document, "fonts", {
       configurable: true,
-      value: { load: vi.fn().mockResolvedValue([]) },
+      value: { load: vi.fn(fontLoad) },
     });
+    return { calls, context };
+  }
 
+  const exportRevenue = () => {
     const source = document.createElement("canvas");
     source.width = 800;
     source.height = 400;
-    const png = await exportChartPng(
+    return exportChartPng(
       { canvas: source, currentDevicePixelRatio: 1 },
       { title: "Revenue by region", titleFont: "caprasimo, system-ui" },
     );
+  };
 
-    const layout = exportLayout(800, 400, 1, 1);
-    expect(png).toBe("data:image/png;base64,AAA");
-    expect(calls).toEqual([
-      `fillRect ${CHART_SURFACE} 0,0,${layout.width},${layout.height}`,
-      `fillText ${CHART_INK} Revenue by region ${EXPORT_PADDING}`,
-      `drawImage ${EXPORT_PADDING} ${layout.chartTop}`,
-    ]);
+  const layout = exportLayout(800, 400, 1, 1);
+  const fullDrawing = [
+    `fillRect ${CHART_SURFACE} 0,0,${layout.width},${layout.height}`,
+    `fillText ${CHART_INK} Revenue by region ${EXPORT_PADDING}`,
+    `drawImage ${EXPORT_PADDING} ${layout.chartTop}`,
+  ];
+
+  it("paints the surface, then the title, then the chart, and returns a PNG", async () => {
+    const { calls, context } = stubCanvas(async () => []);
+
+    expect(await exportRevenue()).toBe("data:image/png;base64,AAA");
+    expect(calls).toEqual(fullDrawing);
     expect(context.font).toBe("26px caprasimo, system-ui");
     expect(document.fonts.load).toHaveBeenCalledWith(context.font, "Revenue by region");
+  });
+
+  it("still exports when a face in the font list fails to load", async () => {
+    // What Chrome on Linux does: next/font's fallback face is local(Arial), and with no
+    // Arial installed the whole load rejects.
+    const { calls } = stubCanvas(() =>
+      Promise.reject(new DOMException("A network error occurred.", "NetworkError")),
+    );
+
+    expect(await exportRevenue()).toBe("data:image/png;base64,AAA");
+    expect(calls).toEqual(fullDrawing);
   });
 });
