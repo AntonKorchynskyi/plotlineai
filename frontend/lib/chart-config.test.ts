@@ -189,6 +189,37 @@ describe("toChartConfig", () => {
       }
     });
 
+    describe("in a compact preview", () => {
+      const series = (count: number) =>
+        Array.from({ length: count }, (_, i) => ({ label: `Rep ${i}`, data: [i, i + 1] }));
+      const compact = (data: RenderedData) =>
+        anyOf(toChartConfig(data, { compact: true }).options).plugins.legend;
+
+      it("keeps a legend whose entries each get their own colour", () => {
+        expect(compact(fixture("sales-by-category")).display).toBe(true);
+        expect(compact(fixture("traffic-sources")).display).toBe(true);
+        const six = synthetic({ stacked: true, datasets: series(CHART_PALETTE.length) });
+        expect(compact(six).display).toBe(true);
+      });
+
+      it("drops a legend with more entries than the palette has colours", () => {
+        const twelve = synthetic({ stacked: true, datasets: series(12) });
+        expect(compact(twelve).display).toBe(false);
+        const slices = Array.from({ length: 7 }, (_, i) => `slice ${i}`);
+        const pie = synthetic({
+          chartType: "pie",
+          labels: slices,
+          datasets: [{ label: "Share", data: slices.map((_, i) => i + 1) }],
+        });
+        expect(compact(pie).display).toBe(false);
+      });
+
+      it("leaves the full chart's legend alone", () => {
+        const twelve = synthetic({ stacked: true, datasets: series(12) });
+        expect(options(twelve).plugins.legend.display).toBe(true);
+      });
+    });
+
     it("uses circular swatches", () => {
       const labels = options(fixture("sales-by-category")).plugins.legend.labels;
       expect(labels.usePointStyle).toBe(true);
