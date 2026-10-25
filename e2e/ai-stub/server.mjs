@@ -4,7 +4,12 @@
 //
 // It reads the dataset's columns out of the prompt, the same text the real model sees, and
 // answers with specs the api will accept for that schema. Requests are recognised by the
-// structured-output name web asks for: chart_suggestions or chart_spec.
+// structured-output name web asks for: chart_suggestions, chart_spec or dataset_insights.
+//
+// Insights take two calls. The research call offers the query_data tool: the stub asks for the
+// largest groups of the first numeric column, then ends the research with a note once web
+// sends the result back. The writing call (dataset_insights) quotes the numbers of the first
+// finding in its prompt, so the insights pass web's evidence check the way a real model's do.
 //
 // Free-text requests understand a few words, so a test can steer the result:
 // "line", "doughnut", "pie", "horizontal", "stacked" pick the chart type, and "nothing"
@@ -139,6 +144,39 @@ function described(columns, request, current) {
   return out;
 }
 
+/** The query_data result web sent back, or null on the first step of the loop. */
+function toolResult(body) {
+  const item = (body.input ?? []).find((i) => i.type === "function_call_output");
+  if (!item) return null;
+  const output = Array.isArray(item.output)
+    ? item.output.map((part) => part.text ?? "").join("")
+    : item.output;
+  return JSON.parse(typeof output === "string" ? output : JSON.stringify(output));
+}
+
+function insightsQuery(columns) {
+  const { dimension, measure } = pickColumns(columns);
+  return {
+    dimension,
+    measures: [measure],
+    breakdown: null,
+    filters: null,
+    sort: { by: "measure", direction: "desc" },
+    limit: 5,
+  };
+}
+
+const formatted = (value) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+/** Each group record is { group, <measure>: value, ... }; the first measure is the one asked. */
+function insights(result) {
+  const [first, second] = result.groups;
+  const value = (record) => formatted(Object.values(record).find((v) => typeof v === "number"));
+  const lines = [`${first.group} leads with ${value(first)}.`];
+  if (second) lines.push(`${second.group} follows with ${value(second)}.`);
+  return { insights: lines };
+}
+
 function respond(res, status, payload) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(payload));
@@ -161,14 +199,69 @@ const server = createServer((req, res) => {
     const columns = columnsOf(prompt);
     const name = body.text?.format?.name;
 
+    const researching = (body.tools ?? []).some((t) => t.name === "query_data");
+    if (researching && toolResult(body)) {
+      return respond(res, 200, {
+        id: `resp_stub_${calls}`,
+        object: "response",
+        created_at: Math.floor(Date.now() / 1000),
+        status: "completed",
+        model: body.model,
+        output: [
+          {
+            type: "message",
+            id: `msg_stub_${calls}`,
+            status: "completed",
+            role: "assistant",
+            content: [{ type: "output_text", text: "Enough to write.", annotations: [] }],
+          },
+        ],
+        usage: {
+          input_tokens: 100,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 5,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 105,
+        },
+      });
+    }
+    if (researching) {
+      return respond(res, 200, {
+        id: `resp_stub_${calls}`,
+        object: "response",
+        created_at: Math.floor(Date.now() / 1000),
+        status: "completed",
+        model: body.model,
+        output: [
+          {
+            type: "function_call",
+            id: `fc_stub_${calls}`,
+            call_id: `call_stub_${calls}`,
+            name: "query_data",
+            arguments: JSON.stringify(insightsQuery(columns)),
+            status: "completed",
+          },
+        ],
+        usage: {
+          input_tokens: 100,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 20,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 120,
+        },
+      });
+    }
+
     const output =
-      name === "chart_suggestions"
-        ? suggestions(columns)
-        : described(
-            columns,
-            between(prompt, "<request>", "</request>") ?? "",
-            JSON.parse(between(prompt, "<current-spec>", "</current-spec>") ?? "null"),
-          );
+      name === "dataset_insights"
+        ? insights(JSON.parse(between(prompt, "<findings>", "</findings>").split("\n")[0]).result)
+        : name === "chart_suggestions"
+          ? suggestions(columns)
+          : described(
+              columns,
+              between(prompt, "<request>", "</request>") ?? "",
+              JSON.parse(between(prompt, "<current-spec>", "</current-spec>") ?? "null"),
+            );
 
     respond(res, 200, {
       id: `resp_stub_${calls}`,

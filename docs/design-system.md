@@ -138,7 +138,7 @@ Use the Organic classes, which ship in the `@layer components` block of
 | `.tag-accent` | Chart-type badge on a suggestion, the "Read only" share badge |
 | `.tag-accent-2` | Inferred column chips (`region · string · 5 distinct`) |
 | `.tag-neutral` | Row/column counts, gallery chart type |
-| `.card` + `.card-kicker` / `.card-title` / `.card-body`, `.elev-*` | Gallery cards, suggestion cards, the chart surface, the spec panel |
+| `.card` + `.card-kicker` / `.card-title` / `.card-body`, `.elev-*` | Gallery cards, suggestion cards, the chart surface, the insights card, the spec panel |
 | `.input` | Free-text chart request, refine prompt (min-height 44px) |
 | `.nav` + `.nav-brand` | Header: brand mark (links home), Home, Analyze |
 | `.table` | Reserved for a future data preview; not used in v1 screens |
@@ -202,10 +202,10 @@ source at `designs/source/PlotlineAI.dc.html`) and are the reference for impleme
 | `/analyze` parsing | Accent spinner, file name, three shimmering pill skeletons. |
 | `/analyze` thinking | Inline spinner beside the heading and three skeleton suggestion cards. |
 | `/analyze` suggestions | Dataset summary card (file name, row/column/null counts, one accent-2 chip per inferred column) then three suggestion cards, each with kicker, chart-type tag, title, one-line rationale and a thumbnail; a free-text card closes the screen with the 500-character note. |
-| `/analyze` chart | Kicker + title, Download PNG and Share, the chart on a `--shadow-md` surface, then a two-column row: refine input with chips, and the read-only `ChartSpec` JSON panel on `--color-neutral-100` with a "validated" tag. |
+| `/analyze` chart | Kicker + title, Download PNG and Share, the chart on a `--shadow-md` surface, the "What stands out" insights card (`.card` `.elev-sm`: 18px heading, a numbered list whose 24px accent pills are a CSS counter, a `text-meta` footnote; one pulsing muted line while loading, hidden if the insights failed), then a two-column row: refine input with chips, and the read-only `ChartSpec` JSON panel on `--color-neutral-100` with a "validated" tag. The insights are page content, never part of the PNG. |
 | `/analyze` empty result | Same header, then a centred sage badge, "Nothing left to plot", the reason in plain numbers, and two recovery actions. |
 | `/analyze` rejected file | 680px card: accent-200 alert badge, generic reason, the three caps as a plain list, two recovery actions. |
-| `/s/[shareId]` | Read-only tag and the share URL in monospace, title, snapshot note about dataset expiry, the chart, then a single call to action. |
+| `/s/[shareId]` | Read-only tag and the share URL in monospace, title, snapshot note about dataset expiry, the chart, the insights card when the share has insights, then a single call to action. |
 
 ## 7. Layout rules
 

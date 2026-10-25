@@ -120,7 +120,7 @@ export const ChartSpecModelSchema = z.strictObject({
 });
 
 /** Drops null-valued properties at every depth. Null array elements are kept, so they fail. */
-function dropNulls(value: unknown): unknown {
+export function dropNulls(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(dropNulls);
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(

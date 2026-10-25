@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AnalyzeState } from "@/lib/analyze/use-analyze";
+import type { AnalyzeState, InsightsState } from "@/lib/analyze/use-analyze";
 import type { ChartSpec } from "@/lib/chart-spec";
 
 const flow = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ const flow = vi.hoisted(() => ({
   notice: null as unknown,
   shareUrl: null as string | null,
   busy: false,
+  insights: { status: "idle" } as InsightsState,
 }));
 
 vi.mock("@/lib/analyze/use-analyze", () => ({ useAnalyze: () => flow }));
@@ -77,7 +78,11 @@ const suggestions = [
 ];
 
 const show = (state: AnalyzeState, extra: Partial<typeof flow> = {}) => {
-  Object.assign(flow, { state, notice: null, shareUrl: null, busy: false }, extra);
+  Object.assign(
+    flow,
+    { state, notice: null, shareUrl: null, busy: false, insights: { status: "idle" } },
+    extra,
+  );
   render(<AnalyzePage />);
 };
 
@@ -265,6 +270,31 @@ describe("the chart screen", () => {
     expect(anchor.href).toMatch(/^data:image\/png/);
     expect(click).toHaveBeenCalled();
     create.mockRestore();
+  });
+
+  it("lists what stands out in the file once the insights are ready", () => {
+    show(state, { insights: { status: "ready", items: ["North leads.", "South trails."] } });
+
+    const insights = screen.getByRole("region", { name: "What stands out" });
+    expect(within(insights).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "North leads.",
+      "South trails.",
+    ]);
+  });
+
+  it("says the insights are on their way while they load", () => {
+    show(state, { insights: { status: "loading" } });
+
+    const insights = screen.getByRole("region", { name: "What stands out" });
+    expect(insights).toHaveAttribute("aria-busy", "true");
+    expect(within(insights).getByText("Reading the whole file…")).toBeInTheDocument();
+  });
+
+  it("leaves the insights out when they could not be written", () => {
+    show(state, { insights: { status: "failed" } });
+
+    expect(screen.queryByRole("region", { name: "What stands out" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("chart")).toBeInTheDocument();
   });
 
   it("disables the actions while a request is in flight", () => {

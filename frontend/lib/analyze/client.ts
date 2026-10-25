@@ -127,6 +127,12 @@ export async function suggest(datasetId: string): Promise<Result<Suggestion[]>> 
   return result.ok ? { ok: true, value: result.value.suggestions } : result;
 }
 
+/** The AI's insights about the whole file, written once per dataset. */
+export async function fetchInsights(datasetId: string): Promise<Result<string[]>> {
+  const result = await postJson<{ insights: string[] }>("/api/insights", { datasetId });
+  return result.ok ? { ok: true, value: result.value.insights } : result;
+}
+
 export async function describeChart(
   datasetId: string,
   instruction: string,

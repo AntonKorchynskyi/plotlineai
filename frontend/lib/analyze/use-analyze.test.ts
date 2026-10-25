@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   describeChart: vi.fn(),
   renderChart: vi.fn(),
   createShare: vi.fn(),
+  fetchInsights: vi.fn(),
 }));
 
 vi.mock("@/lib/analyze/client", async (importOriginal) => ({
@@ -64,7 +65,15 @@ beforeEach(() => {
   mocks.renderChart.mockResolvedValue(ok(rendered()));
   mocks.describeChart.mockResolvedValue(ok(spec({ chartType: "doughnut" })));
   mocks.createShare.mockResolvedValue(ok("share-1"));
+  mocks.fetchInsights.mockResolvedValue(ok(["North leads.", "South trails."]));
 });
+
+/** A promise the test settles by hand, to hold an answer in flight. */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
 
 const upload = async (result: ReturnType<typeof renderHook<ReturnType<typeof useAnalyze>, unknown>>) => {
   await act(async () => {
@@ -356,5 +365,89 @@ describe("useAnalyze", () => {
     if (state.step !== "suggestions") throw new Error("wrong step");
     expect(state.suggestions).toEqual([]);
     expect(hook.result.current.notice).toMatchObject({ code: "AI_UNAVAILABLE" });
+  });
+
+  it("loads the insights beside the suggestions, once per upload", async () => {
+    const hook = renderHook(() => useAnalyze());
+    expect(hook.result.current.insights).toEqual({ status: "idle" });
+
+    await upload(hook);
+
+    expect(mocks.fetchInsights).toHaveBeenCalledWith("d1");
+    await waitFor(() =>
+      expect(hook.result.current.insights).toEqual({
+        status: "ready",
+        items: ["North leads.", "South trails."],
+      }),
+    );
+  });
+
+  it("does not hold the suggestions back while the insights are written", async () => {
+    const slow = deferred<ReturnType<typeof ok<string[]>>>();
+    mocks.fetchInsights.mockReturnValue(slow.promise);
+    const hook = renderHook(() => useAnalyze());
+
+    await upload(hook);
+
+    expect(hook.result.current.state.step).toBe("suggestions");
+    expect(hook.result.current.insights).toEqual({ status: "loading" });
+    await act(async () => slow.resolve(ok(["Late but here."])));
+    expect(hook.result.current.insights).toEqual({ status: "ready", items: ["Late but here."] });
+  });
+
+  it("marks the insights failed without a notice, since the charts work without them", async () => {
+    mocks.fetchInsights.mockResolvedValue(fail("AI_UNAVAILABLE", 503));
+    const hook = renderHook(() => useAnalyze());
+
+    await upload(hook);
+
+    await waitFor(() => expect(hook.result.current.insights).toEqual({ status: "failed" }));
+    expect(hook.result.current.notice).toBeNull();
+  });
+
+  it("ignores a slow answer for a file that was since replaced", async () => {
+    const first = deferred<ReturnType<typeof ok<string[]>>>();
+    mocks.fetchInsights.mockReturnValueOnce(first.promise).mockResolvedValueOnce(ok(["About file two."]));
+    const hook = renderHook(() => useAnalyze());
+
+    await upload(hook);
+    await upload(hook);
+    await waitFor(() =>
+      expect(hook.result.current.insights).toEqual({ status: "ready", items: ["About file two."] }),
+    );
+    await act(async () => first.resolve(ok(["About file one."])));
+
+    expect(hook.result.current.insights).toEqual({ status: "ready", items: ["About file two."] });
+  });
+
+  it("lets the insights finish before sharing, so the share carries them", async () => {
+    const slow = deferred<ReturnType<typeof ok<string[]>>>();
+    mocks.fetchInsights.mockReturnValue(slow.promise);
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await act(async () => hook.result.current.choose(0));
+
+    let sharing: Promise<void> = Promise.resolve();
+    act(() => {
+      sharing = hook.result.current.share();
+    });
+    await act(async () => {});
+    expect(mocks.createShare).not.toHaveBeenCalled();
+
+    await act(async () => {
+      slow.resolve(ok(["Done."]));
+      await sharing;
+    });
+    expect(mocks.createShare).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the insights when starting over", async () => {
+    const hook = renderHook(() => useAnalyze());
+    await upload(hook);
+    await waitFor(() => expect(hook.result.current.insights.status).toBe("ready"));
+
+    act(() => hook.result.current.reset());
+
+    expect(hook.result.current.insights).toEqual({ status: "idle" });
   });
 });

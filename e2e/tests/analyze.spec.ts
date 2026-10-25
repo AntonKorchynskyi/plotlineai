@@ -3,6 +3,8 @@ import type { Page } from "@playwright/test";
 import { GALLERY_CSV, expect, test } from "./fixtures";
 
 const specPanel = (page: Page) => page.locator("pre");
+const insightsList = (page: Page) =>
+  page.getByRole("region", { name: "What stands out" }).getByRole("listitem");
 
 async function uploadRevenue(page: Page) {
   await page.goto("/analyze");
@@ -32,6 +34,13 @@ test("upload, pick a suggestion, refine, export and share", async ({ page, brows
   await expect(page.getByText("revenue-by-region.csv · 12 rows aggregated")).toBeVisible();
   await expect(page.locator("canvas")).toBeVisible();
   await expect(specPanel(page)).toContainText('"chartType": "bar"');
+
+  // What stands out in the file, written from the AI's queries over every row: the stub
+  // asks for revenue by region, so its numbers are the real totals.
+  await expect(insightsList(page)).toHaveText([
+    "North America leads with 366,350.",
+    "Asia Pacific follows with 339,550.",
+  ]);
 
   // Refine from the box, then from a chip. Each keeps the chart and changes its type, and
   // the chart stays on screen while the new one renders.
@@ -100,6 +109,10 @@ test("upload, pick a suggestion, refine, export and share", async ({ page, brows
   await expect(shared.getByText("Read only")).toBeVisible();
   await expect(shared.locator("canvas")).toBeVisible();
   await expect(shared.getByRole("button", { name: "Send" })).toHaveCount(0);
+  await expect(insightsList(shared)).toHaveText([
+    "North America leads with 366,350.",
+    "Asia Pacific follows with 339,550.",
+  ]);
   await stranger.close();
 });
 

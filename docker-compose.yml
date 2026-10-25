@@ -92,6 +92,7 @@ services:
       # No OPENAI_BASE_URL here: @ai-sdk/openai reads it itself and rejects an empty value,
       # so it must be absent, not blank. docker-compose.e2e.yml sets it for the stub.
       AI_MODEL: ${AI_MODEL:-gpt-5-nano}
+      AI_INSIGHTS_MODEL: ${AI_INSIGHTS_MODEL:-gpt-5-mini}
       # Behind Caddy, the client address is the right-most X-Forwarded-For entry.
       CLIENT_IP_SOURCE: xff
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}

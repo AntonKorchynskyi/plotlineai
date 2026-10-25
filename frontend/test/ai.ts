@@ -40,6 +40,49 @@ export function sequenceModel(outputs: unknown[]) {
   });
 }
 
+/**
+ * A model for a tool loop: each entry is one step, either query_data calls (their inputs)
+ * or the final structured answer. Steps past the script repeat the last.
+ */
+export function toolLoopModel(steps: ({ queries: unknown[] } | { answer: unknown })[]) {
+  let call = 0;
+  return new MockLanguageModelV4({
+    doGenerate: async () => {
+      const step = steps[Math.min(call++, steps.length - 1)];
+      if ("queries" in step) {
+        return {
+          content: step.queries.map((input, i) => ({
+            type: "tool-call" as const,
+            toolCallId: `call_${call}_${i}`,
+            toolName: "query_data",
+            input: JSON.stringify(input),
+          })),
+          finishReason: { unified: "tool-calls" as const, raw: undefined },
+          usage,
+          warnings: [],
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(step.answer) }],
+        finishReason: { unified: "stop" as const, raw: undefined },
+        usage,
+        warnings: [],
+      };
+    },
+  });
+}
+
+/** A query_data input in the exact form the model sends: every optional field spelled null. */
+export const modelQuery = (over: Record<string, unknown> = {}) => ({
+  dimension: { column: "region", bucket: null },
+  measures: [{ column: "revenue", aggregation: "sum", label: null }],
+  breakdown: null,
+  filters: null,
+  sort: { by: "measure", direction: "desc" },
+  limit: 5,
+  ...over,
+});
+
 /** A validator that passes every spec, or refuses those whose title is listed. */
 export const validatorRefusing =
   (...titles: string[]) =>

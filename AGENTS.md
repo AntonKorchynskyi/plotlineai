@@ -149,7 +149,7 @@ Whole stack:
 
 - `docker compose up --build` -> the app on `http://localhost:3000` (through the
   `proxy` service); `api` and the storage stand-ins internal.
-- `.env` (git-ignored) holds `OPENAI_API_KEY`, `AI_MODEL`, and the cap values.
+- `.env` (git-ignored) holds `OPENAI_API_KEY`, `AI_MODEL`, `AI_INSIGHTS_MODEL`, and the cap values.
   `.env.example` lists every key with safe placeholders.
 
 Infra (`infra/`):

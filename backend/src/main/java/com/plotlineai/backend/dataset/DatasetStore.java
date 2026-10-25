@@ -19,6 +19,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -28,7 +29,8 @@ import tools.jackson.databind.ObjectMapper;
  * <ul>
  *   <li>{@code datasets/<id>/detail.json}: the schema and the first sample rows, all an AI
  *       call or {@code GET /datasets/{id}} needs;</li>
- *   <li>{@code datasets/<id>/rows.json.gz}: every row, read only to render.</li>
+ *   <li>{@code datasets/<id>/rows.json.gz}: every row, read only to render;</li>
+ *   <li>{@code datasets/<id>/insights.json}: the insights web wrote, once it has.</li>
  * </ul>
  * TTL removes the item and a lifecycle rule the objects, both some time after expiry, so every
  * read checks {@code expiresAt} itself.
@@ -37,6 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 public class DatasetStore {
 
     private static final TypeReference<List<List<String>>> ROWS = new TypeReference<>() {};
+    private static final TypeReference<List<String>> INSIGHTS = new TypeReference<>() {};
 
     /** What {@code detail.json} holds. */
     public record Detail(List<ColumnSchema> schema, List<Map<String, String>> sampleRows) {
@@ -100,6 +103,20 @@ public class DatasetStore {
         }
     }
 
+    public void writeInsights(UUID id, List<String> insights) {
+        s3.putObject(b -> b.bucket(bucket).key(insightsKey(id)).contentType("application/json"),
+            RequestBody.fromBytes(objectMapper.writeValueAsBytes(insights)));
+    }
+
+    public Optional<List<String>> readInsights(UUID id) {
+        try {
+            byte[] json = s3.getObjectAsBytes(b -> b.bucket(bucket).key(insightsKey(id))).asByteArray();
+            return Optional.of(objectMapper.readValue(json, INSIGHTS));
+        } catch (NoSuchKeyException e) {
+            return Optional.empty();
+        }
+    }
+
     private static AttributeValue key(UUID id) {
         return AttributeValue.fromS("DATASET#" + id);
     }
@@ -110,6 +127,10 @@ public class DatasetStore {
 
     private static String detailKey(UUID id) {
         return "datasets/" + id + "/detail.json";
+    }
+
+    private static String insightsKey(UUID id) {
+        return "datasets/" + id + "/insights.json";
     }
 
     private static byte[] gzip(byte[] bytes) {
