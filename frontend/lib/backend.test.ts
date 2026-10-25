@@ -4,8 +4,12 @@ import {
   DatasetNotFoundError,
   backendFetch,
   backendUrl,
+  QueryRefusedError,
   fetchDataset,
   fetchShare,
+  fetchStoredInsights,
+  queryDataset,
+  storeInsights,
   validateSpecs,
   type DatasetDetail,
 } from "@/lib/backend";
@@ -113,8 +117,14 @@ describe("fetchShare", () => {
     vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
     respond(share);
 
-    await expect(fetchShare("s1")).resolves.toEqual(share);
+    // A share made before insights existed has none.
+    await expect(fetchShare("s1")).resolves.toEqual({ ...share, insights: [] });
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe("http://api:8080/shares/s1");
+  });
+
+  it("reads the insights stored with the share", async () => {
+    respond({ ...share, insights: ["North leads."] });
+    await expect(fetchShare("s1")).resolves.toEqual({ ...share, insights: ["North leads."] });
   });
 
   it("returns null for an unknown id, which is a page state and not an error", async () => {
@@ -215,5 +225,72 @@ describe("validateSpecs", () => {
     await expect(validateSpecs(ID, [spec])).rejects.toBeInstanceOf(DatasetNotFoundError);
     respond({ error: "INTERNAL" }, 500);
     await expect(validateSpecs(ID, [spec])).rejects.toBeInstanceOf(BackendError);
+  });
+});
+
+describe("queryDataset", () => {
+  const answer = {
+    labels: ["north"],
+    series: [{ label: "sum(revenue)", data: [40.5] }],
+    totalGroups: 3,
+    totals: [64.5],
+  };
+
+  it("posts the query to the api's internal route and returns the answer", async () => {
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://api:8080");
+    respond(answer);
+    const query = { measures: [{ column: "revenue", aggregation: "sum" }] };
+
+    await expect(queryDataset(ID, query)).resolves.toEqual(answer);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe(`http://api:8080/internal/datasets/${ID}/query`);
+    expect(init).toMatchObject({ method: "POST", body: JSON.stringify(query) });
+  });
+
+  it("turns a refused query into its reason, for the AI to correct", async () => {
+    respond({ error: "INVALID_CHART_SPEC", message: "The dimension references an unknown column" }, 400);
+
+    const refused = await queryDataset(ID, {}).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(QueryRefusedError);
+    expect((refused as QueryRefusedError).reason).toBe("The dimension references an unknown column");
+  });
+
+  it("tells a vanished dataset from a broken api", async () => {
+    respond({ error: "NOT_FOUND" }, 404);
+    await expect(queryDataset(ID, {})).rejects.toBeInstanceOf(DatasetNotFoundError);
+    respond({ error: "INTERNAL" }, 500);
+    await expect(queryDataset(ID, {})).rejects.toBeInstanceOf(BackendError);
+    respond({ unexpected: true });
+    await expect(queryDataset(ID, {})).rejects.toBeInstanceOf(BackendError);
+  });
+});
+
+describe("stored insights", () => {
+  it("reads them back, or null when none are stored yet", async () => {
+    respond({ insights: ["North leads."] });
+    await expect(fetchStoredInsights(ID)).resolves.toEqual(["North leads."]);
+
+    respond({ error: "NOT_FOUND" }, 404);
+    await expect(fetchStoredInsights(ID)).resolves.toBeNull();
+
+    respond({ error: "INTERNAL" }, 500);
+    await expect(fetchStoredInsights(ID)).rejects.toBeInstanceOf(BackendError);
+  });
+
+  it("stores them with a PUT next to the dataset", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    await storeInsights(ID, ["North leads."]);
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toContain(`/internal/datasets/${ID}/insights`);
+    expect(init).toMatchObject({ method: "PUT", body: JSON.stringify({ insights: ["North leads."] }) });
+  });
+
+  it("fails loudly when storing fails", async () => {
+    respond({ error: "NOT_FOUND" }, 404);
+    await expect(storeInsights(ID, ["x"])).rejects.toBeInstanceOf(DatasetNotFoundError);
+    respond({ error: "INVALID_REQUEST" }, 400);
+    await expect(storeInsights(ID, ["x"])).rejects.toBeInstanceOf(BackendError);
   });
 });

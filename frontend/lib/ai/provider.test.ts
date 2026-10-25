@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiUnavailableError } from "@/lib/ai/errors";
-import { callSettings } from "@/lib/ai/provider";
+import { callSettings, insightSettings } from "@/lib/ai/provider";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -41,5 +41,27 @@ describe("callSettings", () => {
   it("retries at most once, since every attempt costs money", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     expect(callSettings().maxRetries).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("insightSettings", () => {
+  it("defaults to gpt-5-mini, apart from the chart model", () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("AI_MODEL", "gpt-5-nano");
+    vi.stubEnv("AI_INSIGHTS_MODEL", "");
+    const { model } = insightSettings();
+    expect(typeof model === "object" && model.modelId).toBe("gpt-5-mini");
+  });
+
+  it("honours AI_INSIGHTS_MODEL", () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("AI_INSIGHTS_MODEL", "gpt-5-nano");
+    const { model } = insightSettings();
+    expect(typeof model === "object" && model.modelId).toBe("gpt-5-nano");
+  });
+
+  it("refuses to build a model without a key", () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    expect(() => insightSettings()).toThrow(AiUnavailableError);
   });
 });

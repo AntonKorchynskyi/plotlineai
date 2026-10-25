@@ -93,7 +93,8 @@ export async function handleAiRoute<B extends { datasetId: string }>(
     const dataset = await fetchDataset(parsed.data.datasetId);
     start = performance.now();
     const result = await run(parsed.data, dataset, { record });
-    await reportCall(request, route, record, elapsed(), "ok");
+    // An answer served from storage made no AI call, so there is no attempt to report.
+    if (record.attempts > 0) await reportCall(request, route, record, elapsed(), "ok");
     return Response.json(result);
   } catch (failure) {
     // Only the AI call throws these, so the dataset lookup never counts as an attempt.

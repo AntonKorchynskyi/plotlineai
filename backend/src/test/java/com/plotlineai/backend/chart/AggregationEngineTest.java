@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.plotlineai.backend.chart.dto.RenderResponse;
 import com.plotlineai.backend.chart.spec.ChartSpec;
+import com.plotlineai.backend.chart.spec.Filter;
+import com.plotlineai.backend.chart.spec.Measure;
 import com.plotlineai.backend.dataset.ColumnType;
 import com.plotlineai.backend.dataset.dto.ColumnSchema;
 import com.plotlineai.backend.error.InvalidChartSpecException;
@@ -477,5 +479,35 @@ class AggregationEngineTest {
                          {"column":"revenue","aggregation":"none"}],
              "filters":[{"column":"region","op":"eq","value":"north"}]}""");
         assertEquals(3, r.datasets().get(0).data().size());
+    }
+
+    @Test
+    void totalsAggregateEveryRowTheFiltersKeep() {
+        List<Measure> measures = List.of(
+            MAPPER.readValue("{\"column\":\"revenue\",\"aggregation\":\"sum\"}", Measure.class),
+            MAPPER.readValue("{\"column\":\"units\",\"aggregation\":\"avg\"}", Measure.class),
+            MAPPER.readValue("{\"column\":null,\"aggregation\":\"count\"}", Measure.class));
+
+        RenderResponse all = engine.totals(measures, null, SCHEMA, ROWS);
+        assertEquals(List.of("All rows"), all.labels());
+        assertEquals(List.of(167.0), all.datasets().get(0).data());
+        assertEquals(List.of(3.5), all.datasets().get(1).data());
+        assertEquals(List.of(6.0), all.datasets().get(2).data());
+
+        List<Filter> north = List.of(
+            MAPPER.readValue("{\"column\":\"region\",\"op\":\"eq\",\"value\":\"north\"}", Filter.class));
+        RenderResponse filtered = engine.totals(measures, north, SCHEMA, ROWS);
+        assertEquals(List.of(140.5), filtered.datasets().get(0).data());
+        assertEquals(List.of(3.0), filtered.datasets().get(2).data());
+    }
+
+    @Test
+    void totalsOfNoRowsAreEmpty() {
+        List<Measure> sum = List.of(
+            MAPPER.readValue("{\"column\":\"revenue\",\"aggregation\":\"sum\"}", Measure.class));
+        List<Filter> nobody = List.of(
+            MAPPER.readValue("{\"column\":\"region\",\"op\":\"eq\",\"value\":\"east\"}", Filter.class));
+
+        assertNull(engine.totals(sum, nobody, SCHEMA, ROWS).datasets().get(0).data().get(0));
     }
 }

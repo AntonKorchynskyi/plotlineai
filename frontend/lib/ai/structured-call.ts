@@ -18,7 +18,7 @@ import type { ChartSpec } from "@/lib/chart-spec";
  * bill for a reasoning model, and cached input bills at a tenth of fresh input, so both are
  * worth watching. Counts only: no prompt, no dataset, no output.
  */
-function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsage) {
+export function logUsage(name: string, settings: CallSettings, usage: LanguageModelUsage) {
   console.info(
     JSON.stringify({
       event: "ai_call",
@@ -58,6 +58,14 @@ export const emptyCallRecord = (): AiCallRecord => ({
 const add = (total: number | null, more: number | undefined) =>
   more === undefined ? total : (total ?? 0) + more;
 
+/** Adds one model call's token counts to the request's record. */
+export function recordUsage(record: AiCallRecord | undefined, usage: LanguageModelUsage) {
+  if (!record) return;
+  record.inputTokens = add(record.inputTokens, usage.inputTokens);
+  record.outputTokens = add(record.outputTokens, usage.outputTokens);
+  record.reasoningTokens = add(record.reasoningTokens, usage.outputTokenDetails?.reasoningTokens);
+}
+
 /** Dry-runs specs against a dataset, one result per spec (see validateSpecs). */
 export type SpecValidator = (datasetId: string, specs: ChartSpec[]) => Promise<SpecCheckResult[]>;
 
@@ -69,11 +77,11 @@ export type AiDeps = {
   validate?: SpecValidator;
 };
 
-const modelId = (settings: CallSettings) =>
+export const modelId = (settings: CallSettings) =>
   typeof settings.model === "string" ? settings.model : settings.model.modelId;
 
 /**
- * The one schema-constrained model call both AI features make. No loop, no tools: the
+ * The one schema-constrained model call every AI feature ends with. No loop, no tools: the
  * output can only ever be the given structure.
  *
  * Failures come out as one of two errors: AiBadOutputError when the model answered with
@@ -81,7 +89,14 @@ const modelId = (settings: CallSettings) =>
  * down or slow). The provider's own error stays in `cause`, for logs only.
  */
 export async function structuredCall<T>(
-  options: { schema: z.ZodType<T>; name: string; description: string; prompt: string },
+  options: {
+    schema: z.ZodType<T>;
+    name: string;
+    description: string;
+    prompt: string;
+    /** The chart rules unless a feature brings its own. */
+    system?: string;
+  },
   deps: AiDeps = {},
 ): Promise<T> {
   // Resolve settings first, so a missing key does not spend the budget.
@@ -93,7 +108,7 @@ export async function structuredCall<T>(
   try {
     const result = await generateText({
       ...settings,
-      system: SYSTEM_PROMPT,
+      system: options.system ?? SYSTEM_PROMPT,
       prompt: options.prompt,
       output: Output.object({
         schema: options.schema,
@@ -102,14 +117,7 @@ export async function structuredCall<T>(
       }),
     });
     logUsage(options.name, settings, result.usage);
-    if (deps.record) {
-      deps.record.inputTokens = add(deps.record.inputTokens, result.usage.inputTokens);
-      deps.record.outputTokens = add(deps.record.outputTokens, result.usage.outputTokens);
-      deps.record.reasoningTokens = add(
-        deps.record.reasoningTokens,
-        result.usage.outputTokenDetails?.reasoningTokens,
-      );
-    }
+    recordUsage(deps.record, result.usage);
     return result.output;
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error)) {

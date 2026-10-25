@@ -29,7 +29,8 @@ Live at **https://d2c5dopbhn9uhj.cloudfront.net**
 - **Describe your own** - type "revenue by region as a doughnut, biggest first" and get that chart
 - **Refine in plain words** - "top five only", "show it as a line", or one of the quick chips
 - **Messy CSVs welcome** - UTF-8, UTF-16 and Windows-1252; comma, semicolon, tab and pipe delimiters; grouped, European and currency-decorated numbers; 18 date formats; `n/a`-style placeholders counted as missing
-- **PNG export and share links** - download the chart, or share a read-only link
+- **What stands out** - one to ten insights per file, written by the AI from queries it runs over every row; any number the queries did not produce is dropped before it is shown
+- **PNG export and share links** - download the chart, or share a read-only link that carries the insights too
 - **Short-lived data** - uploads (up to 5 MB and 100,000 rows) are deleted within 2 days
 
 ---
@@ -110,7 +111,7 @@ Locally the same app runs in Docker Compose: Caddy takes the place of CloudFront
 |           |                                                                                    |
 | --------- | ---------------------------------------------------------------------------------- |
 | Frontend  | Next.js 16, React 19, Tailwind CSS 4, Chart.js 4                                   |
-| AI        | Vercel AI SDK 7, OpenAI `gpt-5-nano`, Zod 4 schemas                                |
+| AI        | Vercel AI SDK 7, OpenAI `gpt-5-nano` (charts) and `gpt-5-mini` (insights), Zod 4   |
 | Backend   | Spring Boot 4.1, Java 25                                                           |
 | Storage   | DynamoDB, S3                                                                       |
 | Analytics | EventBridge, SQS, Redshift Serverless                                              |

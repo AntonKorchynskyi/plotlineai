@@ -68,9 +68,11 @@ const ShareSchema = z.object({
   shareId: z.string(),
   createdAt: z.string(),
   renderedData: z.custom<RenderedData>(() => true),
+  // A share made before insights existed, or before they were ready, has none.
+  insights: z.array(z.string()).default([]),
 });
 
-/** GET /shares/{id}: the snapshot rendered when the share was made. */
+/** GET /shares/{id}: the snapshot rendered when the share was made, and the insights. */
 export type Share = z.infer<typeof ShareSchema>;
 
 /**
@@ -125,6 +127,85 @@ export async function validateSpecs(
     throw new BackendError("unexpected validation answer");
   }
   return parsed.data.results;
+}
+
+const QueryResultSchema = z.object({
+  labels: z.array(z.string()),
+  series: z.array(z.object({ label: z.string(), data: z.array(z.number().nullable()) })),
+  totalGroups: z.number(),
+  totals: z.array(z.number().nullable()),
+});
+
+/** One answer to the insights AI's query_data tool, computed over every row by the api. */
+export type QueryResult = z.infer<typeof QueryResultSchema>;
+
+/** A question the api refused, with its reason, which goes back to the AI to correct. */
+export class QueryRefusedError extends Error {
+  constructor(readonly reason: string) {
+    super("query refused");
+    this.name = "QueryRefusedError";
+  }
+}
+
+/**
+ * Runs one aggregate query over the whole dataset (the api's internal query route, not on the
+ * browser allowlist). `query` is a chart spec's building blocks with an optional dimension.
+ */
+export async function queryDataset(datasetId: string, query: unknown): Promise<QueryResult> {
+  let response: Response;
+  try {
+    response = await backendFetch(`/internal/datasets/${encodeURIComponent(datasetId)}/query`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(query),
+    });
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) throw new DatasetNotFoundError();
+  if (response.status === 400) {
+    const body = (await response.json().catch(() => null)) as { message?: unknown } | null;
+    throw new QueryRefusedError(typeof body?.message === "string" ? body.message : "invalid query");
+  }
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
+
+  const parsed = QueryResultSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new BackendError("unexpected query answer");
+  return parsed.data;
+}
+
+const InsightsSchema = z.object({ insights: z.array(z.string()) });
+
+/** The insights already written for a dataset, or null when there are none yet. */
+export async function fetchStoredInsights(datasetId: string): Promise<string[] | null> {
+  let response: Response;
+  try {
+    response = await backendFetch(`/internal/datasets/${encodeURIComponent(datasetId)}/insights`);
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) return null;
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
+
+  const parsed = InsightsSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new BackendError("unexpected insights");
+  return parsed.data.insights;
+}
+
+/** Stores a dataset's insights next to it, where a share made later copies them from. */
+export async function storeInsights(datasetId: string, insights: string[]): Promise<void> {
+  let response: Response;
+  try {
+    response = await backendFetch(`/internal/datasets/${encodeURIComponent(datasetId)}/insights`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ insights }),
+    });
+  } catch (cause) {
+    throw new BackendError("api unreachable", { cause });
+  }
+  if (response.status === 404) throw new DatasetNotFoundError();
+  if (!response.ok) throw new BackendError(`api answered ${response.status}`);
 }
 
 export async function fetchDataset(datasetId: string): Promise<DatasetDetail> {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ChartRenderer from "@/components/ChartRenderer";
+import InsightsCard from "@/components/InsightsCard";
 import LocalDate from "@/components/LocalDate";
 import PageShell from "@/components/PageShell";
 import { fetchShare } from "@/lib/backend";
@@ -37,6 +38,12 @@ export default async function SharePage({
       <div className="card elev-md p-6">
         <ChartRenderer data={share.renderedData} height={380} />
       </div>
+
+      {share.insights.length > 0 && (
+        <div className="mt-5">
+          <InsightsCard items={share.insights} />
+        </div>
+      )}
 
       <div className="card elev-sm mt-5 flex-row flex-wrap items-center gap-4 px-5 py-5">
         <span className="font-heading text-card">Got a CSV of your own?</span>

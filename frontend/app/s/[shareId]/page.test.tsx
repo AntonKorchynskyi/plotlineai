@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ fetchShare: vi.fn() }));
@@ -25,6 +25,7 @@ const share = {
     labels: ["North"],
     datasets: [{ label: "Revenue", data: [1] }],
   },
+  insights: [] as string[],
 };
 
 const show = async (shareId = "8f3c1a7e") =>
@@ -60,6 +61,24 @@ describe("the shared chart page", () => {
       "href",
       "/analyze",
     );
+  });
+
+  it("lists the insights that were stored with the share", async () => {
+    mocks.fetchShare.mockResolvedValue({ ...share, insights: ["North leads.", "South trails."] });
+    await show();
+
+    const insights = screen.getByRole("region", { name: "What stands out" });
+    expect(within(insights).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "North leads.",
+      "South trails.",
+    ]);
+  });
+
+  it("shows no insights card for a share that has none", async () => {
+    mocks.fetchShare.mockResolvedValue(share);
+    await show();
+
+    expect(screen.queryByRole("region", { name: "What stands out" })).not.toBeInTheDocument();
   });
 
   it("answers an unknown link with a 404 rather than a page saying 200", async () => {

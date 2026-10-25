@@ -57,7 +57,7 @@ public class ChartSpecValidator {
                 fail("scatter and bubble charts do not support sort");
             }
         } else {
-            validateAggregatedMeasures(spec, cols);
+            validateAggregatedMeasures(spec.measures(), cols);
         }
 
         if (PIE_TYPES.contains(spec.chartType())) {
@@ -90,6 +90,20 @@ public class ChartSpecValidator {
         }
     }
 
+    /** For {@link AggregationEngine#totals}: aggregated measures and filters, no dimension. */
+    public void validateTotals(List<Measure> measures, List<Filter> filters, List<ColumnSchema> schema) {
+        Map<String, ColumnSchema> cols = new HashMap<>();
+        for (ColumnSchema col : schema) {
+            cols.putIfAbsent(col.name(), col);
+        }
+        validateAggregatedMeasures(measures, cols);
+        if (filters != null) {
+            for (Filter filter : filters) {
+                validateFilter(filter, cols);
+            }
+        }
+    }
+
     private void validatePointMeasures(ChartSpec spec, Map<String, ColumnSchema> cols) {
         int expected = spec.chartType() == ChartType.bubble ? 3 : 2;
         if (spec.measures().size() != expected) {
@@ -109,8 +123,8 @@ public class ChartSpecValidator {
         }
     }
 
-    private void validateAggregatedMeasures(ChartSpec spec, Map<String, ColumnSchema> cols) {
-        for (Measure measure : spec.measures()) {
+    private void validateAggregatedMeasures(List<Measure> measures, Map<String, ColumnSchema> cols) {
+        for (Measure measure : measures) {
             Aggregation agg = measure.aggregation();
             if (agg == Aggregation.none) {
                 fail("aggregation none is only valid for scatter and bubble charts");

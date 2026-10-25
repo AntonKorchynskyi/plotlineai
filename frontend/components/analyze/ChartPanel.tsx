@@ -3,8 +3,10 @@
 import { useRef, useState } from "react";
 import ChartRenderer, { type DrawnChart } from "@/components/ChartRenderer";
 import { DownloadIcon, ShareIcon } from "@/components/icons";
+import InsightsCard from "@/components/InsightsCard";
 import InstructionForm from "@/components/analyze/InstructionForm";
 import { exportChartPng } from "@/lib/analyze/export-png";
+import type { InsightsState } from "@/lib/analyze/use-analyze";
 import { formatSpec, pngFileName } from "@/lib/analyze/labels";
 import type { RenderedData } from "@/lib/chart-config";
 import type { ChartSpec } from "@/lib/chart-spec";
@@ -16,12 +18,16 @@ const REFINE_CHIPS = [
   "Show it as a line",
 ];
 
-/** The chart screen: the drawn chart, its actions, the refine box and the spec panel. */
+/**
+ * The chart screen: the drawn chart, its actions, what stands out in the file, the refine box
+ * and the spec panel.
+ */
 export default function ChartPanel({
   spec,
   rendered,
   shareUrl,
   busy,
+  insights,
   onRefine,
   onShare,
   onBack,
@@ -30,6 +36,7 @@ export default function ChartPanel({
   rendered: RenderedData;
   shareUrl: string | null;
   busy: boolean;
+  insights: InsightsState;
   onRefine: (instruction: string) => void;
   onShare: () => void;
   onBack: () => void;
@@ -92,6 +99,15 @@ export default function ChartPanel({
           <button type="button" className="btn btn-ghost ml-auto text-small" onClick={copyShareUrl}>
             {copied ? "Copied" : "Copy link"}
           </button>
+        </div>
+      )}
+
+      {(insights.status === "loading" || insights.status === "ready") && (
+        <div className="mt-5">
+          <InsightsCard
+            items={insights.status === "ready" ? insights.items : []}
+            loading={insights.status === "loading"}
+          />
         </div>
       )}
 

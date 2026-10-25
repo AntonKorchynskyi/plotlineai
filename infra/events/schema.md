@@ -35,7 +35,7 @@ Every `detail` starts with:
 | `dataset.rejected` | api | `reason`, `bytes` |
 | `chart.rendered` | api | `chartType`, `groups` (labels on the x axis), `seriesCount`, `ms` |
 | `share.created` | api | `chartType`, `snapshotBytes` (gzipped) |
-| `ai.called` | web | `route` (`suggest` or `chart-spec`), `model`, `inputTokens`, `outputTokens`, `reasoningTokens`, `ms`, `outcome`, `attempts`, `invalidSpecs` |
+| `ai.called` | web | `route` (`suggest`, `chart-spec` or `insights`), `model`, `inputTokens`, `outputTokens`, `reasoningTokens`, `ms`, `outcome`, `attempts`, `invalidSpecs` |
 | `quota.exhausted` | api | `quota` (`ai` or `upload`), `limit`, `day` (`YYYY-MM-DD`, UTC) |
 
 Notes:
@@ -51,6 +51,10 @@ Notes:
 - In `ai.called`, `attempts` is how many model calls the request made (2 when the first answer
   held specs the schema check refused) and `invalidSpecs` how many specs it refused in all. The
   token counts add up every attempt.
+- For `insights`, `attempts` counts every model step: each research round with query_data, then
+  the writing call (at most 4), and `invalidSpecs` counts the insights dropped because a number
+  in them was not backed by the research. An answer served from the insights already stored
+  for the dataset makes no AI call and sends no `ai.called`.
 - `quota.exhausted` is sent once per quota and UTC day across all api instances: the first
   refusal claims a one-per-day slot in DynamoDB.
 

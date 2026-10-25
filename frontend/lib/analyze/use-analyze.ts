@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   checkFile,
   createShare,
   describeChart,
+  fetchInsights,
   renderChart,
   suggest,
   uploadCsv,
@@ -59,6 +60,16 @@ export type AnalyzeState =
     }
   | { step: "rejected"; failure: Failure };
 
+/**
+ * The AI's insights about the uploaded file. They load beside the suggestions and are shown
+ * with the chart; a failure only hides them, because the charts work without.
+ */
+export type InsightsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; items: string[] }
+  | { status: "failed" };
+
 /** A render with no series, or only empty ones, is the designed "nothing left to plot". */
 const isEmptyRender = (rendered: RenderedData) =>
   rendered.datasets.length === 0 || rendered.datasets.every((d) => d.data.length === 0);
@@ -68,10 +79,31 @@ export function useAnalyze() {
   const [notice, setNotice] = useState<Failure | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [insights, setInsights] = useState<InsightsState>({ status: "idle" });
+  // Which upload the insights belong to, so a slow answer for an earlier file is dropped,
+  // and the request in flight, which a share waits for so it does not go out without them.
+  const insightsFor = useRef(0);
+  const insightsPending = useRef<Promise<void> | null>(null);
+
+  const loadInsights = useCallback((datasetId: string) => {
+    const ticket = ++insightsFor.current;
+    setInsights({ status: "loading" });
+    insightsPending.current = fetchInsights(datasetId).then((result) => {
+      if (insightsFor.current !== ticket) return;
+      setInsights(result.ok ? { status: "ready", items: result.value } : { status: "failed" });
+    });
+  }, []);
+
+  const clearInsights = useCallback(() => {
+    insightsFor.current++;
+    insightsPending.current = null;
+    setInsights({ status: "idle" });
+  }, []);
 
   const upload = useCallback(async (file: File) => {
     setNotice(null);
     setShareUrl(null);
+    clearInsights();
 
     const rejected = checkFile(file);
     if (rejected) {
@@ -88,6 +120,7 @@ export function useAnalyze() {
 
     const dataset = uploaded.value;
     setState({ step: "thinking", fileName: file.name, dataset });
+    loadInsights(dataset.datasetId);
 
     const suggested = await suggest(dataset.datasetId);
     if (!suggested.ok) {
@@ -104,7 +137,7 @@ export function useAnalyze() {
       }),
     );
     setState({ step: "suggestions", fileName: file.name, dataset, suggestions });
-  }, []);
+  }, [clearInsights, loadInsights]);
 
   /**
    * Renders a spec and moves to the chart, or to the empty screen when nothing is left.
@@ -177,6 +210,8 @@ export function useAnalyze() {
     if (state.step !== "chart") return;
 
     setBusy(true);
+    // The api copies the stored insights into the share, so let them finish first.
+    await insightsPending.current;
     const created = await createShare(state.dataset.datasetId, state.spec);
     setBusy(false);
 
@@ -210,14 +245,16 @@ export function useAnalyze() {
   const reset = useCallback(() => {
     setNotice(null);
     setShareUrl(null);
+    clearInsights();
     setState({ step: "idle" });
-  }, []);
+  }, [clearInsights]);
 
   return {
     state,
     notice,
     shareUrl,
     busy,
+    insights,
     upload,
     choose,
     describe,

@@ -68,6 +68,31 @@ public class AggregationEngine {
         return renderAggregated(spec, filtered, index, cols);
     }
 
+    /**
+     * Each measure over every row the filters keep, as one group: a whole-dataset total,
+     * average, minimum or maximum, which a chart (always grouped by a dimension) cannot give.
+     */
+    public RenderResponse totals(List<Measure> measures, List<Filter> filters,
+            List<ColumnSchema> schema, List<List<String>> rows) {
+        Map<String, Integer> index = new HashMap<>();
+        Map<String, ColumnSchema> cols = new HashMap<>();
+        for (int i = 0; i < schema.size(); i++) {
+            ColumnSchema col = schema.get(i);
+            if (!index.containsKey(col.name())) {
+                index.put(col.name(), i);
+                cols.put(col.name(), col);
+            }
+        }
+        List<List<String>> filtered = applyFilters(filters, rows, index, cols);
+        List<Series> datasets = new ArrayList<>();
+        for (Measure measure : measures) {
+            List<Object> data = new ArrayList<>(1);
+            data.add(aggregate(measure, filtered, index, cols));
+            datasets.add(new Series(seriesLabel(measure, cols), data));
+        }
+        return new RenderResponse(ChartType.bar.name(), false, "", List.of("All rows"), datasets);
+    }
+
     // --- filtering ---
 
     private List<List<String>> applyFilters(List<Filter> filters, List<List<String>> rows,

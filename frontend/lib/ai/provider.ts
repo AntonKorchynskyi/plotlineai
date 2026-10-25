@@ -4,10 +4,16 @@ import { AiUnavailableError } from "@/lib/ai/errors";
 
 /**
  * The only file that names a provider or a model. Swapping providers means editing this file
- * alone: suggest.ts and chart-spec.ts spread these settings into their calls.
+ * alone: suggest.ts, chart-spec.ts and insights.ts spread these settings into their calls.
  */
 
 const DEFAULT_MODEL = "gpt-5-nano";
+/**
+ * Insights read query results and make claims about them ("the highest", "every month"), which
+ * gpt-5-nano got wrong in about one file in seven on the gallery CSVs and gpt-5-mini did not.
+ * At their token counts it costs about $0.004 an upload against nano's $0.0008.
+ */
+const DEFAULT_INSIGHTS_MODEL = "gpt-5-mini";
 
 export type CallSettings = {
   model: LanguageModel;
@@ -24,7 +30,21 @@ export type CallSettings = {
   maxRetries: number;
 };
 
+/** For the chart calls: AI_MODEL, gpt-5-nano by default. */
 export function callSettings(): CallSettings {
+  return settings(process.env.AI_MODEL || DEFAULT_MODEL, 25_000);
+}
+
+/**
+ * For the insights calls: AI_INSIGHTS_MODEL, gpt-5-mini by default. The research call takes
+ * its own longer budget (see insights.ts); this timeout is the writing call's, so the two stay
+ * inside web's 60 s.
+ */
+export function insightSettings(): CallSettings {
+  return settings(process.env.AI_INSIGHTS_MODEL || DEFAULT_INSIGHTS_MODEL, 20_000);
+}
+
+function settings(modelId: string, timeout: number): CallSettings {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new AiUnavailableError("OPENAI_API_KEY is not configured");
 
@@ -32,10 +52,10 @@ export function callSettings(): CallSettings {
   // (e2e/ai-stub) or an OpenAI-compatible gateway. Unset, it is api.openai.com.
   const openai = createOpenAI({ apiKey, baseURL: process.env.OPENAI_BASE_URL || undefined });
   return {
-    model: openai(process.env.AI_MODEL || DEFAULT_MODEL),
+    model: openai(modelId),
     reasoning: "low",
     maxOutputTokens: 6000,
-    timeout: 25_000,
+    timeout,
     maxRetries: 1,
   };
 }

@@ -140,6 +140,7 @@ export default function AnalyzePage() {
           rendered={state.rendered}
           shareUrl={shareUrl}
           busy={busy}
+          insights={flow.insights}
           onRefine={flow.describe}
           onShare={flow.share}
           onBack={flow.backToSuggestions}
