@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Evidence, writtenNumbers } from "@/lib/ai/insight-check";
+import { Evidence, withoutUnnamedCurrency, writtenNumbers } from "@/lib/ai/insight-check";
 
 /** What the AI saw for revenue by region: five totals, the grand total and the shares. */
 const revenueEvidence = () => {
@@ -45,6 +45,14 @@ describe("Evidence", () => {
     expect(evidence.unsupported("366,350 against 339,550: 26,800 ahead, or 7.9% more.")).toEqual([]);
   });
 
+  it("accepts a rise across zero and a sum of two figures the insight states", () => {
+    const evidence = new Evidence();
+    for (const v of [-0.357, 0.688, 34.2, 28.9]) evidence.addValue(v);
+
+    expect(evidence.unsupported("The mean rose by 1.045, from -0.357 to 0.688.")).toEqual([]);
+    expect(evidence.unsupported("Mt (34.2%) and percent (28.9%) together make up 63.1%.")).toEqual([]);
+  });
+
   it("refuses arithmetic on figures the reader cannot see", () => {
     const evidence = revenueEvidence();
 
@@ -72,6 +80,62 @@ describe("Evidence", () => {
     expect(evidence.unsupported("Summit Frame is rated 4.8.")).toEqual([]);
   });
 
+  it("accepts the years a column name carries, written out in full", () => {
+    const evidence = new Evidence();
+    for (const name of ["fatalities_85_99", "fatalities_00_14", "2015_murders"]) evidence.addColumnName(name);
+    evidence.addValue(6295);
+    evidence.addValue(3109);
+
+    expect(evidence.unsupported("Fatalities fell from 6,295 in 1985–99 to 3,109 in 2000–14.")).toEqual([]);
+    expect(evidence.unsupported("Murders rose in 2015.")).toEqual([]);
+    expect(evidence.unsupported("Murders rose in 2016.")).toEqual(["2016"]);
+  });
+
+  it("accepts a share kept as a fraction written as a percentage", () => {
+    const evidence = new Evidence();
+    evidence.addValue(0.795);
+    evidence.addValue(0.177);
+
+    expect(evidence.unsupported("Health majors are 79.5% women on average.")).toEqual([]);
+    expect(evidence.unsupported("Unemployment peaks at 17.7%.")).toEqual([]);
+    // Only as a percentage: a bare 79.5 is not the 0.795 it was given.
+    expect(evidence.unsupported("Health majors score 79.5.")).toEqual(["79.5"]);
+  });
+
+  it("accepts a figure cut rather than rounded, but nothing a whole unit off", () => {
+    const evidence = new Evidence();
+    evidence.addValue(5323.82);
+
+    expect(evidence.unsupported("Color J averages 5,323.")).toEqual([]);
+    expect(evidence.unsupported("Color J averages 5,322.")).toEqual(["5,322"]);
+  });
+
+  it("reads percentage points as a percentage, and a fraction threshold as one too", () => {
+    const evidence = new Evidence();
+    evidence.addValue(0.174);
+    evidence.addLabel("0.6");
+
+    expect(evidence.unsupported("The gap averages 17.4 percentage points.")).toEqual([]);
+    expect(evidence.unsupported("States where at least 60% voted for him.")).toEqual([]);
+  });
+
+  it("accepts a two-digit year label written out in full", () => {
+    const evidence = new Evidence();
+    evidence.addLabel("70");
+    evidence.addLabel("82");
+
+    expect(evidence.unsupported("Mileage rose from 1970 to 1982.")).toEqual([]);
+    expect(evidence.unsupported("Mileage rose by 2031.")).toEqual(["2031"]);
+  });
+
+  it("accepts the scale a column name states, such as per_100k", () => {
+    const evidence = new Evidence();
+    evidence.addColumnName("avg_hatecrimes_per_100k_fbi");
+    evidence.addValue(10.95);
+
+    expect(evidence.unsupported("DC records 10.95 hate crimes per 100,000 people.")).toEqual([]);
+  });
+
   it("takes a scale word after a figure in a column already counted in thousands", () => {
     const evidence = new Evidence();
     evidence.addValue(15041);
@@ -96,5 +160,29 @@ describe("Evidence", () => {
     evidence.addValue(undefined);
 
     expect(evidence.unsupported("A total of 500.")).toEqual(["500"]);
+  });
+});
+
+describe("withoutUnnamedCurrency", () => {
+  it("takes out a currency sign nothing in the data names", () => {
+    expect(withoutUnnamedCurrency("The median salary is $110,000.", "Major Median")).toBe(
+      "The median salary is 110,000.",
+    );
+    expect(withoutUnnamedCurrency("The only price is €9.99.", "product price stock Widget")).toBe(
+      "The only price is 9.99.",
+    );
+  });
+
+  it("keeps a sign a column name, its code or a cell names", () => {
+    expect(withoutUnnamedCurrency("Spending is $4,388.6.", "Spending_USD")).toBe("Spending is $4,388.6.");
+    expect(withoutUnnamedCurrency("Premiums average $886.96.", "Car Insurance Premiums ($)")).toBe(
+      "Premiums average $886.96.",
+    );
+    expect(withoutUnnamedCurrency("It costs €12.", "price_eur")).toBe("It costs €12.");
+    expect(withoutUnnamedCurrency("It costs £3.", "price £3.00")).toBe("It costs £3.");
+  });
+
+  it("does not take a word that merely starts like a currency code for it", () => {
+    expect(withoutUnnamedCurrency("Europe sells €5.", "region Europe sales")).toBe("Europe sells 5.");
   });
 });

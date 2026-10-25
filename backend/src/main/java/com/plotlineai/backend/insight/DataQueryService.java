@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class DataQueryService {
 
-    static final int DEFAULT_LIMIT = 50;
+    static final int DEFAULT_LIMIT = 200;
 
     private final DatasetLoader loader;
     private final ChartSpecValidator validator = new ChartSpecValidator();

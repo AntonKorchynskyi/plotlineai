@@ -168,12 +168,12 @@ function insightsQuery(columns) {
 
 const formatted = (value) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
+/** Each group record is { group, <measure>: value, ... }; the first measure is the one asked. */
 function insights(result) {
-  const values = result.series[0]?.data ?? [];
-  const lines = [`${result.labels[0]} leads with ${formatted(values[0])}.`];
-  if (result.labels.length > 1) {
-    lines.push(`${result.labels[1]} follows with ${formatted(values[1])}.`);
-  }
+  const [first, second] = result.groups;
+  const value = (record) => formatted(Object.values(record).find((v) => typeof v === "number"));
+  const lines = [`${first.group} leads with ${value(first)}.`];
+  if (second) lines.push(`${second.group} follows with ${value(second)}.`);
   return { insights: lines };
 }
 

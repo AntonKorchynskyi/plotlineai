@@ -1,8 +1,8 @@
 import { generateText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { dailyBudget } from "@/lib/ai/budget";
-import { AiBadOutputError, AiUnavailableError } from "@/lib/ai/errors";
-import { Evidence } from "@/lib/ai/insight-check";
+import { AiBadOutputError, AiBudgetRefusedError, AiUnavailableError } from "@/lib/ai/errors";
+import { Evidence, withoutUnnamedCurrency } from "@/lib/ai/insight-check";
 import { INSIGHTS_SYSTEM_PROMPT, insightsPrompt, researchPrompt, type Finding } from "@/lib/ai/prompt";
 import { insightSettings } from "@/lib/ai/provider";
 import {
@@ -49,7 +49,26 @@ const QueryInputSchema = z.strictObject({
 
 const InsightListSchema = z.strictObject({ insights: z.array(z.string()) });
 
-const round2 = (value: number) => Math.round(value * 100) / 100;
+/**
+ * A group label that totals other groups in the same column: "World" and "High income" in a
+ * file of countries, "All natural disasters" beside each kind of disaster.
+ */
+const AGGREGATE_LABEL =
+  /^(?:world|total|grand total|all(?: .*)?|.* total|(?:high|low|middle|upper middle|lower middle|low & middle) income|oecd members)$/i;
+
+const round = (value: number, decimals: number) => Math.round(value * 10 ** decimals) / 10 ** decimals;
+
+/**
+ * A value as an insight would quote it: at most two decimals, or three significant digits
+ * below 1 (0.0118, not 0). The model sees only these, and the evidence check holds it to
+ * them, so "73.63886920684212" never reaches a reader.
+ */
+const tidy = (value: number | null) =>
+  value === null || Number.isInteger(value)
+    ? value
+    : Math.abs(value) >= 1
+      ? round(value, 2)
+      : Number(value.toPrecision(3));
 
 /** Seams for tests: production queries the api. */
 export type InsightDeps = AiDeps & {
@@ -76,6 +95,7 @@ export async function generateInsights(
   evidence.addValue(dataset.rowCount);
   evidence.addValue(dataset.schema.length);
   for (const column of dataset.schema) {
+    evidence.addColumnName(column.name);
     evidence.addValue(column.cardinality);
     evidence.addValue(column.nullCount);
   }
@@ -97,10 +117,18 @@ export async function generateInsights(
     deps,
   );
 
+  // What the data itself says, for telling a stated currency from an invented one.
+  const context = [
+    ...dataset.schema.map((c) => c.name),
+    ...dataset.sampleRows.flatMap((row) => Object.values(row)),
+    // The group labels the research brought back, in their findings.
+    JSON.stringify(findings),
+  ].join("\n");
+
   const kept: string[] = [];
   let refused = 0;
   for (const raw of output.insights) {
-    const insight = raw.replace(/\s+/g, " ").trim();
+    const insight = withoutUnnamedCurrency(raw, context).replace(/\s+/g, " ").trim();
     if (!insight || insight.length > MAX_INSIGHT_LENGTH || kept.includes(insight)) {
       refused++;
       continue;
@@ -130,13 +158,18 @@ async function research(dataset: DatasetDetail, evidence: Evidence, deps: Insigh
 
   const queryData = tool({
     description:
-      "Computes aggregates over every row of the dataset. Returns the group labels, one series " +
-      "of values per measure (in label order), and totalGroups, the number of groups before the " +
-      "limit. A sum or count series also has its total over every group and each group's share " +
-      "of that total in percent.",
+      "Computes aggregates over every row of the dataset. Returns one record per group: its " +
+      "label (group) beside each measure's value. For a sum or a count, each record also has the " +
+      "group's share in percent of the total over every group, and totals holds those totals; " +
+      "with a breakdown, a share is instead the series' part of its own group. " +
+      "totalGroups is the number of groups before the limit.",
     inputSchema: QueryInputSchema,
     execute: async (input) => {
       const asked = dropNulls(input);
+      // A threshold the model chose ("above 250,000") is its own to quote.
+      for (const filter of input.filters ?? []) {
+        for (const value of [filter.value].flat()) evidence.addLabel(String(value));
+      }
       try {
         const result = await query(dataset.datasetId, asked);
         // A breakdown splits the one measure into series, so every series shares its kind.
@@ -144,21 +177,84 @@ async function research(dataset: DatasetDetail, evidence: Evidence, deps: Insigh
           const measure = input.measures[input.breakdown ? 0 : i];
           return measure?.aggregation === "sum" || measure?.aggregation === "count";
         };
+        // Each series under a key of its own: a breakdown's labels are cell values, which may
+        // repeat one another or the record's "group".
+        const used = new Set(["group"]);
+        // Rows such as "World" or "High income" beside the countries they total: a share of
+        // their sum counts everything twice, and the model gave such shares despite its rules.
+        const aggregate = result.labels.find((label) => AGGREGATE_LABEL.test(label.trim()));
+        // A breakdown's share is of its own group ("North was 61% of January"): as a share of
+        // the series' total over every group the model wrote it up as the group's share.
+        const groupTotals = result.labels.map((_, g) =>
+          result.series.reduce((sum, s) => sum + (s.data[g] ?? 0), 0),
+        );
         const series = result.series.map((s, i) => {
+          let key = s.label;
+          for (let n = 2; used.has(key); n++) key = `${s.label} (${n})`;
+          used.add(key);
           const total = result.totals[i];
-          if (!additive(i) || !total) return { label: s.label, data: s.data };
-          const sharePercent = s.data.map((v) => (v === null ? null : round2((v / total) * 100)));
-          return { label: s.label, data: s.data, total, sharePercent };
+          const data = s.data.map(tidy);
+          if (!additive(i) || !total || aggregate !== undefined) return { key, data };
+          // One decimal, the most a percentage in an insight may show.
+          const share = s.data.map((v, g) => {
+            const whole = input.breakdown ? groupTotals[g] : total;
+            return v === null || !whole ? null : round((v / whole) * 100, 1);
+          });
+          return { key, data, total: tidy(total), share };
         });
-        const answer = { labels: result.labels, series, totalGroups: result.totalGroups };
+        // One record per group, its label beside its values. With parallel arrays of labels
+        // and values the model misread long answers, as in "2009 with 712" for 2011's count.
+        const groups = result.labels.map((label, g) => {
+          const record: Record<string, string | number | null> = { group: label };
+          for (const s of series) {
+            record[s.key] = s.data[g] ?? null;
+            if (s.share) record[`${s.key} share %`] = s.share[g] ?? null;
+          }
+          return record;
+        });
+        const totals = Object.fromEntries(series.flatMap((s) => (s.share ? [[s.key, s.total]] : [])));
+        const shown = result.labels.length;
+        // Without this the model reads the last group of a cut-off series as its end, as in
+        // "rose every year from 1960 to 2009" for a file that runs to 2025.
+        const cutOff =
+          result.totalGroups > shown
+            ? `Only the first ${shown} of ${result.totalGroups} groups are shown, in the order asked for. The data goes on past the last group here: it is not the end of the data, and the groups after it may differ completely.`
+            : undefined;
+        // Named in code, so "the highest" never rests on the model scanning a long list: it
+        // once called 2026 the peak year of a series whose 2012 was higher.
+        const extreme = (pick: (a: number, b: number) => boolean) =>
+          Object.fromEntries(
+            series.flatMap((s) => {
+              let best = -1;
+              s.data.forEach((v, g) => {
+                if (v !== null && (best < 0 || pick(v, s.data[best] as number))) best = g;
+              });
+              return shown > 2 && best >= 0 ? [[s.key, { group: result.labels[best], value: s.data[best] }]] : [];
+            }),
+          );
+        const highest = extreme((a, b) => a > b);
+        const lowest = extreme((a, b) => a < b);
+        const answer = {
+          groups,
+          ...(Object.keys(totals).length > 0 ? { totals } : {}),
+          ...(Object.keys(highest).length > 0 ? { highest, lowest } : {}),
+          totalGroups: result.totalGroups,
+          ...(cutOff ? { cutOff } : {}),
+          ...(aggregate !== undefined
+            ? {
+                note: `Some groups (such as ${JSON.stringify(aggregate)}) look like totals of other groups, so shares and totals are left out: adding these groups up counts rows twice.`,
+              }
+            : {}),
+        };
 
         result.labels.forEach((label) => evidence.addLabel(label));
         evidence.addValue(result.totalGroups);
+        evidence.addValue(shown);
         for (const s of series) {
           s.data.forEach((v) => evidence.addValue(v));
-          if ("sharePercent" in s) {
+          if (s.share) {
             evidence.addValue(s.total);
-            s.sharePercent?.forEach((v) => evidence.addValue(v));
+            s.share.forEach((v) => evidence.addValue(v));
           }
         }
         findings.push({ query: asked, result: answer });
@@ -188,6 +284,21 @@ async function research(dataset: DatasetDetail, evidence: Evidence, deps: Insigh
     recordUsage(deps.record, result.usage);
   } catch (error) {
     if (fatal) throw fatal;
+    const refused =
+      error instanceof AiBudgetRefusedError ||
+      (error instanceof Error && error.cause instanceof AiBudgetRefusedError);
+    // A step that timed out or failed after earlier ones answered still leaves real findings:
+    // writing from them beats failing the upload. A spent budget would refuse the writing too.
+    if (findings.length > 0 && !refused) {
+      console.warn(
+        JSON.stringify({
+          event: "insights_research_cut_short",
+          error: error instanceof Error ? error.name : typeof error,
+          findings: findings.length,
+        }),
+      );
+      return findings;
+    }
     if (error instanceof AiUnavailableError) throw error;
     if (error instanceof Error && error.cause instanceof AiUnavailableError) throw error.cause;
     throw new AiUnavailableError("model call failed", { cause: error });

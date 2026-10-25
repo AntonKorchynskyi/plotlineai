@@ -16,7 +16,7 @@ import java.util.List;
  * A question the insights AI asks of the whole dataset: a chart spec's building blocks, except
  * that the dimension is optional. Without one, each measure is computed over every row.
  *
- * @param limit how many groups to return, 50 when absent; {@code totalGroups} in the answer says
+ * @param limit how many groups to return, 200 when absent; {@code totalGroups} in the answer says
  *              how many there were
  */
 public record DataQuery(
@@ -25,5 +25,5 @@ public record DataQuery(
         @Valid Breakdown breakdown,
         @Size(max = 5) List<@NotNull @Valid Filter> filters,
         @Valid Sort sort,
-        @Min(1) @Max(100) Integer limit) {
+        @Min(1) @Max(200) Integer limit) {
 }
