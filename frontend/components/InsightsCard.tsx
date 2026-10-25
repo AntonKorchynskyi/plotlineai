@@ -23,7 +23,7 @@ export default function InsightsCard({
         What stands out
       </h3>
       {loading ? (
-        <p className="m-0 animate-pulse text-small text-ink-muted">Reading the whole file…</p>
+        <p className="m-0 animate-pulse text-small text-ink-muted">Writing data insights…</p>
       ) : (
         // The numbers are a CSS counter, not text, so each item reads as just the insight.
         // role="list" because Safari drops a list's semantics along with its list-style.
@@ -38,9 +38,6 @@ export default function InsightsCard({
           ))}
         </ol>
       )}
-      <span className="text-meta text-ink-faint">
-        Written by AI from queries over every row of the file.
-      </span>
     </section>
   );
 }

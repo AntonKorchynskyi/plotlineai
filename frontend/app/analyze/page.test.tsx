@@ -287,7 +287,7 @@ describe("the chart screen", () => {
 
     const insights = screen.getByRole("region", { name: "What stands out" });
     expect(insights).toHaveAttribute("aria-busy", "true");
-    expect(within(insights).getByText("Reading the whole file…")).toBeInTheDocument();
+    expect(within(insights).getByText("Writing data insights…")).toBeInTheDocument();
   });
 
   it("leaves the insights out when they could not be written", () => {
