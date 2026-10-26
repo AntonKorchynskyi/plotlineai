@@ -172,8 +172,11 @@ circular accent or accent-2 fills, 34-58px, with the glyph in `--color-backgroun
 - Legend hidden for single-series charts; otherwise bottom (stacked bar) or right (doughnut
   and pie), circular point style, 10px swatch, 16px padding.
 - Bars: `borderRadius: 10` (8 when stacked), `maxBarThickness` 26-58 depending on orientation.
-- Lines: 3px stroke, `tension: 0.38`, filled with the accent at 14%, 3px points. This applies
-  to both `line` and `area`; the two differ only in that `area` honours `stacked`.
+- Lines: 3px stroke, `tension: 0.38`, 3px points. A single series, `line` or `area`, is filled
+  with the accent at 14%. Several `line` series are not filled: their tints stack into one muddy
+  area under the lines. An `area` is always filled, each series in its own palette colour at
+  14%; it also honours `stacked`, and then each band fills down to the series below it. An
+  area's value axis starts at zero, since its size is its value; a line's may zoom to its range.
 - Doughnut `cutout: 56-58%`. **Pie** is the same chart with `cutout: 0` - same slice palette,
   same 3px `--color-background` slice border, same right-hand legend.
 - **Bubble radius.** The render contract carries `r` as a *raw data value* (city density

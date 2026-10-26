@@ -151,6 +151,54 @@ describe("toChartConfig", () => {
       expect(d.backgroundColor).toBe("rgba(198,113,57,0.14)");
     });
 
+    it("leaves several lines unfilled, each in its own colour", () => {
+      const data = synthetic({
+        chartType: "line",
+        datasets: [
+          { label: "Campus", data: [3, 1] },
+          { label: "Downtown", data: [4, 4] },
+          { label: "Riverside", data: [1, 2] },
+        ],
+      });
+      for (const i of [0, 1, 2]) {
+        expect(dataset(data, i).fill).toBe(false);
+        expect(dataset(data, i).borderColor).toBe(CHART_PALETTE[i]);
+      }
+    });
+
+    it("fills each series of an area in its own colour", () => {
+      const data = synthetic({
+        chartType: "area",
+        datasets: [
+          { label: "Coffee", data: [3, 1] },
+          { label: "Tea", data: [1, 2] },
+        ],
+      });
+      expect(dataset(data, 0).fill).toBe(true);
+      expect(dataset(data, 1).fill).toBe(true);
+      expect(dataset(data, 0).backgroundColor).toBe("rgba(198,113,57,0.14)");
+      expect(dataset(data, 1).backgroundColor).toBe("rgba(143,160,115,0.14)"); // accent-2 500
+    });
+
+    it("fills a stacked area band by band, each down to the series below", () => {
+      const data = synthetic({
+        chartType: "area",
+        stacked: true,
+        datasets: [
+          { label: "Coffee", data: [3, 1] },
+          { label: "Tea", data: [1, 2] },
+          { label: "Pastry", data: [2, 2] },
+        ],
+      });
+      expect([0, 1, 2].map((i) => dataset(data, i).fill)).toEqual([true, "-1", "-1"]);
+    });
+
+    it("stands an area on zero, but lets a line zoom to its range", () => {
+      expect(options(synthetic({ chartType: "area" })).scales.y.beginAtZero).toBe(true);
+      expect(options(synthetic({ chartType: "area", stacked: true })).scales.y.beginAtZero).toBe(true);
+      expect(options(fixture("monthly-signups")).scales.y.beginAtZero).toBeUndefined();
+    });
+
     it("stacks an area chart but never a plain line", () => {
       expect(options(synthetic({ chartType: "area", stacked: true })).scales.y.stacked).toBe(true);
       expect(options(synthetic({ chartType: "line", stacked: true })).scales.y.stacked).toBeFalsy();
