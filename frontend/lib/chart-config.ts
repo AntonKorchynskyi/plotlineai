@@ -26,8 +26,13 @@ export const CHART_GROUND = "#f5ead8";
 export const CHART_SURFACE = "#ebddc5";
 /** --color-foreground, the exported PNG's title. */
 export const CHART_INK = "#201e1d";
-/** The accent at 14%, the documented fill under a line. */
-export const LINE_FILL = "rgba(198,113,57,0.14)";
+/** A palette colour at 14%, the documented fill under a line. */
+const tint = (hex: string) => {
+  const rgb = parseInt(hex.slice(1), 16);
+  return `rgba(${rgb >> 16},${(rgb >> 8) & 255},${rgb & 255},0.14)`;
+};
+/** The accent at 14%, the fill under a single line. */
+export const LINE_FILL = tint(CHART_PALETTE[0]);
 
 /** Bubble radii arrive as raw data values and are normalized into this pixel range. */
 export const BUBBLE_RADIUS_MIN = 4;
@@ -123,13 +128,17 @@ export function toChartConfig(
       };
     }
     if (line) {
+      // One line is filled. Several are not: their tints stacked into one muddy area under
+      // the lines. An area is filled by definition, each series in its own colour, and a
+      // stacked band only down to the series below it.
+      const filled = chartType === "area" || series.length === 1;
       return {
         ...base,
         borderColor: color(i),
-        backgroundColor: LINE_FILL,
+        backgroundColor: tint(color(i)),
         borderWidth: 3,
         tension: 0.38,
-        fill: true,
+        fill: filled ? (stacked && i > 0 ? "-1" : true) : false,
         pointRadius: 3,
         pointBackgroundColor: color(i),
       };
@@ -165,6 +174,8 @@ export function toChartConfig(
           ...(points && series[0]
             ? { title: { display: true, text: series[0].label } }
             : {}),
+          // An area's size is its value, so it stands on zero; a line may zoom to its range.
+          ...(chartType === "area" ? { beginAtZero: true } : {}),
         },
       };
 
