@@ -14,7 +14,7 @@ describe("the sample data", () => {
   it("has enough rows to be worth charting, each with every column", () => {
     const { header, rows } = sampleTable();
 
-    expect(header).toEqual(["date", "store", "product", "category", "units", "unit_price", "revenue"]);
+    expect(header).toEqual(["month", "store", "product", "category", "units", "unit_price", "revenue"]);
     expect(rows.length).toBeGreaterThanOrEqual(100);
     for (const row of rows) expect(row).toHaveLength(header.length);
   });
