@@ -5,6 +5,7 @@ import ChartPanel from "@/components/analyze/ChartPanel";
 import DatasetSummary from "@/components/analyze/DatasetSummary";
 import Dropzone from "@/components/analyze/Dropzone";
 import InstructionForm from "@/components/analyze/InstructionForm";
+import SampleData from "@/components/analyze/SampleData";
 import SuggestionCards from "@/components/analyze/SuggestionCards";
 import {
   EmptyResult,
@@ -33,6 +34,7 @@ export default function AnalyzePage() {
           deleted within 2 days.
         </p>
         <Dropzone onFile={flow.upload} />
+        <SampleData onUse={flow.upload} />
         <div className="mt-10 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))]">
           {[
             ["1. Parse", "The Java service streams your file, infers each column's type and counts distinct values."],
