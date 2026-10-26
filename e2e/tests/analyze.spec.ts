@@ -133,6 +133,64 @@ test("describe a chart in your own words", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible();
 });
 
+test("no file of your own: preview the sample, then chart it", async ({ page }) => {
+  await page.goto("/analyze");
+  const link = page.getByRole("button", { name: "Try our sample data" });
+  const dialog = page.getByRole("dialog", { name: "Sample: coffee shop sales" });
+
+  // A modal preview: Escape shuts it and focus goes back to the link.
+  await link.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("144 rows · 7 columns", { exact: false })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(link).toBeFocused();
+
+  // So do a click on the backdrop and the X in its corner.
+  await link.click();
+  await page.mouse.click(5, 5);
+  await expect(dialog).toBeHidden();
+  await link.click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+
+  // The rows scroll inside the dialog, under a header that stays put.
+  await link.click();
+  const rows = dialog.getByRole("region", { name: "Sample rows" });
+  const header = dialog.getByRole("columnheader", { name: "revenue" });
+  const headerTop = (await header.boundingBox())!.y;
+  await rows.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(dialog.getByRole("cell", { name: "1186.25" })).toBeInViewport();
+  expect((await header.boundingBox())!.y).toBe(headerTop);
+
+  // Using it runs the flow a dropped file would.
+  await dialog.getByRole("button", { name: "Use this data" }).click();
+  await expect(page.getByRole("heading", { name: "Three charts worth a look" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("coffee-shop-sales.csv", { exact: true })).toBeVisible();
+  await expect(page.getByText("144 rows", { exact: true })).toBeVisible();
+  await page.getByRole("button").filter({ hasText: "Total units by store" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Total units by store" })).toBeVisible();
+  await expect(insightsList(page)).not.toHaveCount(0);
+});
+
+test("the sample preview fits a small phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/analyze");
+  await page.getByRole("button", { name: "Try our sample data" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sample: coffee shop sales" });
+
+  // 16px from each edge, both actions on screen, and the table scrolls sideways inside it.
+  const box = (await dialog.boundingBox())!;
+  expect(box.x).toBe(16);
+  expect(box.width).toBe(320 - 32);
+  await expect(dialog.getByRole("button", { name: "Use this data" })).toBeInViewport();
+  const rows = dialog.getByRole("region", { name: "Sample rows" });
+  expect(await rows.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+});
+
 test("an Excel-style export reads as numbers and dates, and charts", async ({ page }) => {
   // What Excel on Windows saves: windows-1252 text, semicolons, a trailing semicolon on every
   // line, an unnamed index column, day-first dates, currency with grouping and a decimal comma.

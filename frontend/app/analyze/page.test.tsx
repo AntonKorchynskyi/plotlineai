@@ -108,6 +108,23 @@ describe("the upload screen", () => {
 
     expect(flow.upload).toHaveBeenCalledWith(file);
   });
+
+  it("offers the sample data to anyone without a file, through the same upload", async () => {
+    show({ step: "idle" });
+
+    await userEvent.click(screen.getByRole("button", { name: /try our sample data/i }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Use this data" }),
+    );
+
+    expect(flow.upload).toHaveBeenCalledWith(expect.objectContaining({ name: "coffee-shop-sales.csv" }));
+  });
+
+  it("offers the sample on the upload screen only", () => {
+    show({ step: "parsing", fileName: "sales.csv" });
+
+    expect(screen.queryByRole("button", { name: /try our sample data/i })).not.toBeInTheDocument();
+  });
 });
 
 describe("the waiting screens", () => {

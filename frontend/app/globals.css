@@ -361,6 +361,13 @@
     display: flex; justify-content: flex-end; gap: var(--spacing-2);
     margin-top: var(--spacing-2);
   }
+  /* The same box as a native <dialog> opened with showModal(); the browser draws the backdrop. */
+  dialog.dialog {
+    margin: auto; border: none; color: inherit;
+    max-width: calc(100% - 32px); max-height: calc(100dvh - 32px);
+  }
+  dialog.dialog:not([open]) { display: none; }
+  dialog.dialog::backdrop { background: color-mix(in srgb, var(--neutral-900) 50%, transparent); }
 }
 
 @keyframes plSpin { to { transform: rotate(360deg); } }
