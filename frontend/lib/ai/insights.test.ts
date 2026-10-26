@@ -662,6 +662,26 @@ describe("generateInsights", () => {
     expect(record.invalidSpecs).toBe(1);
   });
 
+  it("runs at most two of a round's queries at a time, so a burst cannot exhaust the api's concurrency", async () => {
+    const model = researchThenWrite(
+      Array.from({ length: 6 }, () => modelQuery()),
+      ["North America leads with 366,350."],
+    );
+    let running = 0;
+    let most = 0;
+    const query = vi.fn(async () => {
+      most = Math.max(most, ++running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running--;
+      return byRegion;
+    });
+
+    await generateInsights(dataset, { settings: settingsFor(model), budget: freshBudget(), query });
+
+    expect(query).toHaveBeenCalledTimes(6);
+    expect(most).toBe(2);
+  });
+
   it("drops a fragment that is not a sentence, such as an insight split at a quote", async () => {
     // The model once ended a string at the quote around a column name, splitting one insight.
     const model = researchThenWrite([modelQuery()], [

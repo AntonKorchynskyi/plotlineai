@@ -34,6 +34,13 @@ export const QUERY_ROUNDS = 3;
  * most of the 30: at 15 s, about one upload in thirty lost its insights to that step alone.
  */
 export const RESEARCH_TIMEOUT = { totalMs: 30_000, stepMs: 25_000 };
+/**
+ * Queries of one round that run at once. The first round asks up to about nine, and each is a
+ * call to the api, a Lambda of its own: all at once, one upload could take most of the
+ * account's 10 concurrent executions, and a throttled query fails the insights. A query takes
+ * well under a second, so two at a time costs about one.
+ */
+const QUERY_CONCURRENCY = 2;
 
 /**
  * The tool's input: a chart spec's grouping and aggregation fields (the same strict schemas
@@ -490,6 +497,7 @@ async function research(dataset: DatasetDetail, evidence: Evidence, deps: Insigh
       system: INSIGHTS_SYSTEM_PROMPT,
       prompt: researchPrompt(dataset, QUERY_ROUNDS),
       tools: { query_data: queryData },
+      toolCallConcurrency: QUERY_CONCURRENCY,
       stopWhen: isStepCount(QUERY_ROUNDS),
       prepareStep: async () => {
         await budget.consume();
