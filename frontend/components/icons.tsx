@@ -65,6 +65,15 @@ export function CheckIcon({ size = 17, className }: IconProps) {
   );
 }
 
+export function XIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
+    </svg>
+  );
+}
+
 export function ShareIcon({ size = 15, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

@@ -146,9 +146,12 @@ test("no file of your own: preview the sample, then chart it", async ({ page }) 
   await expect(dialog).toBeHidden();
   await expect(link).toBeFocused();
 
-  // So does a click on the backdrop.
+  // So do a click on the backdrop and the X in its corner.
   await link.click();
   await page.mouse.click(5, 5);
+  await expect(dialog).toBeHidden();
+  await link.click();
+  await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toBeHidden();
 
   // The rows scroll inside the dialog, under a header that stays put.

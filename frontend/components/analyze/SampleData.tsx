@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, type MouseEvent } from "react";
+import { XIcon } from "@/components/icons";
 import { sampleFile, sampleTable } from "@/lib/analyze/sample-data";
 
 const { header, rows } = sampleTable();
@@ -46,14 +47,25 @@ export default function SampleData({ onUse }: { onUse: (file: File) => void }) {
         className="dialog w-[880px] gap-4 p-5"
         onClick={onBackdrop}
       >
-        <div>
-          <h2 id="sample-title" className="dialog-title m-0">
-            Sample: coffee shop sales
-          </h2>
-          <p className="m-0 mt-1 text-small text-ink-muted">
-            {rows.length} rows · {header.length} columns · made-up data from six months at three
-            stores
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            // Pulled out by the icon's inset, so the glyph lines up with the table's edge.
+            className="btn btn-ghost btn-icon -mt-1 -ml-[9px] shrink-0"
+            aria-label="Close"
+            onClick={close}
+          >
+            <XIcon />
+          </button>
+          <div>
+            <h2 id="sample-title" className="dialog-title m-0">
+              Sample: coffee shop sales
+            </h2>
+            <p className="m-0 mt-1 text-small text-ink-muted">
+              {rows.length} rows · {header.length} columns · made-up data from six months at three
+              stores
+            </p>
+          </div>
         </div>
 
         <div

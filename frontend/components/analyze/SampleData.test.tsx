@@ -31,10 +31,10 @@ describe("the sample data link", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(rows.length + 1);
   });
 
-  it("closes on Cancel without uploading anything", async () => {
+  it.each(["Cancel", "Close"])("closes on %s without uploading anything", async (name) => {
     const { onUse, dialog } = await open();
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(within(dialog).getByRole("button", { name }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(onUse).not.toHaveBeenCalled();
