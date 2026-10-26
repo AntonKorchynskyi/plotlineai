@@ -1,7 +1,8 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 import { AiBadOutputError, AiBudgetRefusedError } from "@/lib/ai/errors";
-import { MAX_INSIGHTS, QUERY_ROUNDS, generateInsights } from "@/lib/ai/insights";
+import { MAX_INSIGHTS, QUERY_ROUNDS, RESEARCH_TIMEOUT, generateInsights } from "@/lib/ai/insights";
+import { insightSettings } from "@/lib/ai/provider";
 import { INSIGHTS_SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { emptyCallRecord } from "@/lib/ai/structured-call";
 import { DatasetNotFoundError, QueryRefusedError, type QueryResult } from "@/lib/backend";
@@ -229,6 +230,336 @@ describe("generateInsights", () => {
     expect(sent).toContain('"lowest":{"sum(revenue)":{"group":"Middle East","value":47200}}');
   });
 
+  describe("over time", () => {
+    const monthly = {
+      ...dataset,
+      schema: [
+        { name: "month", type: "DATE" as const, cardinality: 6, nullCount: 0, format: "yyyy-MM" },
+        ...dataset.schema,
+      ],
+    };
+    const byStore: QueryResult = {
+      labels: ["2026-04", "2026-05", "2026-06", "2026-07"],
+      series: [
+        { label: "Campus", data: [14101, 12326, 5811, 4322] },
+        { label: "Downtown", data: [16217, 16475, 16841, 17132] },
+        { label: "Riverside", data: [7141, 9026, 10600, 12506] },
+      ],
+      totalGroups: 4,
+      totals: [36560, 66665, 39273],
+    };
+    const overTime = (over: Record<string, unknown> = {}) =>
+      modelQuery({ dimension: { column: "month", bucket: "month" }, breakdown: { column: "region" }, sort: null, limit: null, ...over });
+    const sentFor = async (query: unknown, answer: QueryResult, data = monthly) => {
+      const model = researchThenWrite([query], ["Downtown leads."]);
+      await generateInsights(data, { settings: settingsFor(model), budget: freshBudget(), query: answering([answer]) });
+      return toolResultsSentOn(model, 1).join();
+    };
+
+    it("gives each series' change from the first period to the last, with its share of each", async () => {
+      const sent = await sentFor(overTime(), byStore);
+
+      expect(sent).toContain(
+        '"change":{"Campus":{"from":{"group":"2026-04","value":14101},"to":{"group":"2026-07","value":4322},"percent":-69.3,"share %":{"from":37.6,"to":12.7}}',
+      );
+      expect(sent).toContain(
+        '"Riverside":{"from":{"group":"2026-04","value":7141},"to":{"group":"2026-07","value":12506},"percent":75.1,"share %":{"from":19.1,"to":36.8}}',
+      );
+    });
+
+    it("names the series whose share of the period rose and fell most", async () => {
+      const sent = await sentFor(overTime(), byStore);
+
+      expect(sent).toContain('"roseMost":{"series":"Riverside","shareFrom":19.1,"shareTo":36.8,"points":17.7}');
+      expect(sent).toContain('"fellMost":{"series":"Campus","shareFrom":37.6,"shareTo":12.7,"points":-24.9}');
+    });
+
+    it("ranks an average's series by their percentage change, having no shares", async () => {
+      const averages = overTime({ measures: [{ column: "revenue", aggregation: "avg", label: null }] });
+      const sent = await sentFor(averages, byStore);
+
+      expect(sent).toContain('"roseMost":{"series":"Riverside","percent":75.1}');
+      expect(sent).toContain('"fellMost":{"series":"Campus","percent":-69.3}');
+      expect(sent).not.toContain("share %");
+    });
+
+    it("sets aside a last period far smaller than the rest, as possibly incomplete", async () => {
+      const cutShort: QueryResult = {
+        ...byStore,
+        labels: [...byStore.labels, "2026-08"],
+        series: byStore.series.map((s, i) => ({ ...s, data: [...s.data, [500, 900, 700][i]] })),
+      };
+      const sent = await sentFor(overTime(), cutShort);
+
+      // August holds 2,100 against months of about 35,000: change stops at July.
+      expect(sent).toContain('"to":{"group":"2026-07","value":4322}');
+      expect(sent).toContain('"partial":"2026-08 holds 2100 against a typical 33960 per period: it may be incomplete');
+    });
+
+    it("measures a partial period by a total series of its own, not by every series added up", async () => {
+      const withTotal: QueryResult = {
+        labels: ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08"],
+        series: [
+          { label: "all", data: [900, 950, 1000, 980, 200] },
+          { label: "cage-free", data: [300, 320, 340, 330, 70] },
+          { label: "caged", data: [600, 630, 660, 650, 130] },
+        ],
+        totalGroups: 5,
+        totals: [4030, 1360, 2670],
+      };
+      const sent = await sentFor(overTime(), withTotal);
+
+      // The total row alone holds what each month holds: 950 a month, not 1,900.
+      expect(sent).toContain('"partial":"2026-08 holds 200 against a typical 950 per period');
+    });
+
+    it("does not take the small start of a growing series for a partial period", async () => {
+      const growing: QueryResult = {
+        labels: ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08"],
+        series: [{ label: "Riverside", data: [1000, 1400, 2000, 2900, 4100] }],
+        totalGroups: 5,
+        totals: [11400],
+      };
+      const sent = await sentFor(overTime(), growing);
+
+      expect(sent).not.toContain('"partial"');
+      expect(sent).toContain('"from":{"group":"2026-04","value":1000}');
+    });
+
+    it("compares a span of over a year with the same season a later year, not across seasons", async () => {
+      const months: QueryResult = {
+        labels: ["2024-01", "2024-06", "2024-12", "2025-01", "2025-06", "2025-12"],
+        series: [{ label: "sum(revenue)", data: [150, 160, 220, 155, 170, 240] }],
+        totalGroups: 6,
+        totals: [1095],
+      };
+      const quarters: QueryResult = { ...months, labels: ["2024-Q1", "2024-Q2", "2024-Q4", "2025-Q1", "2025-Q2", "2025-Q4"] };
+      const byQuarter = overTime({ dimension: { column: "month", bucket: "quarter" }, breakdown: null });
+
+      // January against December would be winter against the holidays.
+      expect(await sentFor(overTime({ breakdown: null }), months)).toContain(
+        '"change":{"sum(revenue)":{"from":{"group":"2024-01","value":150},"to":{"group":"2025-01","value":155},"percent":3.3}}',
+      );
+      expect(await sentFor(byQuarter, quarters)).toContain('"to":{"group":"2025-Q1","value":155}');
+    });
+
+    it("lets an insight quote a change it was given", async () => {
+      const model = researchThenWrite([overTime()], ["Campus fell 69.3% while Riverside grew 75.1%."]);
+
+      const insights = await generateInsights(monthly, {
+        settings: settingsFor(model),
+        budget: freshBudget(),
+        query: answering([byStore]),
+      });
+
+      expect(insights).toEqual(["Campus fell 69.3% while Riverside grew 75.1%."]);
+    });
+
+    it("reads a newest-first answer the right way round", async () => {
+      const reversed: QueryResult = {
+        ...byStore,
+        labels: [...byStore.labels].reverse(),
+        series: byStore.series.map((s) => ({ ...s, data: [...s.data].reverse() })),
+      };
+      const sent = await sentFor(overTime({ sort: { by: "dimension", direction: "desc" } }), reversed);
+
+      expect(sent).toContain('"Campus":{"from":{"group":"2026-04","value":14101},"to":{"group":"2026-07","value":4322}');
+    });
+
+    it("treats a column of years as time", async () => {
+      const years: QueryResult = {
+        labels: ["1998", "2008", "2018"],
+        series: [{ label: "sum(revenue)", data: [100, 150, 120] }],
+        totalGroups: 3,
+        totals: [370],
+      };
+      const sent = await sentFor(modelQuery({ sort: null, limit: null }), years, dataset);
+
+      expect(sent).toContain('"change":{"sum(revenue)":{"from":{"group":"1998","value":100},"to":{"group":"2018","value":120},"percent":20}}');
+      // One series has nobody to be compared with.
+      expect(sent).not.toContain("roseMost");
+    });
+
+    it("gives no change when the groups are not periods in order", async () => {
+      // Categories, periods ranked by a measure, and a cut-off series.
+      expect(await sentFor(modelQuery({ sort: null }), byRegion, monthly)).not.toContain('"change"');
+      expect(await sentFor(overTime({ sort: { by: "measure", direction: "desc" } }), byStore)).not.toContain('"change"');
+      expect(await sentFor(overTime(), { ...byStore, totalGroups: 30 })).not.toContain('"change"');
+    });
+
+    it("gives no percentage for a change from zero or across it", async () => {
+      const fromZero: QueryResult = {
+        labels: ["2026-04", "2026-05"],
+        series: [
+          { label: "Campus", data: [0, 50] },
+          { label: "Downtown", data: [-10, 20] },
+        ],
+        totalGroups: 2,
+        totals: [25, 5],
+      };
+      const averages = overTime({ measures: [{ column: "revenue", aggregation: "avg", label: null }] });
+      const sent = await sentFor(averages, fromZero);
+
+      expect(sent).toContain('"Campus":{"from":{"group":"2026-04","value":0},"to":{"group":"2026-05","value":50}}');
+      expect(sent).toContain('"Downtown":{"from":{"group":"2026-04","value":-10},"to":{"group":"2026-05","value":20}}');
+      expect(sent).not.toContain("roseMost");
+    });
+  });
+
+  it("says a sum of rates means nothing, and gives it no shares", async () => {
+    const model = researchThenWrite(
+      [modelQuery({ measures: [{ column: "loan_debt_pct", aggregation: "sum", label: null }] })],
+      ["North America leads."],
+    );
+    const rates: QueryResult = {
+      labels: ["North America", "Europe"],
+      series: [{ label: "sum(loan_debt_pct)", data: [0.42, 0.34] }],
+      totalGroups: 2,
+      totals: [0.76],
+    };
+
+    await generateInsights(dataset, { settings: settingsFor(model), budget: freshBudget(), query: answering([rates]) });
+
+    const sent = toolResultsSentOn(model, 1).join();
+    expect(sent).toContain("loan_debt_pct reads as a rate, a percentage, an average or a level");
+    expect(sent).not.toContain("share %");
+  });
+
+  it("adds up a figure per week or per year, a flow rather than a rate", async () => {
+    const model = researchThenWrite(
+      [modelQuery({ measures: [{ column: "avail_seat_km_per_week", aggregation: "sum", label: null }] })],
+      ["North America leads."],
+    );
+    const flows: QueryResult = {
+      labels: ["North America", "Europe"],
+      series: [{ label: "sum(avail_seat_km_per_week)", data: [300, 100] }],
+      totalGroups: 2,
+      totals: [400],
+    };
+
+    await generateInsights(dataset, { settings: settingsFor(model), budget: freshBudget(), query: answering([flows]) });
+
+    const sent = toolResultsSentOn(model, 1).join();
+    expect(sent).not.toContain("reads as a rate");
+    expect(sent).toContain('"sum(avail_seat_km_per_week) share %":75');
+  });
+
+  describe("rows that total the others", () => {
+    const disasters = {
+      ...dataset,
+      schema: [
+        { name: "Entity", type: "STRING" as const, cardinality: 11, nullCount: 0, format: null },
+        { name: "Year", type: "INTEGER" as const, cardinality: 117, nullCount: 0, format: null },
+        { name: "Deaths", type: "INTEGER" as const, cardinality: 680, nullCount: 0, format: null },
+      ],
+      sampleRows: [{ Entity: "Drought", Year: "1900", Deaths: "1261000" }],
+    };
+    const perYear = modelQuery({
+      dimension: { column: "Year", bucket: null },
+      measures: [{ column: "Deaths", aggregation: "sum", label: null }],
+      sort: null,
+      limit: null,
+    });
+    const byEntity = { ...perYear, breakdown: { column: "Entity" } };
+    const yearly: QueryResult = {
+      labels: ["1930", "1931"],
+      series: [{ label: "sum(Deaths)", data: [200, 800] }],
+      totalGroups: 2,
+      totals: [1000],
+    };
+    const split: QueryResult = {
+      labels: ["1930", "1931"],
+      series: [
+        { label: "All natural disasters", data: [100, 400] },
+        { label: "Drought", data: [100, 400] },
+      ],
+      totalGroups: 2,
+      totals: [500, 500],
+    };
+
+    it("warns that a sum over the whole file counts them twice, when the sample shows one", async () => {
+      const model = researchThenWrite([perYear], ["Deaths peaked in 1931."]);
+      const withTotal = { ...disasters, sampleRows: [{ Entity: "All natural disasters", Year: "1900", Deaths: "2534720" }] };
+
+      await generateInsights(withTotal, { settings: settingsFor(model), budget: freshBudget(), query: answering([yearly]) });
+
+      const sent = toolResultsSentOn(model, 1).join();
+      expect(sent).toContain('Entity holds rows that total the others (such as \\"All natural disasters\\")');
+      expect(sent).toContain("counting them twice");
+      expect(sent).not.toContain("share %");
+    });
+
+    it("warns about an earlier answer once a later one in the same round shows the total row", async () => {
+      const model = researchThenWrite([perYear, byEntity], ["Deaths peaked in 1931."]);
+
+      await generateInsights(disasters, {
+        settings: settingsFor(model),
+        budget: freshBudget(),
+        query: answering([yearly, split]),
+      });
+
+      // The writing call sees why the per-year finding is unusable, though it was answered
+      // first, and none of its figures.
+      const findings = sentText(model, 2);
+      expect(findings).toContain(
+        '"query":{"dimension":{"column":"Year"},"measures":[{"column":"Deaths","aggregation":"sum"}]},"result":{"note":"Entity holds rows that total the others',
+      );
+      expect(findings).toContain("counting them twice, so its figures are left out.");
+      expect(findings).not.toContain('"sum(Deaths)":800');
+    });
+
+    it("lets a sum split or filtered on that column stand", async () => {
+      const model = researchThenWrite(
+        [{ ...perYear, filters: [{ column: "Entity", op: "eq", value: "All natural disasters" }] }],
+        ["Deaths peaked in 1931."],
+      );
+      const withTotal = { ...disasters, sampleRows: [{ Entity: "All natural disasters", Year: "1900", Deaths: "2534720" }] };
+
+      await generateInsights(withTotal, { settings: settingsFor(model), budget: freshBudget(), query: answering([yearly]) });
+
+      expect(toolResultsSentOn(model, 1).join()).not.toContain("counting them twice");
+    });
+
+    it("takes a name that starts with All, such as an airline's, for a name, not a total", async () => {
+      const model = researchThenWrite([perYear, modelQuery({ dimension: { column: "Entity", bucket: null }, sort: null })], [
+        "Deaths peaked in 1931.",
+      ]);
+      const airline = { ...disasters, sampleRows: [{ Entity: "All Nippon Airways", Year: "1900", Deaths: "12" }] };
+      const byName: QueryResult = { ...byRegion, labels: ["All Nippon Airways", "Delta", "KLM", "Qantas", "Lufthansa"] };
+
+      await generateInsights(airline, {
+        settings: settingsFor(model),
+        budget: freshBudget(),
+        query: answering([yearly, byName]),
+      });
+
+      const sent = toolResultsSentOn(model, 1).join();
+      expect(sent).not.toContain("counting them twice");
+      expect(sent).not.toContain("look like totals");
+      expect(sent).toContain("share %");
+    });
+  });
+
+  it("leaves out shares when a breakdown's series include a total of the others", async () => {
+    const model = researchThenWrite([modelQuery({ breakdown: { column: "rep" }, sort: null })], ["Floods peaked in 1931."]);
+    const withTotal: QueryResult = {
+      labels: ["1930", "1931"],
+      series: [
+        { label: "All natural disasters", data: [100, 400] },
+        { label: "Flood", data: [60, 300] },
+        { label: "Drought", data: [40, 100] },
+      ],
+      totalGroups: 2,
+      totals: [500, 360, 140],
+    };
+
+    await generateInsights(dataset, { settings: settingsFor(model), budget: freshBudget(), query: answering([withTotal]) });
+
+    const sent = toolResultsSentOn(model, 1).join();
+    expect(sent).not.toContain("share %");
+    expect(sent).toContain('look like totals of other groups');
+  });
+
   it("leaves out shares when some groups are totals of the others", async () => {
     const model = researchThenWrite([modelQuery()], ["The World row holds 8,215."]);
     const withWorld: QueryResult = {
@@ -329,6 +660,34 @@ describe("generateInsights", () => {
 
     expect(insights).toEqual(["North America leads with 366,350."]);
     expect(record.invalidSpecs).toBe(1);
+  });
+
+  it("drops a fragment that is not a sentence, such as an insight split at a quote", async () => {
+    // The model once ended a string at the quote around a column name, splitting one insight.
+    const model = researchThenWrite([modelQuery()], [
+      "North America leads with 366,350.",
+      "The ",
+      'region" North America leads with 366,350 in revenue.',
+    ]);
+    const record = emptyCallRecord();
+
+    const insights = await generateInsights(dataset, {
+      settings: settingsFor(model),
+      budget: freshBudget(),
+      record,
+      query: answering([byRegion]),
+    });
+
+    expect(insights).toEqual(["North America leads with 366,350."]);
+    expect(record.invalidSpecs).toBe(2);
+  });
+
+  it("gives the first research step most of its budget, inside web's 60 s with the writing", () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    // The first step asks most of the questions at once, so it is the slow one.
+    expect(RESEARCH_TIMEOUT.stepMs).toBeGreaterThan(RESEARCH_TIMEOUT.totalMs / 2);
+    expect(RESEARCH_TIMEOUT.totalMs + insightSettings().timeout).toBeLessThanOrEqual(55_000);
+    vi.unstubAllEnvs();
   });
 
   it("fails when no insight survives the check", async () => {
