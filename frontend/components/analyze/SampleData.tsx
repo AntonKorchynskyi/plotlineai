@@ -48,16 +48,7 @@ export default function SampleData({ onUse }: { onUse: (file: File) => void }) {
         onClick={onBackdrop}
       >
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            // Pulled out by the icon's inset, so the glyph lines up with the table's edge.
-            className="btn btn-ghost btn-icon -mt-1 -ml-[9px] shrink-0"
-            aria-label="Close"
-            onClick={close}
-          >
-            <XIcon />
-          </button>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 id="sample-title" className="dialog-title m-0">
               Sample: coffee shop sales
             </h2>
@@ -66,6 +57,15 @@ export default function SampleData({ onUse }: { onUse: (file: File) => void }) {
               stores
             </p>
           </div>
+          <button
+            type="button"
+            // Pulled out by the icon's inset, so the glyph lines up with the table's edge.
+            className="btn btn-ghost btn-icon -mt-1 -mr-[9px] shrink-0"
+            aria-label="Close"
+            onClick={close}
+          >
+            <XIcon />
+          </button>
         </div>
 
         <div
