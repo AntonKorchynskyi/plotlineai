@@ -74,7 +74,7 @@ The model only ever produces a spec, never data or markup, so a chart can't show
 ## Architecture
 
 <p align="center">
-<img src="docs/architecture.excalidraw.svg" alt="The browser reaches CloudFront, which forwards to the web Lambda (Next.js). Web calls OpenAI, and calls the api Lambda (Spring Boot) with IAM-signed requests. The api reads and writes DynamoDB and the uploads bucket in S3, which the browser fills directly with a presigned PUT. Web and api send usage events to EventBridge, then SQS, then an archiver Lambda that writes them to S3, and a weekly load moves them into Redshift Serverless.">
+<img src="docs/architecture.excalidraw.svg" alt="The browser reaches CloudFront, which forwards to the web Lambda (Next.js). Web calls OpenAI, and calls the api Lambda (Spring Boot) with IAM-signed requests. The api reads and writes DynamoDB and the uploads bucket in S3, which the browser fills directly with a presigned PUT. Web and api send usage events to EventBridge, then SQS, then an archiver Lambda that writes them to S3, and a weekly load moves them into Redshift Serverless. When a daily quota runs out, EventBridge passes the event to SNS, which emails the owner.">
 </p>
 
 | Service                 | Role                                                                                                                 |
@@ -85,6 +85,7 @@ The model only ever produces a spec, never data or markup, so a chart can't show
 | **S3**                  | Uploaded CSVs (expired by a lifecycle rule), the static Next.js build and the archived usage events                  |
 | **DynamoDB**            | Dataset schemas, share links and per-client counters, with TTL cleaning up after them                                |
 | **EventBridge + SQS**   | Usage events (counts and timings, never file contents) fan out to a queue that an archiver function drains into S3   |
+| **SNS**                 | Emails the owner when a daily quota runs out and when a CloudWatch alarm fires on errors, throttling or stuck events |
 | **Redshift Serverless** | A weekly load from S3 feeds SQL views for activity, chart type mix, AI usage and render latency                      |
 | **IAM**                 | The web function signs every call to the api; the api is not reachable from the browser except through allowed paths |
 
