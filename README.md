@@ -73,20 +73,19 @@ The model only ever produces a spec, never data or markup, so a chart can't show
 
 ## Architecture
 
-<!-- The diagram is an Excalidraw file with the scene embedded: open it at excalidraw.com to edit, then export as SVG with "Embed scene" on. -->
 <p align="center">
 <img src="docs/architecture.excalidraw.svg" alt="The browser reaches CloudFront, which forwards to the web Lambda (Next.js). Web calls OpenAI, and calls the api Lambda (Spring Boot) with IAM-signed requests. The api reads and writes DynamoDB and the uploads bucket in S3, which the browser fills directly with a presigned PUT. Web and api send usage events to EventBridge, then SQS, then an archiver Lambda that writes them to S3, and a weekly load moves them into Redshift Serverless.">
 </p>
 
-| Service                 | Role                                                                                                                  |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **CloudFront**          | The single public entry point; serves the static build from S3 and forwards everything else to the web function       |
-| **Lambda: web**         | Next.js 16 (Node 24) through the Lambda Web Adapter; renders pages and orchestrates the AI calls                       |
-| **Lambda: api**         | Spring Boot 4.1 on Java 25 with SnapStart; parsing, schema inference, validation and aggregation                       |
-| **S3**                  | Uploaded CSVs (expired by a lifecycle rule), the static Next.js build and the archived usage events                   |
-| **DynamoDB**            | Dataset schemas, share links and per-client counters, with TTL cleaning up after them                                 |
-| **EventBridge + SQS**   | Usage events (counts and timings, never file contents) fan out to a queue that an archiver function drains into S3    |
-| **Redshift Serverless** | A weekly load from S3 feeds SQL views for activity, chart type mix, AI usage and render latency                       |
+| Service                 | Role                                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **CloudFront**          | The single public entry point; serves the static build from S3 and forwards everything else to the web function      |
+| **Lambda: web**         | Next.js 16 (Node 24) through the Lambda Web Adapter; renders pages and orchestrates the AI calls                     |
+| **Lambda: api**         | Spring Boot 4.1 on Java 25 with SnapStart; parsing, schema inference, validation and aggregation                     |
+| **S3**                  | Uploaded CSVs (expired by a lifecycle rule), the static Next.js build and the archived usage events                  |
+| **DynamoDB**            | Dataset schemas, share links and per-client counters, with TTL cleaning up after them                                |
+| **EventBridge + SQS**   | Usage events (counts and timings, never file contents) fan out to a queue that an archiver function drains into S3   |
+| **Redshift Serverless** | A weekly load from S3 feeds SQL views for activity, chart type mix, AI usage and render latency                      |
 | **IAM**                 | The web function signs every call to the api; the api is not reachable from the browser except through allowed paths |
 
 Everything is serverless, so nothing runs while no one visits. The infrastructure is defined in AWS CDK as five stacks (data, event pipeline, app, analytics, CI). GitHub Actions runs the test suites on every pull request and, after a merge to `main`, deploys through an OIDC role with no stored AWS keys and smoke-tests the live site.
