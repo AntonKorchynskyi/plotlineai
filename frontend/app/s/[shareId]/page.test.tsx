@@ -44,11 +44,11 @@ describe("the shared chart page", () => {
     expect(mocks.fetchShare).toHaveBeenCalledWith("8f3c1a7e");
   });
 
-  it("shows its own link and says the snapshot outlives the dataset", async () => {
+  it("shows its id and says the snapshot outlives the dataset", async () => {
     mocks.fetchShare.mockResolvedValue(share);
     await show();
 
-    expect(screen.getByText("/s/8f3c1a7e")).toBeInTheDocument();
+    expect(screen.getByText("8f3c1a7e")).toBeInTheDocument();
     expect(screen.getByText(/17 September 2026/)).toBeInTheDocument();
     expect(screen.getByText(/keeps working after the dataset expires/i)).toBeInTheDocument();
   });

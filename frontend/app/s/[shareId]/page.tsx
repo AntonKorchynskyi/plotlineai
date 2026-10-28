@@ -27,7 +27,7 @@ export default async function SharePage({
     <PageShell className="pt-13 pb-30">
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="tag tag-accent">Read only</span>
-        <span className="font-mono text-small text-ink-faint">/s/{share.shareId}</span>
+        <span className="font-mono text-small text-ink-faint">{share.shareId}</span>
       </div>
       <h2 className="mb-1 text-page">{share.renderedData.title}</h2>
       <p className="mb-6 max-w-[60em] text-small text-ink-muted">

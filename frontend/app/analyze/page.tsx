@@ -37,8 +37,8 @@ export default function AnalyzePage() {
         <SampleData onUse={flow.upload} />
         <div className="mt-10 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))]">
           {[
-            ["1. Parse", "The Java service streams your file, infers each column's type and counts distinct values."],
-            ["2. Suggest", "The agent sees the schema and twenty sample rows, never the whole file, and returns three chart specs."],
+            ["1. Parse", "The service streams your file, infers each column's type and counts distinct values."],
+            ["2. Suggest", "The agent sees the schema and returns three chart specs."],
             ["3. Render", "Each spec is checked against the real schema, then aggregated over every row before it is drawn."],
           ].map(([heading, body]) => (
             <div key={heading}>
