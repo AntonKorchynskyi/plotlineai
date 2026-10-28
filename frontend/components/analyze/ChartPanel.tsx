@@ -143,9 +143,6 @@ export default function ChartPanel({
           <pre className="m-0 overflow-x-auto font-mono text-[12px] leading-relaxed whitespace-pre text-ink-muted">
             {formatSpec(spec)}
           </pre>
-          <span className="text-meta text-ink-faint">
-            Every column checked against the stored schema before rendering.
-          </span>
         </div>
       </div>
     </>
