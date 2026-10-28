@@ -73,21 +73,10 @@ The model only ever produces a spec, never data or markup, so a chart can't show
 
 ## Architecture
 
-```
-                        ┌──────────────────────────── AWS ────────────────────────────┐
- browser ──► CloudFront ┼─► web Lambda (Next.js) ──► OpenAI                           │
-    │                   │        │ IAM-signed calls                                   │
-    │                   │        ▼                                                    │
-    │                   │   api Lambda (Spring Boot) ──► DynamoDB   (schemas, shares) │
-    │                   │        │                   └─► S3         (CSV files)       │
-    └── presigned PUT ──┼────────┼─────────────────────► S3                           │
-                        │        ▼                                                    │
-                        │   EventBridge ─► SQS ─► archiver Lambda ─► S3 (events)      │
-                        │                                              │ weekly       │
-                        │                                              ▼              │
-                        │                                   Redshift Serverless       │
-                        └─────────────────────────────────────────────────────────────┘
-```
+<!-- The diagram is an Excalidraw file with the scene embedded: open it at excalidraw.com to edit, then export as SVG with "Embed scene" on. -->
+<p align="center">
+<img src="docs/architecture.excalidraw.svg" alt="The browser reaches CloudFront, which forwards to the web Lambda (Next.js). Web calls OpenAI, and calls the api Lambda (Spring Boot) with IAM-signed requests. The api reads and writes DynamoDB and the uploads bucket in S3, which the browser fills directly with a presigned PUT. Web and api send usage events to EventBridge, then SQS, then an archiver Lambda that writes them to S3, and a weekly load moves them into Redshift Serverless.">
+</p>
 
 | Service                 | Role                                                                                                                  |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
