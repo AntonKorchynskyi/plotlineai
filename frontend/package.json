@@ -12,12 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.101",
-    "@aws-sdk/client-dynamodb": "^3.1156.0",
-    "@aws-sdk/client-eventbridge": "^3.1156.0",
-    "@aws-sdk/client-secrets-manager": "^3.1156.0",
-    "@aws-sdk/client-ssm": "^3.1156.0",
-    "ai": "^7.0.150",
+    "@ai-sdk/openai": "^4.0.105",
+    "@aws-sdk/client-dynamodb": "^3.1160.0",
+    "@aws-sdk/client-eventbridge": "^3.1160.0",
+    "@aws-sdk/client-secrets-manager": "^3.1160.0",
+    "@aws-sdk/client-ssm": "^3.1160.0",
+    "ai": "^7.0.157",
     "aws4fetch": "^1.0.20",
     "chart.js": "^4.6.1",
     "next": "16.4.3",
