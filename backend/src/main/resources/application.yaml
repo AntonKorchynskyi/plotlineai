@@ -1,6 +1,11 @@
 spring:
   application:
     name: backend
+  autoconfigure:
+    # spring-cloud-function-serverless-web (from the Lambda container) would swap Tomcat for a
+    # no-op server, so the api would listen on nothing outside Lambda. Lambda does not need it:
+    # SpringBootLambdaContainerHandler registers its own ServletWebServerFactory.
+    exclude: org.springframework.cloud.function.serverless.web.ServerlessAutoConfiguration
   jackson:
     deserialization:
       fail-on-unknown-properties: true
