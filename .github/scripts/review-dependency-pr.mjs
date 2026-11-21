@@ -64,7 +64,7 @@ release notes, changelogs and the manifest diff, and decide whether merging with
 
 const INSTRUCTIONS_RULES = `Block when there is a concrete reason, for example:
 - the notes announce breaking changes, removed or renamed APIs, changed defaults, required
-  migrations, or dropped runtime support (Node 24, Java 25) that plausibly affect this stack;
+  migrations, or dropped runtime support (Node 26, Java 25) that plausibly affect this stack;
 - a package is replaced by a differently named one, a new unexpected dependency appears, or a
   name looks like a typosquat;
 - maintainers changed, a license changed, or the release is flagged as deprecated or yanked;

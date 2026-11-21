@@ -80,7 +80,7 @@ The model only ever produces a spec, never data or markup, so a chart can't show
 | Service                 | Role                                                                                                                 |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **CloudFront**          | The single public entry point; serves the static build from S3 and forwards everything else to the web function      |
-| **Lambda: web**         | Next.js 16 (Node 24) through the Lambda Web Adapter; renders pages and orchestrates the AI calls                     |
+| **Lambda: web**         | Next.js 16 (Node 26) through the Lambda Web Adapter; renders pages and orchestrates the AI calls                     |
 | **Lambda: api**         | Spring Boot 4.1 on Java 25 with SnapStart; parsing, schema inference, validation and aggregation                     |
 | **S3**                  | Uploaded CSVs (expired by a lifecycle rule), the static Next.js build and the archived usage events                  |
 | **DynamoDB**            | Dataset schemas, share links and per-client counters, with TTL cleaning up after them                                |

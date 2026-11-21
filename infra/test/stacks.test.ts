@@ -181,7 +181,7 @@ describe("PipelineStack", () => {
   it("drains the queue in batches, retrying only the messages that failed", () => {
     pipeline.hasResourceProperties("AWS::Lambda::Function", {
       FunctionName: "plotlineai-event-archiver",
-      Runtime: "nodejs24.x",
+      Runtime: "nodejs26.x",
       Handler: "index.handler",
       MemorySize: 256,
       Timeout: 30,
@@ -271,9 +271,9 @@ describe("AppStack", () => {
     });
   });
 
-  it("runs web on nodejs24.x behind the Web Adapter, with a public URL locked by the origin check", () => {
+  it("runs web on nodejs26.x behind the Web Adapter, with a public URL locked by the origin check", () => {
     const web = functionNamed("plotlineai-web");
-    expect(web.Properties.Runtime).toBe("nodejs24.x");
+    expect(web.Properties.Runtime).toBe("nodejs26.x");
     expect(web.Properties.Handler).toBe("run.sh");
     expect(web.Properties.Timeout).toBe(60);
     const env = web.Properties.Environment.Variables;
@@ -460,7 +460,7 @@ describe("AnalyticsStack", () => {
     });
     analytics.hasResourceProperties("AWS::Lambda::Function", {
       FunctionName: "plotlineai-redshift-loader",
-      Runtime: "nodejs24.x",
+      Runtime: "nodejs26.x",
       Timeout: 300,
       Environment: {
         Variables: Match.objectLike({ WORKGROUP_NAME: "plotlineai", DATABASE_NAME: "analytics" }),
