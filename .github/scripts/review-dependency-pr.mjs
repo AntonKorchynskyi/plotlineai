@@ -45,10 +45,14 @@ export function awsModulesUsed(...dirs) {
 
 export function instructions(awsModules) {
   const cdk = awsModules.length
-    ? `aws-cdk-lib releases list "BREAKING CHANGES" to generated L1 resources of many AWS services in
-almost every release. They only matter here if the service is one of the modules this CDK app
-imports: ${awsModules.join(", ")}. A breaking change to any other service (or to an -alpha package
-not in that list) does not affect this project and is no reason to block.`
+    ? `aws-cdk-lib releases list "BREAKING CHANGES" to generated L1 resources (Cfn* types: a property,
+attribute or type removed or renamed to match the CloudFormation schema) in almost every release.
+Those are compile-time type changes: the required infra check type-checks and synthesizes this CDK
+app, so one that touched code here would fail CI and nothing would merge. On their own they are
+never a reason to block, whichever service they name. Other aws-cdk-lib changes (L2 constructs,
+changed defaults, feature flags, deprecations) only matter if they concern a module this CDK app
+imports: ${awsModules.join(", ")}. A change to any other service (or to an -alpha package not in
+that list) does not affect this project and is no reason to block.`
     : "";
   return `${INSTRUCTIONS_HEAD}\n\n${cdk}\n\n${INSTRUCTIONS_RULES}`;
 }
