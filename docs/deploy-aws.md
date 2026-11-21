@@ -250,7 +250,7 @@ platform that built it; Docker does that on Windows:
 
 ```bash
 (cd backend && ./mvnw -B package -DskipTests)
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/frontend:/app" -w /app node:24 \
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/frontend:/app" -w /app node:26 \
   sh -c "npm ci && npm run build && npm run build:lambda"
 cd infra
 npm ci && npm run build:lambda

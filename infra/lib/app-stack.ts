@@ -124,7 +124,7 @@ export class AppStack extends Stack {
 
     const web = new lambda.Function(this, "Web", {
       functionName: "plotlineai-web",
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_26_X,
       architecture: lambda.Architecture.X86_64,
       code: props.webCode,
       handler: "run.sh",

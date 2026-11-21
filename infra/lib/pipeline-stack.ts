@@ -85,7 +85,7 @@ export class PipelineStack extends Stack {
 
     this.archiver = new lambda.Function(this, "Archiver", {
       functionName: "plotlineai-event-archiver",
-      runtime: lambda.Runtime.NODEJS_24_X,
+      runtime: lambda.Runtime.NODEJS_26_X,
       architecture: lambda.Architecture.X86_64,
       code: props.archiverCode,
       handler: "index.handler",
