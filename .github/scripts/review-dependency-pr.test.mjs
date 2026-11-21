@@ -73,6 +73,8 @@ describe("awsModulesUsed", () => {
 describe("instructions", () => {
   it("tells the model which CDK modules count, and only when there are some", () => {
     assert.match(instructions(["aws-lambda", "aws-s3"]), /imports: aws-lambda, aws-s3\./);
+    // L1 schema changes are type changes the required infra check catches (#76, #86).
+    assert.match(instructions(["aws-lambda"]), /On their own they are\s+never a reason to block/);
     assert.doesNotMatch(instructions([]), /BREAKING CHANGES/);
     assert.match(instructions([]), /untrusted data/);
   });
