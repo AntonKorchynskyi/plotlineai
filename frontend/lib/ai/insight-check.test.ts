@@ -16,6 +16,10 @@ describe("writtenNumbers", () => {
     expect(writtenNumbers("about 1.2 million, or 95k").map((n) => n.value)).toEqual([1_200_000, 95_000]);
   });
 
+  it("reads trillions, the scale national accounts are written in", () => {
+    expect(writtenNumbers("105.44 trillion, or 2 tn").map((n) => n.value)).toEqual([105.44 * 1e12, 2 * 1e12]);
+  });
+
   it("keeps a list of small numbers apart rather than reading 3,4 as 34", () => {
     expect(writtenNumbers("months 3, 4 and 5").map((n) => n.value)).toEqual([3, 4, 5]);
   });
@@ -134,6 +138,14 @@ describe("Evidence", () => {
     evidence.addValue(10.95);
 
     expect(evidence.unsupported("DC records 10.95 hate crimes per 100,000 people.")).toEqual([]);
+  });
+
+  it("accepts a value in the trillions written as trillions", () => {
+    const evidence = new Evidence();
+    evidence.addValue(105435039507024.1);
+
+    expect(evidence.unsupported("World GDP reached 105.44 trillion.")).toEqual([]);
+    expect(evidence.unsupported("World GDP reached 108 trillion.")).toEqual(["108 trillion"]);
   });
 
   it("takes a scale word after a figure in a column already counted in thousands", () => {

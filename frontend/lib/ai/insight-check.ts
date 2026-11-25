@@ -39,13 +39,16 @@ const SCALES: Record<string, number> = {
   bn: 1e9,
   b: 1e9,
   billion: 1e9,
+  // National accounts: world GDP is about 105 trillion, which models write as such.
+  tn: 1e12,
+  trillion: 1e12,
 };
 
 // Grouped thousands (1,234,500) or plain digits, an optional fraction, then an optional scale
 // word or percent sign. A comma not followed by exactly three digits ends the number, so a
 // list such as "3, 4" stays two numbers.
 const NUMBER =
-  /(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(\s*(?:%|percentage points?\b|percent\b|k\b|thousand\b|million\b|m\b|bn\b|b\b|billion\b))?/gi;
+  /(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(\s*(?:%|percentage points?\b|percent\b|k\b|thousand\b|million\b|m\b|bn\b|b\b|billion\b|tn\b|trillion\b))?/gi;
 
 const SMALL_COUNT = 12;
 
