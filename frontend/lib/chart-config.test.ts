@@ -141,11 +141,13 @@ describe("toChartConfig", () => {
   });
 
   describe("lines", () => {
-    it("applies the documented stroke, tension, points and fill", () => {
+    it("applies the documented stroke, curve, points and fill", () => {
       const d = dataset(fixture("monthly-signups"));
       expect(d.borderColor).toBe(CHART_PALETTE[0]);
       expect(d.borderWidth).toBe(3);
-      expect(d.tension).toBe(0.38);
+      // A monotone curve never swings past its points: it cannot draw a value the data lacks.
+      expect(d.cubicInterpolationMode).toBe("monotone");
+      expect(d.tension).toBeUndefined();
       expect(d.pointRadius).toBe(3);
       expect(d.fill).toBe(true);
       expect(d.backgroundColor).toBe("rgba(198,113,57,0.14)");
@@ -296,6 +298,32 @@ describe("toChartConfig", () => {
       const o = options(fixture("price-vs-rating"));
       expect(o.scales.x.grid.color).toBe(CHART_GRID);
       expect(o.scales.y.grid.color).toBe(CHART_GRID);
+    });
+
+    it("keeps value-axis numbers level, and leaves category labels free to turn", () => {
+      const upright = options(fixture("revenue-by-region"));
+      expect(upright.scales.y.ticks.maxRotation).toBe(0);
+      // Room between them, so a narrow preview drops every other number rather than crowd them.
+      expect(upright.scales.y.ticks.autoSkipPadding).toBe(12);
+      expect(upright.scales.x.ticks.maxRotation).toBeUndefined();
+
+      const sideways = options(synthetic({ chartType: "horizontalBar" }));
+      expect(sideways.scales.x.ticks.maxRotation).toBe(0);
+      expect(sideways.scales.y.ticks.maxRotation).toBeUndefined();
+
+      const points = options(fixture("price-vs-rating"));
+      expect(points.scales.x.ticks.maxRotation).toBe(0);
+      expect(points.scales.y.ticks.maxRotation).toBe(0);
+    });
+
+    it("writes value-axis numbers from a million up in compact form", () => {
+      const tick = options(fixture("revenue-by-region")).scales.y.ticks.callback;
+      expect(tick(4e12, 0, [])).toBe("4T");
+      expect(tick(3.5e12, 0, [])).toBe("3.5T");
+      expect(tick(500e9, 0, [])).toBe("500B");
+      expect(tick(1.25e6, 0, [])).toBe("1.25M");
+      expect(tick(-2e6, 0, [])).toBe("-2M");
+      expect(options(fixture("revenue-by-region")).scales.x.ticks.callback).toBeUndefined();
     });
   });
 

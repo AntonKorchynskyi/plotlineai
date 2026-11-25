@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyzeState, InsightsState } from "@/lib/analyze/use-analyze";
@@ -255,6 +255,22 @@ describe("the chart screen", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Sort ascending" }));
     expect(flow.describe).toHaveBeenCalledWith("Sort ascending");
+  });
+
+  it("offers no chip that turns the chart into the type it already is", () => {
+    show(state);
+    expect(screen.getByRole("button", { name: "Show it as a line" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make it a doughnut" })).toBeInTheDocument();
+    cleanup();
+
+    show({ ...state, spec: { ...spec, chartType: "line" } });
+    expect(screen.queryByRole("button", { name: "Show it as a line" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make it a doughnut" })).toBeInTheDocument();
+    cleanup();
+
+    show({ ...state, spec: { ...spec, chartType: "doughnut" } });
+    expect(screen.queryByRole("button", { name: "Make it a doughnut" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show it as a line" })).toBeInTheDocument();
   });
 
   it("shares, then shows the link with a copy control", async () => {
