@@ -171,7 +171,7 @@ describe("the ai.called event", () => {
   it("reports a successful call with the model and its token counts", async () => {
     mocks.suggestCharts.mockImplementation(async (_dataset, deps) => {
       Object.assign(deps.record, {
-        model: "gpt-5-nano",
+        model: "gpt-6-luna",
         inputTokens: 1500,
         outputTokens: 950,
         reasoningTokens: 680,
@@ -187,7 +187,7 @@ describe("the ai.called event", () => {
     const { fields, options } = reported();
     expect(fields).toEqual({
       route: "suggest",
-      model: "gpt-5-nano",
+      model: "gpt-6-luna",
       inputTokens: 1500,
       outputTokens: 950,
       reasoningTokens: 680,

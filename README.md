@@ -100,7 +100,7 @@ Locally the same app runs in Docker Compose: Caddy takes the place of CloudFront
 |           |                                                                                    |
 | --------- | ---------------------------------------------------------------------------------- |
 | Frontend  | Next.js 16, React 19, Tailwind CSS 4, Chart.js 4                                   |
-| AI        | Vercel AI SDK 7, OpenAI `gpt-5-nano` (charts) and `gpt-5-mini` (insights), Zod 4   |
+| AI        | Vercel AI SDK 7, OpenAI `gpt-6-luna` (charts) and `gpt-6.1-terra` (insights), Zod 4 |
 | Backend   | Spring Boot 4.1, Java 25                                                           |
 | Storage   | DynamoDB, S3                                                                       |
 | Analytics | EventBridge, SQS, Redshift Serverless                                              |

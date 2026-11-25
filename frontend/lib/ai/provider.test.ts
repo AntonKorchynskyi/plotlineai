@@ -10,18 +10,18 @@ describe("callSettings", () => {
     expect(() => callSettings()).toThrow(AiUnavailableError);
   });
 
-  it("defaults to gpt-5-nano", () => {
+  it("defaults to gpt-6-luna", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     vi.stubEnv("AI_MODEL", "");
     const { model } = callSettings();
-    expect(typeof model === "object" && model.modelId).toBe("gpt-5-nano");
+    expect(typeof model === "object" && model.modelId).toBe("gpt-6-luna");
   });
 
   it("honours AI_MODEL", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
-    vi.stubEnv("AI_MODEL", "gpt-5-mini");
+    vi.stubEnv("AI_MODEL", "gpt-6.1-terra");
     const { model } = callSettings();
-    expect(typeof model === "object" && model.modelId).toBe("gpt-5-mini");
+    expect(typeof model === "object" && model.modelId).toBe("gpt-6.1-terra");
   });
 
   it("bounds the output and keeps reasoning effort low", () => {
@@ -45,19 +45,19 @@ describe("callSettings", () => {
 });
 
 describe("insightSettings", () => {
-  it("defaults to gpt-5-mini, apart from the chart model", () => {
+  it("defaults to gpt-6.1-terra, apart from the chart model", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
-    vi.stubEnv("AI_MODEL", "gpt-5-nano");
+    vi.stubEnv("AI_MODEL", "gpt-6-luna");
     vi.stubEnv("AI_INSIGHTS_MODEL", "");
     const { model } = insightSettings();
-    expect(typeof model === "object" && model.modelId).toBe("gpt-5-mini");
+    expect(typeof model === "object" && model.modelId).toBe("gpt-6.1-terra");
   });
 
   it("honours AI_INSIGHTS_MODEL", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
-    vi.stubEnv("AI_INSIGHTS_MODEL", "gpt-5-nano");
+    vi.stubEnv("AI_INSIGHTS_MODEL", "gpt-6-luna");
     const { model } = insightSettings();
-    expect(typeof model === "object" && model.modelId).toBe("gpt-5-nano");
+    expect(typeof model === "object" && model.modelId).toBe("gpt-6-luna");
   });
 
   it("refuses to build a model without a key", () => {

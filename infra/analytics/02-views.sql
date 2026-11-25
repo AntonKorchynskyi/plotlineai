@@ -76,13 +76,16 @@ GROUP BY chart_type;
 -- What the AI calls cost each day, in US dollars at the model's list price. Output tokens
 -- include the reasoning tokens. Cached input bills at a tenth of the input price, and events
 -- do not count it, so this is an upper bound. A model missing from `prices` shows a NULL cost:
--- add its price here.
+-- add its price here. Retired models stay, so older days keep their cost.
 DROP VIEW IF EXISTS public.ai_cost_daily CASCADE;
 CREATE VIEW public.ai_cost_daily AS
 WITH prices AS (
-  SELECT 'gpt-5-nano'::VARCHAR(64) AS model,
-    0.05::DECIMAL(10, 4) AS input_usd_per_million,
-    0.40::DECIMAL(10, 4) AS output_usd_per_million
+  SELECT 'gpt-6-luna'::VARCHAR(64) AS model,
+    0.10::DECIMAL(10, 4) AS input_usd_per_million,
+    0.50::DECIMAL(10, 4) AS output_usd_per_million
+  UNION ALL SELECT 'gpt-6.1-terra', 1.00, 5.00
+  UNION ALL SELECT 'gpt-5-nano', 0.05, 0.40
+  UNION ALL SELECT 'gpt-5-mini', 0.25, 2.00
 )
 SELECT
   e.dt AS day,
