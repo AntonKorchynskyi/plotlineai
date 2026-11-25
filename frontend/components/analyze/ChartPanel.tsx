@@ -11,11 +11,12 @@ import { formatSpec, pngFileName } from "@/lib/analyze/labels";
 import type { RenderedData } from "@/lib/chart-config";
 import type { ChartSpec } from "@/lib/chart-spec";
 
-const REFINE_CHIPS = [
-  "Make it a doughnut",
-  "Top five only",
-  "Sort ascending",
-  "Show it as a line",
+/** Quick refinements, each with the chart type it would turn the chart into, if any. */
+const REFINE_CHIPS: { text: string; makes?: ChartSpec["chartType"] }[] = [
+  { text: "Make it a doughnut", makes: "doughnut" },
+  { text: "Top five only" },
+  { text: "Sort ascending" },
+  { text: "Show it as a line", makes: "line" },
 ];
 
 /**
@@ -121,15 +122,16 @@ export default function ChartPanel({
             onSubmit={onRefine}
           />
           <div className="flex flex-wrap gap-2">
-            {REFINE_CHIPS.map((chip) => (
+            {/* A chip that would leave the chart as it is ("Show it as a line" on a line) is not offered. */}
+            {REFINE_CHIPS.filter((chip) => chip.makes !== spec.chartType).map((chip) => (
               <button
-                key={chip}
+                key={chip.text}
                 type="button"
                 className="btn btn-secondary text-small"
                 disabled={busy}
-                onClick={() => onRefine(chip)}
+                onClick={() => onRefine(chip.text)}
               >
-                {chip}
+                {chip.text}
               </button>
             ))}
           </div>

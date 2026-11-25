@@ -1,4 +1,4 @@
-import type { ChartConfiguration } from "chart.js";
+import { Ticks, type ChartConfiguration, type Scale, type Tick } from "chart.js";
 
 /**
  * Maps a backend RenderResponse onto a Chart.js configuration.
@@ -70,10 +70,28 @@ const STACKABLE = new Set<ChartTypeName>(["bar", "area"]);
 
 const color = (index: number) => CHART_PALETTE[index % CHART_PALETTE.length];
 
-const axis = (showGrid: boolean, stacked: boolean) => ({
-  grid: showGrid ? { color: CHART_GRID } : { display: false },
+const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 });
+
+/**
+ * A value-axis number from a million up in compact form ("4T", not "4,000,000,000,000", which
+ * crowded the chart off its card); below that, Chart.js's own formatting.
+ */
+function valueTick(this: Scale, value: number | string, index: number, ticks: Tick[]) {
+  const n = Number(value);
+  return Math.abs(n) >= 1e6 ? COMPACT.format(n) : Ticks.formatters.numeric.call(this, n, index, ticks);
+}
+
+/**
+ * A value axis carries the grid, and its numbers stay level: Chart.js leaves some out rather
+ * than tilting them. A category axis keeps the default, since tilting can fit every label.
+ */
+const axis = (value: boolean, stacked: boolean) => ({
+  grid: value ? { color: CHART_GRID } : { display: false },
   border: { display: false },
-  ticks: { font: { size: 12 } },
+  ticks: {
+    font: { size: 12 },
+    ...(value ? { maxRotation: 0, autoSkipPadding: 12, callback: valueTick } : {}),
+  },
   ...(stacked ? { stacked: true } : {}),
 });
 
@@ -137,7 +155,9 @@ export function toChartConfig(
         borderColor: color(i),
         backgroundColor: tint(color(i)),
         borderWidth: 3,
-        tension: 0.38,
+        // Smooth, but never past a point: a plain tension curve dipped below a month's real
+        // value between two points, drawing a figure the data does not have.
+        cubicInterpolationMode: "monotone",
         fill: filled ? (stacked && i > 0 ? "-1" : true) : false,
         pointRadius: 3,
         pointBackgroundColor: color(i),
