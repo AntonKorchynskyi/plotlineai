@@ -157,7 +157,7 @@ export class AppStack extends Stack {
         ORIGIN_VERIFY_SECRET_ARN: originSecret.secretArn,
         // The origin the api's presigned URLs point at, for the page's CSP (connect-src).
         UPLOAD_ORIGIN: `https://${data.dataBucket.bucketDomainName}`,
-        AI_MODEL: "gpt-5-nano",
+        AI_MODEL: "gpt-6-luna",
         EVENT_BUS_NAME: pipeline.bus.eventBusName,
       },
     });

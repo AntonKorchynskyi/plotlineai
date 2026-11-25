@@ -11,7 +11,9 @@ export const MARKER = "<!-- dependabot-review -->";
 const BODY_LIMIT = 40_000;
 const DIFF_LIMIT = 30_000;
 const TIMEOUT_MS = 120_000;
-const DEFAULT_MODEL = "gpt-5-mini";
+// OpenAI's successor to gpt-5-mini, which shuts down on 2026-12-11. A review reads at most
+// about 18k tokens, so this costs a few cents per pull request.
+const DEFAULT_MODEL = "gpt-6.1-terra";
 const AUTO_MERGE_TYPES = new Set(["version-update:semver-minor", "version-update:semver-patch"]);
 
 const LOCKFILES = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json)$/;
