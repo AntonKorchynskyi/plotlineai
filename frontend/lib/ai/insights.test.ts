@@ -538,6 +538,18 @@ describe("generateInsights", () => {
       expect(sent).not.toContain("look like totals");
       expect(sent).toContain("share %");
     });
+
+    it("takes the label of a whole-file answer, All rows, for the whole file, not a total row", async () => {
+      const model = researchThenWrite([modelQuery({ dimension: null, sort: null, limit: null })], [
+        "Revenue totals 1,143,850.",
+      ]);
+
+      await generateInsights(dataset, { settings: settingsFor(model), budget: freshBudget(), query: answering([total]) });
+
+      const sent = toolResultsSentOn(model, 1).join();
+      expect(sent).not.toContain("look like totals");
+      expect(sent).toContain('"totals"');
+    });
   });
 
   it("leaves out shares when a breakdown's series include a total of the others", async () => {

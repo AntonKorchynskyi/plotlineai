@@ -271,7 +271,9 @@ async function research(dataset: DatasetDetail, evidence: Evidence, deps: Insigh
         // Rows such as "World" or "High income" beside the countries they total, as groups or as
         // a breakdown's series: a share of their sum counts everything twice, and the model gave
         // such shares despite its rules.
-        const aggregate = result.labels.find(isTotalLabel);
+        // A whole-file answer has one group, which the api labels "All rows": that is the file
+        // itself, not a row totalling the others.
+        const aggregate = input.dimension ? result.labels.find(isTotalLabel) : undefined;
         const aggregateSeries = input.breakdown
           ? result.series.map((s) => s.label).find(isTotalLabel)
           : undefined;
