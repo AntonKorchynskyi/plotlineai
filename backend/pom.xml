@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.2</version>
+		<version>4.2.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.plotlineai</groupId>
@@ -28,7 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
-		<awssdk.version>2.59.0</awssdk.version>
+		<awssdk.version>2.59.5</awssdk.version>
 		<s3mock.version>5.2.3</s3mock.version>
 		<serverless-java-container.version>3.0.5</serverless-java-container.version>
 	</properties>
